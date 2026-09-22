@@ -15,9 +15,9 @@ Este repositorio contiene código y Pull Requests. No contiene Issues ni Product
 
 ## Estado
 
-**Andamiaje desplegado.** Desde el 2026-09-16 corre en producción en el nodo `app` y Caddy le envía `https://nexus.simuladorupbbga.app/api/v1/missions*`. Arranca, verifica identidad, firma y comprueba el contrato interno, expone sus sondas y conecta con su base, que ya existe con usuario propio.
+Desde el 2026-09-16 corre en producción en el nodo `app` y Caddy le envía `https://nexus.simuladorupbbga.app/api/v1/missions*`. Arranca, verifica identidad, firma y comprueba el contrato interno, expone sus sondas y conecta con su base, que ya existe con usuario propio.
 
-**No tiene todavía ninguna ruta de negocio ni ninguna tabla o colección**: las añade cada Historia de Usuario. Mientras tanto, cualquier ruta bajo ese prefijo responde `404` desde NestJS.
+**Primera ruta de negocio: HU-75** (Task HU-75.2, ver [docs/hu-75-mission-difficulty.md](docs/hu-75-mission-difficulty.md)). `mission_difficulty_clears` (migración `001-mission-difficulty-clears`) es la primera tabla. Cualquier otra ruta bajo el prefijo sigue respondiendo `404` desde NestJS hasta que la HU correspondiente la añada. Llega a producción con la siguiente promoción de `develop` a `main`.
 
 ## Qué posee este contexto
 
