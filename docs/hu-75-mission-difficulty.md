@@ -61,11 +61,32 @@ Dos casos de la matriz de aislamiento, "fallo o abandono" y "matrícula sin term
 
 ## Pruebas
 
-| Suite                                                                                       | Qué demuestra                                                                                                                                                           |
-| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `test/unit/difficulty-policy.spec.ts`                                                       | La matriz de transición del diseño fila por fila, el motivo exacto del contrato y el 422 de la validación                                                               |
-| `test/unit/list-mission-difficulties.spec.ts`                                               | Los fixtures del contrato y la matriz de aislamiento: otra misión, otro jugador y un salto de nivel no desbloquean                                                      |
-| `test/unit/difficulty-level.spec.ts` y `difficulty-scaling.spec.ts`                         | Vocabulario cerrado, escala del tablón rechazada y Mítico sin número inventado                                                                                          |
-| `test/unit/in-memory-difficulty-clear-repository.spec.ts` y `missions-error-mapper.spec.ts` | Idempotencia del doble, claves sin colisión y los códigos `PROGRESSION_LOCKED`, `UNKNOWN_DIFFICULTY` y `DEPENDENCY_UNAVAILABLE`                                         |
-| `test/integration/mission-difficulty-http.spec.ts`                                          | La ruta real con JWT y rol: 401, 403, respuesta completa, aislamiento por testimonio, 400 y 503                                                                         |
-| `test/db/postgres-difficulty-clear-repository.spec.ts`                                      | PostgreSQL real: aislamiento, idempotencia concurrente, fecha del primer hecho, y que el motor rechaza un nivel desconocido y un duplicado sin pasar por el repositorio |
+| Suite                                                                                       | Qué demuestra                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test/unit/difficulty-policy.spec.ts`                                                       | La matriz de transición del diseño fila por fila, el motivo exacto del contrato y el 422 de la validación                                                                                                     |
+| `test/unit/list-mission-difficulties.spec.ts`                                               | Los fixtures del contrato y la matriz de aislamiento: otra misión, otro jugador y un salto de nivel no desbloquean                                                                                            |
+| `test/unit/difficulty-level.spec.ts` y `difficulty-scaling.spec.ts`                         | Vocabulario cerrado, escala del tablón rechazada y Mítico sin número inventado                                                                                                                                |
+| `test/unit/in-memory-difficulty-clear-repository.spec.ts` y `missions-error-mapper.spec.ts` | Idempotencia del doble, claves sin colisión y los códigos `PROGRESSION_LOCKED`, `UNKNOWN_DIFFICULTY` y `DEPENDENCY_UNAVAILABLE`                                                                               |
+| `test/integration/mission-difficulty-http.spec.ts`                                          | La ruta real con JWT y rol: 401, 403, respuesta completa, aislamiento por testimonio, 400 y 503                                                                                                               |
+| `test/db/postgres-difficulty-clear-repository.spec.ts`                                      | PostgreSQL real: aislamiento, idempotencia concurrente, fecha del primer hecho, y que el motor rechaza un nivel desconocido y un duplicado sin pasar por el repositorio                                       |
+| `test/db/hu-75-difficulty.e2e.spec.ts`                                                      | Task HU-75.4, de punta a punta con servidor Nest real, HTTP real y PostgreSQL real: los escenarios P-02 a P-05, la matriz de aislamiento, la idempotencia y que el progreso sobrevive a reiniciar el servicio |
+
+## Cómo reproducir
+
+```bash
+npm ci
+npm run test:unit
+npm run test:integration
+npm run test:db        # requiere Docker: levanta PostgreSQL real con Testcontainers
+npm run build
+```
+
+Integración local con Web, sin Cognito: el servicio corre en memoria en el puerto al que el servidor de desarrollo de Web envía `/api`.
+
+```bash
+npm run build
+NODE_ENV=development AUTH_MODE=disabled PERSISTENCE_DRIVER=memory PORT=3000 node dist/main.js
+curl http://localhost:3000/api/v1/missions/msn_templo-olvidado/difficulties
+```
+
+Con `AUTH_MODE=disabled` la identidad es `anonymous` y la tabla está vacía, así que la respuesta es el primer fixture del contrato: solo Normal libre. Ese modo no arranca con `NODE_ENV=production`.
