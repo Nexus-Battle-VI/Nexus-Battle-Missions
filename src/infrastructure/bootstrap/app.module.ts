@@ -3,16 +3,27 @@ import { APP_GUARD, Reflector } from '@nestjs/core'
 import type { Kysely } from 'kysely'
 
 import { HealthController } from '../../adapters/inbound/http/health.controller'
+import { MissionDifficultyController } from '../../adapters/inbound/http/mission-difficulty.controller'
 import { READINESS_CHECKS, VERSION_REPORT } from '../../adapters/inbound/http/tokens.health'
 import { AnonymousIdentityGuard } from '../../adapters/inbound/http/auth/anonymous.guard'
 import { InternalServiceGuard } from '../../adapters/inbound/http/auth/internal-service.guard'
 import { JwtAuthGuard } from '../../adapters/inbound/http/auth/jwt-auth.guard'
 import { RolesGuard } from '../../adapters/inbound/http/auth/roles.guard'
 import { CognitoTokenVerifier } from '../../adapters/outbound/identity/CognitoTokenVerifier'
+import { InMemoryDifficultyClearRepository } from '../../adapters/outbound/persistence/InMemoryDifficultyClearRepository'
+import { PostgresDifficultyClearRepository } from '../../adapters/outbound/persistence/PostgresDifficultyClearRepository'
 import type { Database } from '../../adapters/outbound/persistence/schema'
 import { SystemClock } from '../../adapters/outbound/system/SystemClock'
 import { CLOCK, type ClockPort } from '../../application/ports/ClockPort'
+import {
+  DIFFICULTY_CLEAR_REPOSITORY,
+  type DifficultyClearRepositoryPort,
+} from '../../application/ports/DifficultyClearRepositoryPort'
 import { TOKEN_VERIFIER, type TokenVerifierPort } from '../../application/ports/TokenVerifierPort'
+import {
+  LIST_MISSION_DIFFICULTIES,
+  ListMissionDifficulties,
+} from '../../application/use-cases/ListMissionDifficulties'
 import { AuthMode, loadConfig, PersistenceDriver, type AppConfig } from '../config/env'
 import type { ReadinessCheck, VersionReport } from '../health/health'
 import { describeError } from '../observability/describe-error'
@@ -42,7 +53,7 @@ export const INTERNAL_CALLERS: readonly string[] = []
  * independiente del framework.
  */
 @Module({
-  controllers: [HealthController],
+  controllers: [HealthController, MissionDifficultyController],
   providers: [
     {
       provide: APP_CONFIG,
@@ -173,6 +184,25 @@ export const INTERNAL_CALLERS: readonly string[] = []
         nodeEnv: config.nodeEnv,
       }),
       inject: [APP_CONFIG],
+    },
+    {
+      // Historial de niveles completados (HU-75). Mismo criterio que la base:
+      // PostgreSQL con su driver, el doble en memoria solo en desarrollo.
+      provide: DIFFICULTY_CLEAR_REPOSITORY,
+      useFactory: (
+        config: AppConfig,
+        db: Kysely<Database> | null,
+      ): DifficultyClearRepositoryPort =>
+        config.persistenceDriver === PersistenceDriver.Postgres && db !== null
+          ? new PostgresDifficultyClearRepository(db)
+          : new InMemoryDifficultyClearRepository(),
+      inject: [APP_CONFIG, DATABASE],
+    },
+    {
+      provide: LIST_MISSION_DIFFICULTIES,
+      useFactory: (clears: DifficultyClearRepositoryPort): ListMissionDifficulties =>
+        new ListMissionDifficulties(clears),
+      inject: [DIFFICULTY_CLEAR_REPOSITORY],
     },
   ],
 })
