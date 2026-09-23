@@ -29,6 +29,8 @@ Desde el 2026-09-16 corre en producción en el nodo `app` y Caddy le envía `htt
 
 **Encuentro con el Máster: HU-73** (Task HU-73.2, ver [docs/hu-73-master.md](docs/hu-73-master.md)). Sin rutas nuevas: la solicitud a Combat lleva el bloque `master` con la probabilidad del subtipo del héroe, el cierre guarda la evidencia de cada punto de evaluación (migración `006-mission-master-encounters`) y el planificador pide la épica de cada Máster derrotado a Player/Inventory, una sola vez. Player/Inventory todavía no acepta a `missions` en su ruta de entregas y la épica aún no es un producto de Catalog: hasta entonces, cada entrega queda pendiente y se reintenta.
 
+**Logros y reconocimientos: HU-76** (Task HU-76.2, ver [docs/hu-76-logros.md](docs/hu-76-logros.md)). `GET /api/v1/missions/me/achievements` devuelve los logros del jugador con su progreso y su reconocimiento. Un paso del mismo planificador los evalúa con lo que ya guardan los clears, los reportes y la evidencia del Máster, y los desbloquea una sola vez (migración `007-mission-achievements`); los títulos y las insignias quedan registrados y los cosméticos se piden a Player/Inventory como las épicas. El catálogo aprobado está vacío hasta que lo fije el PO: hasta entonces, la ruta responde `{ items: [] }`.
+
 ## Qué posee este contexto
 
 - Definiciones de misión y tablón.

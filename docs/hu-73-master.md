@@ -129,8 +129,9 @@ Usa `PLAYER_INVENTORY_BASE_URL`, `INTERNAL_SERVICE_AUTH_SECRET` e `INTERNAL_HTTP
 - **Combat:** recibe el bloque `master` de la solicitud y devuelve en `summary.master` las evaluaciones y los encuentros del contrato, con el mismo `levelOffset`.
 - **Player/Inventory:** añadir `missions` a los servicios autorizados de `inventory/grants`; el cuerpo es el de HU-59 sin cambios.
 - **Catalog:** publicar la épica como producto y poner su `productId` en `epic.productId`; las entregas en espera siguen solas.
-- **HU-10 y HU-76:** el hecho `MissionSettled` trae `masterEncounters`.
-- **Migraciones:** esta es la `006`. La siguiente historia usa la `007`.
+- **HU-10:** el hecho `MissionSettled` trae `masterEncounters`.
+- **HU-76 (hecho en HU-76.2):** lee de `mission_master_encounters` los Máster derrotados y el estado de la entrega de cada épica, y cuenta las entregadas (`GRANTED`) de cada jugador para evaluarlo otra vez cuando una llega tarde. Ver [hu-76-logros.md](hu-76-logros.md).
+- **Migraciones:** esta es la `006`. HU-76 añadió la `007`; la siguiente historia usa la `008`.
 
 ## Pruebas
 

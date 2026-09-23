@@ -89,7 +89,8 @@ El cierre inserta la foto con `on conflict do nothing`: repetirlo no la duplica 
 - **Web (HU-74.3):** ante `404 REPORT_NOT_AVAILABLE` muestra `endsAt`. El historial pagina con `nextCursor` sin interpretarlo, y una misión con `reportAvailable: false` no tiene reporte que abrir.
 - **HU-73.2 (hecho):** `missionReportOf` lista en `enemies.masters` los Máster que aparecieron y el cierre crea la línea `EPIC` (`source: HU-73`) de cada uno derrotado; la entrega cambia su estado. La colección de épicas empareja cada línea con su Máster por orden de aparición. Ver [hu-73-master.md](hu-73-master.md).
 - **HU-10:** crea sus líneas (`CREDITS`, `PRODUCT` y `EXPERIENCE`, `source: HU-10`) en el cierre y actualiza su estado con `updateRewardStatus` (CU-74.4).
-- **Migraciones:** esta es la `005`. HU-73 añadió la `006`.
+- **HU-76 (hecho en HU-76.2):** lee los reportes `COMPLETED` del jugador con una proyección SQL propia y tolerante (daño recibido, duración simulada y encuentros), no con `listByPlayer`: una foto de otra versión no le hace fallar, solo deja de aportar evidencia. Ver [hu-76-logros.md](hu-76-logros.md).
+- **Migraciones:** esta es la `005`. HU-73 añadió la `006` y HU-76, la `007`.
 
 ## Pruebas
 

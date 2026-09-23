@@ -121,8 +121,10 @@ export const settlementOf = (
 
 /**
  * Hecho interno del cierre (contrato de HU-72, «Hecho interno al cerrar»). Lo
- * consumen HU-74 (reporte), HU-76 (logros), HU-10 (recompensas) y el aviso de
- * fin de mision. Se registra una sola vez por matricula.
+ * consumiran HU-10 (recompensas) y el aviso de fin de mision; HU-76 (logros) lo
+ * cuenta para saber a quien evaluar, sin marcarlo. El reporte de HU-74 no lo
+ * consume: se escribe en la misma transaccion del cierre. Se registra una sola
+ * vez por matricula.
  */
 export const missionSettledFact = (
   enrollment: MissionEnrollment,

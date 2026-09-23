@@ -126,7 +126,7 @@ El perfil del héroe usa `HERO_ABILITIES_DRIVER` y `PLAYER_INVENTORY_BASE_URL`, 
 | Aprobar `VOIDED`, `TIME_LIMIT` y `OBJECTIVES_NOT_MET`                      | Decisión del PO (decisiones 2 y 4)                                       |
 | Perfiles de los enemigos regulares y escalado por encuentro (`powerStep`)  | Contenido de las misiones (decisiones 7 y 8)                             |
 | Tirada, encuentro y estadísticas del Máster                                | Combat (Team Alfa); Missions ya envía el bloque `master` (HU-73.2)       |
-| Recompensas, logros y aviso de fin de misión                               | HU-10, HU-76 y Notifications, a partir de `MissionSettled`               |
+| Recompensas y aviso de fin de misión                                       | HU-10 y Notifications, a partir de `MissionSettled`                      |
 | Renovar el compromiso si Combat tarda más que el margen                    | Player/Inventory (decisión 11)                                           |
 | Esquema del perfil de combate del héroe; hoy se congela el cuerpo entero   | Player/Inventory y Combat (Team Alfa, decisión 10)                       |
 | Que abandonar (u otro cierre futuro) cierre también la ejecución           | La HU de cancelación; hoy solo HU-72 saca una matrícula de `IN_PROGRESS` |
@@ -135,9 +135,9 @@ El perfil del héroe usa `HERO_ABILITIES_DRIVER` y `PLAYER_INVENTORY_BASE_URL`, 
 
 - **HU-73 (Máster, hecho en HU-73.2):** `simulationRequestFor` lleva el bloque `master` y el cierre guarda la evidencia de cada punto y la entrega pendiente de cada épica. Ver [hu-73-master.md](hu-73-master.md).
 - **HU-74.2 (hecho):** el cierre crea el reporte de la misión en su misma transacción; una anulación no tiene reporte. Ver [hu-74-reporte.md](hu-74-reporte.md).
-- **HU-76 (logros) y HU-10 (recompensas):** consumen los `mission_facts` de tipo `MissionSettled` sin `processed_at`. El `payload` trae el resultado, el motivo, los objetivos, `simulationId` y, desde HU-73, `masterEncounters`; el resumen y la bitácora están en `mission_executions`, y la foto, en `mission_reports`. Una anulación llega con `missionOutcome: VOIDED` y sin objetivos.
+- **HU-76 (logros, hecho en HU-76.2) y HU-10 (recompensas):** leen los `mission_facts` de tipo `MissionSettled`. `processed_at` es solo de HU-72, para los `MissionEnrollmentStarted`: cada consumidor lleva su propio registro y no lo marca. HU-76 cuenta los hechos de cada jugador ([hu-76-logros.md](hu-76-logros.md)). El `payload` trae el resultado, el motivo, los objetivos, `simulationId` y, desde HU-73, `masterEncounters`; el resumen y la bitácora están en `mission_executions`, y la foto, en `mission_reports`. Una anulación llega con `missionOutcome: VOIDED` y sin objetivos.
 - **Web:** una misión anulada vuelve a mostrarse disponible. El resultado no existe para el jugador hasta `endsAt`.
-- **Migraciones:** esta es la `004`. HU-74 añadió la `005` y HU-73, la `006`.
+- **Migraciones:** esta es la `004`. HU-74 añadió la `005`; HU-73, la `006`, y HU-76, la `007`.
 
 ## Pruebas
 
