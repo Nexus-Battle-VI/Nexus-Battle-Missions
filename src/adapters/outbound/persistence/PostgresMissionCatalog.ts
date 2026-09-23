@@ -17,7 +17,9 @@ const toDefinition = (row: Selectable<MissionDefinitionsTable>): MissionDefiniti
   objectives: row.content.objectives,
   enemies: row.content.enemies,
   finalBoss: row.content.finalBoss,
-  masterEncounter: row.content.masterEncounter,
+  encounters: row.content.encounters,
+  // Un contenido que omite la clave es una mision sin Master, igual que `null`.
+  masterEncounter: row.content.masterEncounter ?? null,
   rewards: row.content.rewards,
   highlightedRewards: row.content.highlightedRewards,
   active: row.active,

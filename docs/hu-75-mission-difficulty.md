@@ -25,7 +25,7 @@ Missions pasa de andamiaje a tener su primera ruta y su primera tabla de negocio
 | Mítico sin multiplicador (`null`)                                                                 | Pendiente del PO: ni la HU ni el curso dan un número        | `difficulty-scaling.ts`                      |
 | `rewardTier`: `STANDARD`, `IMPROVED`, `PREMIUM` y `EXCLUSIVE`                                     | Propuesta P-D7, sujeta a acuerdo con HU-10                  | `difficulty-scaling.ts`                      |
 
-Missions no escala ninguna estadística: entrega el multiplicador y Combat lo aplicará cuando exista la simulación de HU-72.
+Missions no escala ninguna estadística: HU-72 envía el multiplicador a Combat en cada solicitud de simulación, y Combat lo aplicará cuando publique esa ruta.
 
 ## Modelo de datos
 
@@ -40,23 +40,23 @@ El registro es idempotente con `on conflict do nothing`: repetir el mismo hecho,
 
 ## Lo que queda pendiente, y de qué depende
 
-| Pendiente                                                                                    | Depende de                                                                                                                                               |
-| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Responder 404 a una misión que no está en el catálogo                                        | Contenido del catálogo en PostgreSQL. El tablón de HU-70 ya existe, pero en producción está vacío: validar hoy dejaría esta ruta en 404 para toda misión |
-| Registrar un nivel completado al terminar con éxito                                          | HU-72 ([#57](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/57)). Solo `SUCCESS` cuenta (propuesta P-D1)                              |
-| Enviar la dificultad y el multiplicador a Combat                                             | HU-72 y el endpoint interno de simulación de Combat                                                                                                      |
-| Montos y objetos por `rewardTier`                                                            | HU-10 ([#19](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/19))                                                                      |
-| Qué estadísticas escalan, su redondeo, los parámetros de Mítico y la nomenclatura del tablón | Decisiones del PO                                                                                                                                        |
+| Pendiente                                                                                    | Depende de                                                                                                                                                                |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Responder 404 a una misión que no está en el catálogo                                        | Contenido del catálogo en PostgreSQL. El tablón de HU-70 ya existe, pero en producción está vacío: validar hoy dejaría esta ruta en 404 para toda misión                  |
+| Registrar niveles completados en producción                                                  | La ruta de simulación de Combat. HU-72.2 ya registra el _clear_ al cerrar con éxito (solo `COMPLETED` cuenta, propuesta P-D1), pero sin Combat ninguna misión se completa |
+| Aplicar el multiplicador a los enemigos                                                      | Combat. HU-72.2 ya se lo envía en cada solicitud de simulación                                                                                                            |
+| Montos y objetos por `rewardTier`                                                            | HU-10 ([#19](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/19))                                                                                       |
+| Qué estadísticas escalan, su redondeo, los parámetros de Mítico y la nomenclatura del tablón | Decisiones del PO                                                                                                                                                         |
 
-Hasta que HU-72 registre niveles completados, la tabla está vacía en producción y todo jugador ve solo Normal disponible. Es el estado real del sistema, no un fallo.
+Hasta que Combat publique la simulación, ninguna misión se completa en producción: la tabla sigue vacía y todo jugador ve solo Normal disponible. Es el estado real del sistema, no un fallo.
 
-De la matriz de aislamiento, "matrícula sin terminar" se prueba desde HU-70 (`test/unit/hu-70-use-cases.spec.ts`): matricularse no crea un hecho de `mission_difficulty_clears`, y solo ese hecho desbloquea. "Fallo o abandono" no es representable hasta que HU-72 termine matrículas; se cumple por la misma construcción.
+De la matriz de aislamiento, "matrícula sin terminar" se prueba desde HU-70 (`test/unit/hu-70-use-cases.spec.ts`): matricularse no crea un hecho de `mission_difficulty_clears`, y solo ese hecho desbloquea. "Fallo" se prueba desde HU-72 (`test/unit/hu-72-use-cases.spec.ts`): una misión fallida o anulada no registra el _clear_, y una completada desbloquea Heroico. "Abandono" sigue sin contrato de cancelación.
 
 ## Cómo integrarse
 
 - **HU-70, matrícula (hecho en HU-70.2):** `EnrollInMission` lee `clearedLevels(playerId, missionId)` y llama a `assertDifficultyUnlocked` antes de persistir. El DTO acepta `difficulty` como cadena para que `parseDifficultyLevel` la rechace con `400 UNKNOWN_DIFFICULTY`. Ver [hu-70-matriculacion.md](hu-70-matriculacion.md).
-- **HU-72, simulación:** al recibir `SUCCESS`, llamar a `record(...)` con el `completedAt` del resultado, y enviar a Combat lo que devuelve `scalingOf(difficulty)`.
-- **Migraciones:** esta es la `001`. HU-70 añadió la `002`.
+- **HU-72.2 (hecho):** el cierre inserta el _clear_ en su misma transacción, solo si la misión termina `COMPLETED` y con la fecha del cierre. La solicitud a Combat lleva la dificultad y `scalingOf(difficulty).enemyStatMultiplier`. Ver [hu-72-simulacion.md](hu-72-simulacion.md).
+- **Migraciones:** esta es la `001`. HU-70 añadió la `002`, HU-71 la `003` y HU-72 la `004`.
 
 ## Pruebas
 

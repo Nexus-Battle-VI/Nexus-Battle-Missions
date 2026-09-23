@@ -2,11 +2,18 @@ import type {
   EnrollmentRepositoryPort,
   InsertPendingResult,
 } from '../../../application/ports/EnrollmentRepositoryPort'
+import type { StartedMission } from '../../../application/ports/ExecutionRepositoryPort'
 import {
   isActiveEnrollment,
   type MissionEnrollment,
   type MissionFact,
 } from '../../../domain/entities/MissionEnrollment'
+
+interface StoredFact {
+  readonly factId: string
+  readonly fact: MissionFact
+  processedAt: Date | null
+}
 
 /**
  * Doble de desarrollo y pruebas (`PERSISTENCE_DRIVER=memory`). Reproduce las
@@ -16,11 +23,57 @@ import {
  */
 export class InMemoryEnrollmentRepository implements EnrollmentRepositoryPort {
   private readonly enrollments = new Map<string, MissionEnrollment>()
-  private readonly facts: MissionFact[] = []
+  private readonly facts: StoredFact[] = []
 
   /** Hechos registrados, en orden. Solo para pruebas y diagnostico. */
   recordedFacts(): readonly MissionFact[] {
-    return [...this.facts]
+    return this.facts.map((stored) => stored.fact)
+  }
+
+  // Operaciones sincronas para el doble de ejecuciones de HU-72: su cierre
+  // escribe matricula, ejecucion, clear y hecho sin que otra operacion se cuele.
+
+  current(enrollmentId: string): MissionEnrollment | null {
+    return this.enrollments.get(enrollmentId) ?? null
+  }
+
+  /** Como `saveTransition`, sincrona. Un hecho repetido no se duplica (como en el motor). */
+  applyTransition(next: MissionEnrollment, expectedVersion: number, fact: MissionFact | null) {
+    if (this.enrollments.get(next.enrollmentId)?.version !== expectedVersion) {
+      return false
+    }
+
+    this.enrollments.set(next.enrollmentId, { ...next })
+
+    if (
+      fact !== null &&
+      !this.facts.some(
+        (stored) =>
+          stored.fact.type === fact.type && stored.fact.enrollmentId === fact.enrollmentId,
+      )
+    ) {
+      this.facts.push({ factId: String(this.facts.length + 1), fact, processedAt: null })
+    }
+
+    return true
+  }
+
+  /** Hechos `MissionEnrollmentStarted` sin procesar, en orden. */
+  pendingStartFacts(limit: number): readonly StartedMission[] {
+    return this.facts
+      .filter(
+        (stored) => stored.fact.type === 'MissionEnrollmentStarted' && stored.processedAt === null,
+      )
+      .slice(0, limit)
+      .map((stored) => ({ factId: stored.factId, enrollmentId: stored.fact.enrollmentId }))
+  }
+
+  markFactProcessed(factId: string, at: Date): void {
+    const stored = this.facts.find((candidate) => candidate.factId === factId)
+
+    if (stored !== undefined) {
+      stored.processedAt = at
+    }
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await
@@ -110,19 +163,7 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepositoryPort {
     expectedVersion: number,
     fact: MissionFact | null,
   ): Promise<boolean> {
-    const current = this.enrollments.get(next.enrollmentId)
-
-    if (current?.version !== expectedVersion) {
-      return false
-    }
-
-    this.enrollments.set(next.enrollmentId, { ...next })
-
-    if (fact !== null) {
-      this.facts.push(fact)
-    }
-
-    return true
+    return this.applyTransition(next, expectedVersion, fact)
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await

@@ -1,10 +1,12 @@
 import type {
+  MasterCandidate,
   MissionEnemy,
   MissionObjective,
   MissionRewards,
 } from '../../domain/entities/MissionDefinition'
 import { MissionNotFoundError } from '../../domain/errors/mission-errors'
 import { derivePlayerMissionStatus } from '../../domain/policies/EnrollmentPolicy'
+import { isRecord } from '../../domain/policies/SettlementPolicy'
 import {
   toIsoDuration,
   type MissionCategory,
@@ -20,7 +22,8 @@ export interface MissionDetailView {
   readonly name: string
   readonly category: MissionCategory
   readonly narrative: string
-  readonly objectives: readonly MissionObjective[]
+  /** Sin `rule`: como se evalua es interno del cierre de HU-72. */
+  readonly objectives: readonly Omit<MissionObjective, 'rule'>[]
   readonly estimatedDuration: string
   readonly recommendedPower: number | null
   readonly prerequisites: readonly string[]
@@ -33,10 +36,16 @@ export interface MissionDetailView {
     readonly stats: Readonly<Record<string, number>>
   }
   readonly masterEncounter: {
+    /**
+     * La mayor probabilidad configurada. La que aplica depende del subtipo del
+     * heroe que se matricule (HU-73, P-X2): el detalle aun no lo conoce.
+     */
     readonly probability: number
     readonly candidates: readonly {
       readonly name: string
       readonly heroType: string
+      /** Por subtipo del heroe; `"*"` vale para cualquiera (HU-73). */
+      readonly probabilityByHeroType: Readonly<Record<string, number>>
       readonly epic: {
         readonly name: string
         readonly generalEffect: string | null
@@ -48,6 +57,19 @@ export interface MissionDetailView {
   readonly playerStatus: PlayerMissionStatus
   readonly canEnroll: boolean
   readonly lockReason: string | null
+}
+
+/** Las probabilidades del candidato; un contenido sin ellas no rompe el detalle. */
+const probabilitiesOf = (candidate: MasterCandidate): Readonly<Record<string, number>> => {
+  const table: unknown = candidate.probabilityByHeroType
+
+  return isRecord(table)
+    ? Object.fromEntries(
+        Object.entries(table).filter(
+          (entry): entry is [string, number] => typeof entry[1] === 'number',
+        ),
+      )
+    : {}
 }
 
 /**
@@ -85,7 +107,7 @@ export class GetMissionDetail {
       name: definition.name,
       category: definition.category,
       narrative: definition.narrative,
-      objectives: definition.objectives,
+      objectives: definition.objectives.map(({ id, text, primary }) => ({ id, text, primary })),
       estimatedDuration: toIsoDuration(definition.estimatedDurationMinutes),
       recommendedPower: definition.recommendedPower,
       prerequisites: definition.prerequisites,
@@ -101,10 +123,16 @@ export class GetMissionDetail {
         stats: definition.finalBoss.stats,
       },
       masterEncounter: {
-        probability: master?.probability ?? 0,
+        probability: Math.max(
+          0,
+          ...(master?.candidates ?? []).flatMap((candidate) =>
+            Object.values(probabilitiesOf(candidate)),
+          ),
+        ),
         candidates: (master?.candidates ?? []).map((candidate) => ({
           name: candidate.name,
-          heroType: candidate.heroType,
+          heroType: candidate.subtype,
+          probabilityByHeroType: probabilitiesOf(candidate),
           epic: {
             name: candidate.epic.name,
             generalEffect: candidate.epic.generalEffect,

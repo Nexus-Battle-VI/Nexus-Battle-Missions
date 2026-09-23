@@ -14,3 +14,19 @@ export interface HeroAbilitiesPort {
 }
 
 export const HERO_ABILITIES = Symbol('HeroAbilitiesPort')
+
+/**
+ * Perfil de combate del mismo heroe (HU-72, decision 10 del diseno): se congela
+ * en la solicitud de simulacion y Missions no lo interpreta. Lo sirve la misma
+ * ruta propuesta a Player/Inventory que las habilidades.
+ */
+export type HeroProfileOutcome =
+  | { readonly kind: 'FOUND'; readonly profile: Readonly<Record<string, unknown>> }
+  | { readonly kind: 'NOT_OWNED' }
+  | { readonly kind: 'UNKNOWN'; readonly reason: string }
+
+export interface HeroProfilePort {
+  profileOf(playerId: string, heroId: string): Promise<HeroProfileOutcome>
+}
+
+export const HERO_PROFILES = Symbol('HeroProfilePort')

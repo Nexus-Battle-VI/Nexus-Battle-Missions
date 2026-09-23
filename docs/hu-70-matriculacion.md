@@ -8,8 +8,8 @@
 ## Qué implementa esta entrega
 
 - `GET /api/v1/missions` (JWT, rol `PLAYER`): el tablón, con los filtros opcionales `category` y `status`. Cada tarjeta trae `playerStatus`, `canEnroll`, `lockReason` y `activeEnrollmentId`, derivados para el jugador del testimonio.
-- `GET /api/v1/missions/{missionId}`: el detalle con todos los bloques de CA-06. Una misión sin Máster muestra probabilidad `0` y ningún candidato. Si no existe o no está activa: `404 MISSION_NOT_FOUND`.
-- `POST /api/v1/missions/{missionId}/enrollments` con la cabecera `Idempotency-Key` obligatoria. Valida en el orden del contrato, guarda la intención `PENDING`, reserva al héroe en Player/Inventory (compromiso `MISSION`) y confirma `IN_PROGRESS` con `startedAt` y `endsAt`. En la misma transacción registra el hecho interno `MissionEnrollmentStarted`, que consumirá HU-72.
+- `GET /api/v1/missions/{missionId}`: el detalle con todos los bloques de CA-06. Una misión sin Máster muestra probabilidad `0` y ningún candidato. Desde HU-73, `probability` es la mayor probabilidad configurada y cada candidato trae `probabilityByHeroType`, porque la que aplica depende del subtipo del héroe. Si no existe o no está activa: `404 MISSION_NOT_FOUND`.
+- `POST /api/v1/missions/{missionId}/enrollments` con la cabecera `Idempotency-Key` obligatoria. Valida en el orden del contrato, guarda la intención `PENDING`, reserva al héroe en Player/Inventory (compromiso `MISSION`) y confirma `IN_PROGRESS` con `startedAt` y `endsAt`. En la misma transacción registra el hecho interno `MissionEnrollmentStarted`, que consume HU-72 ([hu-72-simulacion.md](hu-72-simulacion.md)).
 - Un reconciliador de matrículas `PENDING`, apagado por defecto.
 - `400 VALIDATION_ERROR` con la forma común `{ code, message }` en todas las rutas. Lo produce `createValidationPipe`, que usan `main.ts` y las pruebas.
 - La migración `002-mission-enrollments`.
@@ -49,9 +49,9 @@ Sigue el patrón de reserva de ADR-019: primero se guarda la intención con su `
 
 La migración `002-mission-enrollments` crea tres tablas:
 
-- `mission_definitions`: lo que muestra el tablón. Objetivos, enemigos, jefe, Máster y recompensas van en `content` (`jsonb`), que se lee entero.
+- `mission_definitions`: lo que muestra el tablón. Objetivos, enemigos, jefe, Máster (con la forma del contrato de HU-73) y recompensas van en `content` (`jsonb`), que se lee entero.
 - `mission_enrollments`: una fila por matrícula, con `version` para el bloqueo optimista de cada transición.
-- `mission_facts`: hechos internos. HU-72 marcará `processed_at` al consumir `MissionEnrollmentStarted`.
+- `mission_facts`: hechos internos. HU-72 marca `processed_at` al programar la simulación de cada `MissionEnrollmentStarted`.
 
 Las invariantes viven en el motor:
 
@@ -66,21 +66,21 @@ Una fila que viola varias restricciones solo informa la primera que el motor com
 
 ## Lo que queda pendiente, y de qué depende
 
-| Pendiente                                                                               | Depende de                                                          |
-| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Rutas de compromiso y de liberación en Player/Inventory                                 | Team Alfa, con la propuesta del contrato de HU-70                   |
-| Misiones reales en el catálogo de PostgreSQL                                            | Contenido aprobado por el PO; hoy solo existe el ejemplo en memoria |
-| Qué es «mazo completo»                                                                  | Decisión del PO (P-M7)                                              |
-| Simular, terminar la matrícula (`COMPLETED`, `FAILED` o `ABANDONED`) y liberar al héroe | HU-72.2, que consume `MissionEnrollmentStarted`                     |
-| Rechazar JcJ, torneo o cambios de equipo mientras la matrícula está en curso (CA-05)    | Combat, Torneo y Player/Inventory, con el compromiso vigente        |
-| Mensajes que nombren las ranuras que faltan                                             | Los nombres de familia y de ranura, que fija Player/Inventory       |
+| Pendiente                                                                            | Depende de                                                            |
+| ------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| Rutas de compromiso y de liberación en Player/Inventory                              | Team Alfa, con la propuesta del contrato de HU-70                     |
+| Misiones reales en el catálogo de PostgreSQL                                         | Contenido aprobado por el PO; hoy solo existe el ejemplo en memoria   |
+| Qué es «mazo completo»                                                               | Decisión del PO (P-M7)                                                |
+| Abandonar una matrícula en curso (`ABANDONED`)                                       | Decisión del PO: no hay contrato de cancelación (decisión 3 de HU-72) |
+| Rechazar JcJ, torneo o cambios de equipo mientras la matrícula está en curso (CA-05) | Combat, Torneo y Player/Inventory, con el compromiso vigente          |
+| Mensajes que nombren las ranuras que faltan                                          | Los nombres de familia y de ranura, que fija Player/Inventory         |
 
 ## Cómo integrarse
 
 - **Web:** genera la `Idempotency-Key` al pulsar «Iniciar misión» y la reutiliza en los reintentos de esa pulsación. Ante un `503` con `enrollmentStatus: PENDING`, reintenta con la misma clave. Muestra `message` tal cual.
-- **HU-72:** lee los `mission_facts` de tipo `MissionEnrollmentStarted` sin `processed_at`. Cierra la matrícula con una transición nueva del dominio y `saveTransition`, que exige la `version` leída.
+- **HU-72.2 (hecho):** consume los `mission_facts` de tipo `MissionEnrollmentStarted`, pide la simulación a Combat y cierra la matrícula con `closeEnrollment` (`COMPLETED`, `FAILED` o `VOIDED`), exigiendo la `version` leída. Libera al héroe con el `operationId` de esta reserva. Ver [hu-72-simulacion.md](hu-72-simulacion.md).
 - **HU-71.2 (hecho):** la matrícula compara `strategyVersion` con la estrategia guardada para ese jugador, héroe y misión, y congela una copia de sus rotaciones. Ver [hu-71-rotaciones.md](hu-71-rotaciones.md).
-- **Migraciones:** esta es la `002`. HU-71 añadió la `003`.
+- **Migraciones:** esta es la `002`. HU-71 añadió la `003` y HU-72 la `004`.
 
 ## Pruebas
 

@@ -17,6 +17,9 @@ export const ENROLLMENT_STATUSES = [
   'ABANDONED',
   'REJECTED',
   'EXPIRED',
+  // Anulacion tecnica (HU-72, propuesta P-S7): sin penalizacion, sin clear y sin
+  // recompensas. No es un resultado de la mision para el jugador.
+  'VOIDED',
 ] as const
 
 export type EnrollmentStatus = (typeof ENROLLMENT_STATUSES)[number]
@@ -69,7 +72,8 @@ export interface MissionEnrollment {
 
 /** Hecho interno de Missions, registrado en la misma transaccion que la transicion. */
 export interface MissionFact {
-  readonly type: 'MissionEnrollmentStarted'
+  /** `MissionEnrollmentStarted` lo consume HU-72; `MissionSettled`, HU-74, HU-76 y HU-10. */
+  readonly type: 'MissionEnrollmentStarted' | 'MissionSettled'
   readonly enrollmentId: string
   readonly payload: Readonly<Record<string, unknown>>
   readonly createdAt: Date
@@ -172,6 +176,22 @@ export const expireEnrollment = (enrollment: MissionEnrollment, now: Date): Miss
   requirePending(enrollment, 'EXPIRED')
 
   return { ...enrollment, status: 'EXPIRED', finishedAt: now, version: enrollment.version + 1 }
+}
+
+/**
+ * Cierre de HU-72: la mision en curso termina con su resultado (CA-04 y CA-06) o
+ * se anula por un error tecnico (P-S7). Solo una matricula EN CURSO se cierra.
+ */
+export const closeEnrollment = (
+  enrollment: MissionEnrollment,
+  status: 'COMPLETED' | 'FAILED' | 'VOIDED',
+  now: Date,
+): MissionEnrollment => {
+  if (enrollment.status !== 'IN_PROGRESS') {
+    throw new InvalidEnrollmentTransitionError(enrollment.status, status)
+  }
+
+  return { ...enrollment, status, finishedAt: now, version: enrollment.version + 1 }
 }
 
 /** Hecho que HU-72 consumira para arrancar la simulacion. */

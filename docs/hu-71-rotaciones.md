@@ -54,20 +54,20 @@ El guardado usa `insert ... on conflict do nothing` para la primera versión y `
 
 ## Lo que queda pendiente, y de qué depende
 
-| Pendiente                                                                     | Depende de                                                      |
-| ----------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| Habilidades por `heroId` en Player/Inventory, y autorizar a `missions`        | Team Alfa (decisión 7 del diseño)                               |
-| Aplicar la estrategia en cada turno y anotarlo en la bitácora (CA-02 y CA-03) | Combat (Team Alfa) y HU-72.2, que le enviará la copia congelada |
-| Editor de rotaciones en Web                                                   | HU-71.3                                                         |
-| Qué es el «estado de salud del héroe» en la viabilidad                        | Decisión del PO (decisión 5)                                    |
-| Si la habilidad épica cabe en una rotación                                    | HU-31 y el PO (decisión 6)                                      |
-| Si la estrategia es por misión o reutilizable entre misiones                  | Decisión del PO (decisión 1)                                    |
+| Pendiente                                                                     | Depende de                                                 |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Habilidades por `heroId` en Player/Inventory, y autorizar a `missions`        | Team Alfa (decisión 7 del diseño)                          |
+| Aplicar la estrategia en cada turno y anotarlo en la bitácora (CA-02 y CA-03) | Combat (Team Alfa); HU-72.2 ya le envía la copia congelada |
+| Editor de rotaciones en Web                                                   | HU-71.3                                                    |
+| Qué es el «estado de salud del héroe» en la viabilidad                        | Decisión del PO (decisión 5)                               |
+| Si la habilidad épica cabe en una rotación                                    | HU-31 y el PO (decisión 6)                                 |
+| Si la estrategia es por misión o reutilizable entre misiones                  | Decisión del PO (decisión 1)                               |
 
 ## Cómo integrarse
 
 - **Web (HU-71.3):** un `404 STRATEGY_NOT_FOUND` significa que aún no hay estrategia. Guarda con la `expectedVersion` que leyó; ante `409 VERSION_CONFLICT`, recarga antes de volver a guardar. Al matricularse envía la versión que muestra, y ante `409 STRATEGY_VERSION_MISMATCH` recarga la estrategia. Sin estrategia debe avisar de que la IA solo usará el ataque básico (P-R9).
-- **HU-72:** arma el bloque `strategy` con `strategyVersion` y `rotations` de la matrícula, más `fallback: BASIC_ATTACK`. Si `rotations` está vacío, todas las acciones son el respaldo.
-- **Migraciones:** esta es la `003`. La siguiente historia usa la `004`.
+- **HU-72.2 (hecho):** `simulationRequestFor` arma el bloque `strategy` con `strategyVersion` y `rotations` de la matrícula, más `fallback: BASIC_ATTACK`. Si `rotations` está vacío, todas las acciones son el respaldo. Ver [hu-72-simulacion.md](hu-72-simulacion.md).
+- **Migraciones:** esta es la `003`. HU-72 añadió la `004`.
 
 ## Pruebas
 
