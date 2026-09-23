@@ -10,6 +10,7 @@ import { EXAMPLE_MISSIONS } from '../../src/adapters/outbound/persistence/exampl
 import { InMemoryDifficultyClearRepository } from '../../src/adapters/outbound/persistence/InMemoryDifficultyClearRepository'
 import { InMemoryEnrollmentRepository } from '../../src/adapters/outbound/persistence/InMemoryEnrollmentRepository'
 import { InMemoryExecutionRepository } from '../../src/adapters/outbound/persistence/InMemoryExecutionRepository'
+import { InMemoryReportRepository } from '../../src/adapters/outbound/persistence/InMemoryReportRepository'
 import type { SimulationCallOutcome } from '../../src/application/ports/CombatSimulationPort'
 import {
   simulationRequestFor,
@@ -361,7 +362,15 @@ describe('InMemoryExecutionRepository (HU-72)', () => {
       await enrollments.saveTransition(confirmed, 0, enrollmentStartedFact(confirmed))
     }
 
-    return { enrollments, clears, executions: new InMemoryExecutionRepository(enrollments, clears) }
+    return {
+      enrollments,
+      clears,
+      executions: new InMemoryExecutionRepository(
+        enrollments,
+        clears,
+        new InMemoryReportRepository(),
+      ),
+    }
   }
 
   const queued = (enrollmentId: string, now = AT) =>
@@ -456,6 +465,8 @@ describe('InMemoryExecutionRepository (HU-72)', () => {
         completedAt: ENDS,
       },
       fact: missionSettledFact(enrollment, settlement, 'sim_op-sim', ENDS),
+      masters: [],
+      report: null,
     }
 
     await expect(executions.close({ ...closure, enrollmentVersion: 0 })).resolves.toBe(false)

@@ -14,6 +14,15 @@ import {
 } from '../../domain/entities/MissionExecution'
 import { scalingOf } from '../../domain/value-objects/difficulty-scaling'
 import { toIsoDuration } from '../../domain/value-objects/mission-category'
+import type { ReportRecord, ReportRewardLine } from '../../domain/entities/MissionReport'
+import {
+  epicRewardsOf,
+  heroSubtypeOf,
+  masterConfigProblem,
+  masterEncounterRecordsOf,
+  simulationMasterOf,
+} from '../../domain/policies/MasterPolicy'
+import { missionReportOf, type ReportInput } from '../../domain/policies/ReportPolicy'
 import {
   missionSettledFact,
   settlementOf,
@@ -71,7 +80,8 @@ const bossProfileOf = (boss: MissionBoss): Readonly<Record<string, unknown>> => 
 /**
  * Solicitud a Combat con lo que Missions tiene congelado (P-S4): la duracion y
  * las rotaciones de la matricula, la dificultad de HU-75 y los encuentros del
- * contenido. El bloque `master` lo completa HU-73.2.
+ * contenido. El bloque `master` lleva la probabilidad ya resuelta para el
+ * subtipo del heroe (HU-73, P-X2).
  */
 export const simulationRequestFor = (
   execution: MissionExecution,
@@ -112,7 +122,10 @@ export const simulationRequestFor = (
           : { enemyRef, name: names.get(enemyRef) ?? enemyRef, count, profile: null },
       ),
     })),
-    master: null,
+    master:
+      definition.masterEncounter === null
+        ? null
+        : simulationMasterOf(definition.masterEncounter, heroSubtypeOf(heroProfile)),
   }
 }
 
@@ -282,6 +295,15 @@ export class RunMissionExecutions {
       return null
     }
 
+    // HU-73 (P-X5): un Master mal configurado no llega a Combat.
+    if (
+      definition.masterEncounter !== null &&
+      masterConfigProblem(definition.masterEncounter, definition.encounters.length) !== null
+    ) {
+      await this.voidMission(execution, enrollment, 'INVALID_MASTER_CONFIG', tally)
+      return null
+    }
+
     const hero = await this.heroes.profileOf(enrollment.playerId, enrollment.heroId)
 
     switch (hero.kind) {
@@ -317,13 +339,26 @@ export class RunMissionExecutions {
       return
     }
 
-    if (result === null || facts === null) {
+    // HU-73: la evidencia del Master tiene que cuadrar con lo que se envio.
+    const evidence =
+      result === null || facts === null
+        ? null
+        : masterEncounterRecordsOf({
+            enrollmentId: enrollment.enrollmentId,
+            config: definition.masterEncounter,
+            sent: execution.request?.master ?? null,
+            summary: result.summary,
+            facts,
+          })
+
+    if (result === null || facts === null || evidence === null) {
       await this.voidMission(execution, enrollment, 'INVALID_SIMULATION_RESULT', tally)
       return
     }
 
     const now = this.clock.now()
     const settlement = settlementOf(result.combatOutcome, definition.objectives, facts)
+    const epics = epicRewardsOf(evidence, definition.masterEncounter, now)
     const closed = await this.executions.close({
       enrollment: closeEnrollment(enrollment, settlement.outcome, now),
       enrollmentVersion: enrollment.version,
@@ -339,11 +374,43 @@ export class RunMissionExecutions {
               completedAt: now,
             }
           : null,
-      fact: missionSettledFact(enrollment, settlement, result.simulationId, now),
+      fact: missionSettledFact(enrollment, settlement, result.simulationId, now, epics.records),
+      // HU-73: la evidencia del Master y las entregas pendientes de sus epicas.
+      masters: epics.records,
+      report: this.reportFor(
+        {
+          enrollment,
+          definition,
+          result,
+          settlement,
+          heroProfile: execution.request?.hero.profile ?? null,
+          masters: epics.records,
+          generatedAt: now,
+        },
+        epics.rewards,
+      ),
     })
 
     if (closed) {
       tally.settled += 1
+    }
+  }
+
+  /**
+   * HU-74 (P-T1): el reporte nace en la misma transaccion del cierre. Por ahora
+   * solo HU-73 aporta lineas (la epica de cada Master derrotado); las de
+   * creditos, productos y experiencia las calculara HU-10.
+   *
+   * Si la foto no se puede armar, la mision se cierra igual y el fallo se
+   * informa: queda en el historial sin reporte, que es mejor que un heroe
+   * reservado para siempre por un cierre que falla en cada ciclo.
+   */
+  private reportFor(input: ReportInput, rewards: readonly ReportRewardLine[]): ReportRecord | null {
+    try {
+      return { report: missionReportOf(input), rewards }
+    } catch (error: unknown) {
+      this.options.onError?.(input.enrollment.enrollmentId, error)
+      return null
     }
   }
 
@@ -368,6 +435,10 @@ export class RunMissionExecutions {
         execution.result?.simulationId ?? null,
         now,
       ),
+      // Una anulacion no deja evidencia del Master ni epica (P-X6).
+      masters: [],
+      // HU-74 (P-T3): una anulacion aparece en el historial sin reporte.
+      report: null,
     })
 
     if (closed) {

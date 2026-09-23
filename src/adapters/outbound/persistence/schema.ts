@@ -1,5 +1,9 @@
 import type { ColumnType, Generated } from 'kysely'
 
+import type {
+  EpicGrantStatus,
+  MasterEncounterStatus,
+} from '../../../domain/entities/MasterEncounterRecord'
 import type { MissionDefinition } from '../../../domain/entities/MissionDefinition'
 import type {
   EnrollmentRejection,
@@ -15,6 +19,12 @@ import type {
   ObjectiveResult,
   SimulationRequest,
 } from '../../../domain/entities/MissionExecution'
+import type {
+  ReportOutcome,
+  RewardKind,
+  RewardSource,
+  RewardStatus,
+} from '../../../domain/entities/MissionReport'
 
 /**
  * Esquema de la base de datos del servicio, tipado para Kysely.
@@ -34,6 +44,9 @@ export interface Database {
   readonly mission_facts: MissionFactsTable
   readonly mission_strategies: MissionStrategiesTable
   readonly mission_executions: MissionExecutionsTable
+  readonly mission_reports: MissionReportsTable
+  readonly mission_report_rewards: MissionReportRewardsTable
+  readonly mission_master_encounters: MissionMasterEncountersTable
 }
 
 /**
@@ -141,6 +154,62 @@ export interface MissionExecutionsTable {
   readonly settled_at: Date | null
   readonly hero_released_at: Date | null
   readonly version: number
+}
+
+/**
+ * Reportes de mision (HU-74, migracion `005-mission-reports`). La foto entera va
+ * en `snapshot` y no se actualiza nunca: ninguna columna admite `update`.
+ */
+export interface MissionReportsTable {
+  readonly enrollment_id: ColumnType<string, string, never>
+  readonly player_id: ColumnType<string, string, never>
+  readonly mission_id: ColumnType<string, string, never>
+  readonly category: ColumnType<MissionCategory, MissionCategory, never>
+  readonly difficulty: ColumnType<DifficultyLevel, DifficultyLevel, never>
+  readonly outcome: ColumnType<ReportOutcome, ReportOutcome, never>
+  readonly finished_at: ColumnType<Date, Date, never>
+  readonly schema_version: ColumnType<number, number, never>
+  /** La valida quien la escribe (`PostgresReportRepository`); aqui es opaca. */
+  readonly snapshot: ColumnType<unknown, string, never>
+  readonly generated_at: ColumnType<Date, Date, never>
+}
+
+/** Lineas de recompensa de cada reporte (HU-74): solo cambian su estado y su fecha. */
+export interface MissionReportRewardsTable {
+  readonly enrollment_id: ColumnType<string, string, never>
+  readonly line_no: ColumnType<number, number, never>
+  readonly kind: ColumnType<RewardKind, RewardKind, never>
+  readonly reference: ColumnType<string | null, string | null, never>
+  readonly name: ColumnType<string, string, never>
+  readonly rarity: ColumnType<string | null, string | null, never>
+  readonly quantity: ColumnType<number, number, never>
+  readonly status: RewardStatus
+  readonly source: ColumnType<RewardSource, RewardSource, never>
+  readonly updated_at: Date
+}
+
+/**
+ * Evidencia del Master por matricula (HU-73, migracion
+ * `006-mission-master-encounters`). Lo escribe el cierre; despues solo cambia la
+ * entrega de la epica.
+ */
+export interface MissionMasterEncountersTable {
+  readonly enrollment_id: ColumnType<string, string, never>
+  readonly sequence: ColumnType<number, number, never>
+  readonly after_encounter: ColumnType<number | null, number | null, never>
+  readonly master_ref: ColumnType<string | null, string | null, never>
+  readonly status: ColumnType<MasterEncounterStatus, MasterEncounterStatus, never>
+  readonly epic_ref: ColumnType<string | null, string | null, never>
+  readonly level_offset: ColumnType<number | null, number | null, never>
+  readonly turns: ColumnType<number | null, number | null, never>
+  readonly grant_operation_id: ColumnType<string | null, string | null, never>
+  readonly grant_status: EpicGrantStatus | null
+  readonly grant_attempts: ColumnType<number, number | undefined, number>
+  readonly grant_next_attempt_at: Date | null
+  readonly grant_last_error: string | null
+  readonly granted_at: Date | null
+  readonly reward_line_no: ColumnType<number | null, number | null, never>
+  readonly grant_product_id: string | null
 }
 
 /** Hechos internos de Missions (`MissionEnrollmentStarted`); los consume HU-72. */

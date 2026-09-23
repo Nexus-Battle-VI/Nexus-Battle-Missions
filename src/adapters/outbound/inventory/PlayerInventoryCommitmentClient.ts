@@ -6,13 +6,8 @@ import type {
   HeroCommitmentPort,
 } from '../../../application/ports/HeroCommitmentPort'
 import type { BusyWith, MissingSlot, ReadinessBlocker } from '../../../domain/errors/mission-errors'
-import {
-  INTERNAL_SERVICE_HEADER,
-  INTERNAL_SIGNATURE_HEADER,
-  INTERNAL_TIMESTAMP_HEADER,
-  signInternalRequest,
-} from '../identity/internal-signature'
 import { isRecord, readJson } from './json'
+import { signedPost } from './signed-post'
 
 export interface PlayerInventoryClientOptions {
   /** Sin barra final, p. ej. `http://player-inventory:3002`. */
@@ -28,7 +23,6 @@ export interface PlayerInventoryClientOptions {
 /** Solo ruta, estado y motivo: nunca el cuerpo, que puede llevar datos del jugador. */
 export type FailureDetail = Readonly<Record<string, string | number | null>>
 
-const SERVICE = 'missions'
 const BUSY_WITH: readonly BusyWith[] = ['MISSION', 'BATTLE', 'TOURNAMENT', 'AUCTION']
 
 /**
@@ -45,11 +39,7 @@ const BUSY_WITH: readonly BusyWith[] = ['MISSION', 'BATTLE', 'TOURNAMENT', 'AUCT
  * autorizan a suponer que la reserva no ocurrio.
  */
 export class PlayerInventoryCommitmentClient implements HeroCommitmentPort {
-  private readonly fetchImpl: typeof fetch
-
-  constructor(private readonly options: PlayerInventoryClientOptions) {
-    this.fetchImpl = options.fetchImpl ?? fetch
-  }
+  constructor(private readonly options: PlayerInventoryClientOptions) {}
 
   async commit(request: CommitHeroRequest): Promise<CommitHeroOutcome> {
     const path = `/api/internal/v1/inventory/heroes/${encodeURIComponent(request.heroId)}/commitments`
@@ -139,39 +129,8 @@ export class PlayerInventoryCommitmentClient implements HeroCommitmentPort {
     }
   }
 
-  private async post(
-    path: string,
-    body: Readonly<Record<string, unknown>>,
-  ): Promise<Response | null> {
-    const timestamp = String(this.options.clock.now().getTime())
-    const signature = signInternalRequest(this.options.secret, {
-      service: SERVICE,
-      method: 'POST',
-      path,
-      timestamp,
-      body,
-    })
-
-    try {
-      return await this.fetchImpl(`${this.options.baseUrl}${path}`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          [INTERNAL_SERVICE_HEADER]: SERVICE,
-          [INTERNAL_TIMESTAMP_HEADER]: timestamp,
-          [INTERNAL_SIGNATURE_HEADER]: signature,
-        },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(this.options.timeoutMs),
-      })
-    } catch (error: unknown) {
-      this.fail('player_inventory_inalcanzable', {
-        path,
-        reason: error instanceof Error ? error.name : 'desconocido',
-      })
-
-      return null
-    }
+  private post(path: string, body: Readonly<Record<string, unknown>>): Promise<Response | null> {
+    return signedPost(this.options, path, body)
   }
 
   private fail(event: string, detail: FailureDetail): void {

@@ -1,3 +1,4 @@
+import type { MasterEncounterRecord } from '../entities/MasterEncounterRecord'
 import type { MissionObjective, ObjectiveRule } from '../entities/MissionDefinition'
 import type { MissionEnrollment, MissionFact } from '../entities/MissionEnrollment'
 import {
@@ -14,10 +15,10 @@ import {
  * dano ni genera aleatoriedad: eso es de Combat (ADR-021).
  */
 
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+export const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-const isCount = (value: unknown): value is number =>
+export const isCount = (value: unknown): value is number =>
   typeof value === 'number' && Number.isInteger(value) && value >= 0
 
 export const isCombatOutcome = (value: unknown): value is CombatOutcome =>
@@ -26,7 +27,8 @@ export const isCombatOutcome = (value: unknown): value is CombatOutcome =>
 /**
  * Los hechos del resumen que deciden el resultado, o `null` si falta alguno o
  * no tiene sentido: sin ellos no se decide nada. Sin `master` en el resumen, el
- * Master no aparecio (HU-72 todavia no pide sortearlo).
+ * Master no aparecio; si se pidio sortearlo, la evidencia de HU-73 exige el
+ * bloque completo (`masterEncounterRecordsOf`).
  */
 export const simulationFactsOf = (summary: unknown): SimulationFacts | null => {
   if (!isRecord(summary)) {
@@ -127,6 +129,8 @@ export const missionSettledFact = (
   settlement: Settlement,
   simulationId: string | null,
   settledAt: Date,
+  /** HU-73: la evidencia del Master, sin la entrega; vacia si la mision no tiene Master. */
+  masterEncounters: readonly MasterEncounterRecord[] = [],
 ): MissionFact => ({
   type: 'MissionSettled',
   enrollmentId: enrollment.enrollmentId,
@@ -140,6 +144,15 @@ export const missionSettledFact = (
     reason: settlement.reason,
     objectives: settlement.objectives,
     simulationId,
+    masterEncounters: masterEncounters.map(
+      ({ sequence, afterEncounter, masterRef, status, epicRef }) => ({
+        sequence,
+        afterEncounter,
+        masterRef,
+        status,
+        epicRef,
+      }),
+    ),
     settledAt: settledAt.toISOString(),
   },
   createdAt: settledAt,
