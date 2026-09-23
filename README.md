@@ -23,6 +23,8 @@ Desde el 2026-09-16 corre en producción en el nodo `app` y Caddy le envía `htt
 
 **Estrategia de rotaciones: HU-71** (Task HU-71.2, ver [docs/hu-71-rotaciones.md](docs/hu-71-rotaciones.md)). `GET` y `PUT /api/v1/missions/{missionId}/strategies/{heroId}` guardan hasta tres rotaciones por jugador, héroe y misión, con versión optimista, y la matrícula congela una copia (migración `003-mission-strategies`). Validar las habilidades también depende de una ruta de Player/Inventory que no existe: hasta entonces, guardar responde `503`.
 
+**Simulación y cierre: HU-72** (Task HU-72.2, ver [docs/hu-72-simulacion.md](docs/hu-72-simulacion.md)). Sin rutas nuevas: un planificador (`MISSION_EXECUTION_ENABLED`, apagado por defecto) pide a Combat la simulación de cada misión iniciada, la cierra al llegar `endsAt` (`COMPLETED` o `FAILED`), registra el _clear_ de HU-75 y libera al héroe (migración `004-mission-executions`). La ruta de simulación de Combat todavía no existe: hasta entonces, cada misión espera y se anula (`VOIDED`) sin penalización al vencer su plazo.
+
 ## Qué posee este contexto
 
 - Definiciones de misión y tablón.
@@ -49,7 +51,7 @@ Ningún otro servicio accede a este almacén, ni directamente ni con claves for�
 
 ## Integraciones previstas
 
-- **Combat** (síncrono, `operationId`): ejecutar la simulación con semilla, combatientes y rotaciones. Toda la aleatoriedad ocurre allí.
+- **Combat** (síncrono, `operationId`): ejecutar la simulación con semilla, combatientes y rotaciones (HU-72, ruta propuesta `POST /api/internal/v1/combat/simulations`). Toda la aleatoriedad ocurre allí.
 - **Player/Inventory** (síncrono, `operationId`): perfil de combate del héroe, compromiso `MISSION`, recompensas en ítems.
 - **Wallet** (síncrono, `operationId`): recompensas en créditos.
 - **Notifications** (ingesta HTTP): fin de misión y logros.
@@ -96,6 +98,7 @@ Ver [.env.example](.env.example). Las reglas que hacen fallar el arranque son de
 | `AUTH_MODE=jwt` sin pool o cliente                              | **No arranca**           |
 | `NODE_ENV=production` con `HERO_COMMITMENTS_DRIVER=memory`      | **No arranca** (ADR-019) |
 | `NODE_ENV=production` con `HERO_ABILITIES_DRIVER=memory`        | **No arranca**           |
+| `NODE_ENV=production` con `COMBAT_SIMULATION_DRIVER=memory`     | **No arranca**           |
 | `MISSIONS_EXAMPLE_CATALOG=true` sin `PERSISTENCE_DRIVER=memory` | **No arranca**           |
 
 ## Identidad y autorización
