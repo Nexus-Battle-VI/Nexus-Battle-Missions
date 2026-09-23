@@ -6,6 +6,7 @@ import { HealthController } from '../../adapters/inbound/http/health.controller'
 import { MissionBoardController } from '../../adapters/inbound/http/mission-board.controller'
 import { MissionDifficultyController } from '../../adapters/inbound/http/mission-difficulty.controller'
 import { MissionEnrollmentController } from '../../adapters/inbound/http/mission-enrollment.controller'
+import { MissionReportController } from '../../adapters/inbound/http/mission-report.controller'
 import { MissionStrategyController } from '../../adapters/inbound/http/mission-strategy.controller'
 import { CombatSimulationClient } from '../../adapters/outbound/combat/CombatSimulationClient'
 import { ScriptedCombatSimulation } from '../../adapters/outbound/combat/ScriptedCombatSimulation'
@@ -17,10 +18,12 @@ import { EXAMPLE_MISSIONS } from '../../adapters/outbound/persistence/example-mi
 import { InMemoryEnrollmentRepository } from '../../adapters/outbound/persistence/InMemoryEnrollmentRepository'
 import { InMemoryExecutionRepository } from '../../adapters/outbound/persistence/InMemoryExecutionRepository'
 import { InMemoryMissionCatalog } from '../../adapters/outbound/persistence/InMemoryMissionCatalog'
+import { InMemoryReportRepository } from '../../adapters/outbound/persistence/InMemoryReportRepository'
 import { InMemoryStrategyRepository } from '../../adapters/outbound/persistence/InMemoryStrategyRepository'
 import { PostgresEnrollmentRepository } from '../../adapters/outbound/persistence/PostgresEnrollmentRepository'
 import { PostgresExecutionRepository } from '../../adapters/outbound/persistence/PostgresExecutionRepository'
 import { PostgresMissionCatalog } from '../../adapters/outbound/persistence/PostgresMissionCatalog'
+import { PostgresReportRepository } from '../../adapters/outbound/persistence/PostgresReportRepository'
 import { PostgresStrategyRepository } from '../../adapters/outbound/persistence/PostgresStrategyRepository'
 import { RandomIdGenerator } from '../../adapters/outbound/system/RandomIdGenerator'
 import {
@@ -51,16 +54,29 @@ import {
   type MissionCatalogPort,
 } from '../../application/ports/MissionCatalogPort'
 import {
+  REPORT_REPOSITORY,
+  type ReportRepositoryPort,
+} from '../../application/ports/ReportRepositoryPort'
+import {
   STRATEGY_REPOSITORY,
   type StrategyRepositoryPort,
 } from '../../application/ports/StrategyRepositoryPort'
 import { ENROLL_IN_MISSION, EnrollInMission } from '../../application/use-cases/EnrollInMission'
 import { GET_MISSION_DETAIL, GetMissionDetail } from '../../application/use-cases/GetMissionDetail'
 import {
+  GET_MISSION_HISTORY_SUMMARY,
+  GetMissionHistorySummary,
+} from '../../application/use-cases/GetMissionHistorySummary'
+import { GET_MISSION_REPORT, GetMissionReport } from '../../application/use-cases/GetMissionReport'
+import {
   GET_MISSION_STRATEGY,
   GetMissionStrategy,
 } from '../../application/use-cases/GetMissionStrategy'
 import { LIST_MISSION_BOARD, ListMissionBoard } from '../../application/use-cases/ListMissionBoard'
+import {
+  LIST_MISSION_HISTORY,
+  ListMissionHistory,
+} from '../../application/use-cases/ListMissionHistory'
 import {
   RECONCILE_PENDING_ENROLLMENTS,
   ReconcilePendingEnrollments,
@@ -165,6 +181,7 @@ export const INTERNAL_CALLERS: readonly string[] = []
     MissionBoardController,
     MissionEnrollmentController,
     MissionStrategyController,
+    MissionReportController,
   ],
   providers: [
     {
@@ -504,13 +521,14 @@ export const INTERNAL_CALLERS: readonly string[] = []
         db: Kysely<Database> | null,
         enrollments: EnrollmentRepositoryPort,
         clears: DifficultyClearRepositoryPort,
+        reports: ReportRepositoryPort,
       ): ExecutionRepositoryPort => {
         if (usesPostgres(config, db)) {
           return new PostgresExecutionRepository(db)
         }
 
-        // En memoria, el cierre escribe a la vez en los dobles de matriculas y de
-        // clears. Si una prueba los sustituyo, las ejecuciones no los ven.
+        // En memoria, el cierre escribe a la vez en los dobles de matriculas,
+        // clears y reportes. Si una prueba los sustituyo, las ejecuciones no los ven.
         return new InMemoryExecutionRepository(
           enrollments instanceof InMemoryEnrollmentRepository
             ? enrollments
@@ -518,9 +536,16 @@ export const INTERNAL_CALLERS: readonly string[] = []
           clears instanceof InMemoryDifficultyClearRepository
             ? clears
             : new InMemoryDifficultyClearRepository(),
+          reports instanceof InMemoryReportRepository ? reports : new InMemoryReportRepository(),
         )
       },
-      inject: [APP_CONFIG, DATABASE, ENROLLMENT_REPOSITORY, DIFFICULTY_CLEAR_REPOSITORY],
+      inject: [
+        APP_CONFIG,
+        DATABASE,
+        ENROLLMENT_REPOSITORY,
+        DIFFICULTY_CLEAR_REPOSITORY,
+        REPORT_REPOSITORY,
+      ],
     },
     // El perfil del heroe sale de la misma consulta a Player/Inventory que sus habilidades.
     { provide: HERO_PROFILES, useExisting: HERO_ABILITIES },
@@ -615,6 +640,40 @@ export const INTERNAL_CALLERS: readonly string[] = []
           config.missionExecutionEnabled,
         ),
       inject: [APP_CONFIG, RUN_MISSION_EXECUTIONS, LOGGER],
+    },
+    // --- HU-74: reporte e historial ---
+    {
+      provide: REPORT_REPOSITORY,
+      useFactory: (config: AppConfig, db: Kysely<Database> | null): ReportRepositoryPort =>
+        usesPostgres(config, db)
+          ? new PostgresReportRepository(db)
+          : new InMemoryReportRepository(),
+      inject: [APP_CONFIG, DATABASE],
+    },
+    {
+      provide: GET_MISSION_REPORT,
+      useFactory: (
+        reports: ReportRepositoryPort,
+        enrollments: EnrollmentRepositoryPort,
+      ): GetMissionReport => new GetMissionReport(reports, enrollments),
+      inject: [REPORT_REPOSITORY, ENROLLMENT_REPOSITORY],
+    },
+    {
+      provide: LIST_MISSION_HISTORY,
+      useFactory: (
+        enrollments: EnrollmentRepositoryPort,
+        reports: ReportRepositoryPort,
+        catalog: MissionCatalogPort,
+      ): ListMissionHistory => new ListMissionHistory(enrollments, reports, catalog),
+      inject: [ENROLLMENT_REPOSITORY, REPORT_REPOSITORY, MISSION_CATALOG],
+    },
+    {
+      provide: GET_MISSION_HISTORY_SUMMARY,
+      useFactory: (
+        reports: ReportRepositoryPort,
+        catalog: MissionCatalogPort,
+      ): GetMissionHistorySummary => new GetMissionHistorySummary(reports, catalog),
+      inject: [REPORT_REPOSITORY, MISSION_CATALOG],
     },
   ],
 })

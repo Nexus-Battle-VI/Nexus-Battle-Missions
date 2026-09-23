@@ -6,6 +6,7 @@ import type {
   StartedMission,
 } from '../../../application/ports/ExecutionRepositoryPort'
 import type { MissionExecution } from '../../../domain/entities/MissionExecution'
+import { insertReport } from './PostgresReportRepository'
 import type { Database, MissionExecutionsTable } from './schema'
 
 /** `jsonb` se escribe como texto JSON: el driver convertiria un arreglo en un arreglo de PostgreSQL. */
@@ -232,6 +233,11 @@ export class PostgresExecutionRepository implements ExecutionRepositoryPort {
           })
           .onConflict((conflict) => conflict.columns(['type', 'enrollment_id']).doNothing())
           .execute()
+
+        // HU-74 (P-T1): una mision terminada sin reporte es imposible.
+        if (closure.report !== null) {
+          await insertReport(trx, closure.report)
+        }
       })
 
       return true

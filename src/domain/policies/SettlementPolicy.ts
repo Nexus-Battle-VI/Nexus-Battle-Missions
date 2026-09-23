@@ -14,10 +14,10 @@ import {
  * dano ni genera aleatoriedad: eso es de Combat (ADR-021).
  */
 
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+export const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-const isCount = (value: unknown): value is number =>
+export const isCount = (value: unknown): value is number =>
   typeof value === 'number' && Number.isInteger(value) && value >= 0
 
 export const isCombatOutcome = (value: unknown): value is CombatOutcome =>

@@ -21,6 +21,11 @@ import {
   StrategyVersionMismatchError,
 } from '../../../domain/errors/mission-errors'
 import {
+  InvalidHistoryCursorError,
+  ReportNotAvailableError,
+  ReportNotFoundError,
+} from '../../../domain/errors/report-errors'
+import {
   HeroAbilitiesUnavailableError,
   InvalidRotationError,
   StrategyNotFoundError,
@@ -216,6 +221,37 @@ export const toMissionsHttpException = (error: unknown): HttpException => {
       statusCode: 503,
       code: 'DEPENDENCY_UNAVAILABLE',
       message: error.message,
+    })
+  }
+
+  // --- HU-74: reporte e historial (contrato hu-74-mission-report-v1) ---
+
+  if (error instanceof ReportNotAvailableError) {
+    return new NotFoundException({
+      statusCode: 404,
+      code: 'REPORT_NOT_AVAILABLE',
+      message: error.message,
+      enrollmentId: error.enrollmentId,
+      endsAt: error.endsAt?.toISOString() ?? null,
+    })
+  }
+
+  if (error instanceof ReportNotFoundError) {
+    return new NotFoundException({
+      statusCode: 404,
+      code: 'REPORT_NOT_FOUND',
+      message: error.message,
+      enrollmentId: error.enrollmentId,
+    })
+  }
+
+  if (error instanceof InvalidHistoryCursorError) {
+    // La misma forma que produce `createValidationPipe` para el resto de la entrada.
+    return new BadRequestException({
+      statusCode: 400,
+      code: 'VALIDATION_ERROR',
+      message: 'La solicitud tiene datos que faltan o no son válidos.',
+      violations: [{ field: 'cursor', reasons: [error.message] }],
     })
   }
 

@@ -214,6 +214,7 @@ describe('Ejecuciones de mision en PostgreSQL (HU-72)', () => {
         completedAt: ENDS,
       },
       fact: missionSettledFact(enrollment, settlement, P01_RESULT.simulationId, ENDS),
+      report: null,
     }
   }
 
@@ -375,6 +376,7 @@ describe('Ejecuciones de mision en PostgreSQL (HU-72)', () => {
           executionVersion: queued.version,
           clear: null,
           fact: missionSettledFact(enrollment, voidedSettlement('INVALID_STRATEGY'), null, AT),
+          report: null,
         }),
       ).resolves.toBe(true)
 
@@ -407,6 +409,7 @@ describe('Ejecuciones de mision en PostgreSQL (HU-72)', () => {
             P01_RESULT.simulationId,
             ENDS,
           ),
+          report: null,
         }),
       ).resolves.toBe(true)
 
@@ -546,10 +549,11 @@ describe('Ejecuciones de mision en PostgreSQL (HU-72)', () => {
     let app: INestApplication
 
     beforeAll(async () => {
-      // El ciclo recorre toda la tabla: se empieza sin lo que dejaron las pruebas anteriores.
-      await sql`truncate mission_executions, mission_facts, mission_enrollments, mission_difficulty_clears`.execute(
-        db,
-      )
+      // El ciclo recorre toda la tabla: se empieza sin lo que dejaron las pruebas
+      // anteriores. PostgreSQL exige truncar a la vez todo lo que referencia a las
+      // matriculas, tambien los reportes de HU-74.
+      await sql`truncate mission_report_rewards, mission_reports, mission_executions, mission_facts,
+        mission_enrollments, mission_difficulty_clears`.execute(db)
 
       for (const key of [...Object.keys(ENV), 'DATABASE_URL']) {
         previousEnv[key] = process.env[key]

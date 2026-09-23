@@ -14,6 +14,8 @@ import {
 } from '../../domain/entities/MissionExecution'
 import { scalingOf } from '../../domain/value-objects/difficulty-scaling'
 import { toIsoDuration } from '../../domain/value-objects/mission-category'
+import type { ReportRecord } from '../../domain/entities/MissionReport'
+import { missionReportOf, type ReportInput } from '../../domain/policies/ReportPolicy'
 import {
   missionSettledFact,
   settlementOf,
@@ -340,10 +342,35 @@ export class RunMissionExecutions {
             }
           : null,
       fact: missionSettledFact(enrollment, settlement, result.simulationId, now),
+      report: this.reportFor({
+        enrollment,
+        definition,
+        result,
+        settlement,
+        heroProfile: execution.request?.hero.profile ?? null,
+        generatedAt: now,
+      }),
     })
 
     if (closed) {
       tally.settled += 1
+    }
+  }
+
+  /**
+   * HU-74 (P-T1): el reporte nace en la misma transaccion del cierre. Las lineas
+   * de recompensa las calcularan HU-10 y HU-73; hasta entonces no hay ninguna.
+   *
+   * Si la foto no se puede armar, la mision se cierra igual y el fallo se
+   * informa: queda en el historial sin reporte, que es mejor que un heroe
+   * reservado para siempre por un cierre que falla en cada ciclo.
+   */
+  private reportFor(input: ReportInput): ReportRecord | null {
+    try {
+      return { report: missionReportOf(input), rewards: [] }
+    } catch (error: unknown) {
+      this.options.onError?.(input.enrollment.enrollmentId, error)
+      return null
     }
   }
 
@@ -368,6 +395,8 @@ export class RunMissionExecutions {
         execution.result?.simulationId ?? null,
         now,
       ),
+      // HU-74 (P-T3): una anulacion aparece en el historial sin reporte.
+      report: null,
     })
 
     if (closed) {

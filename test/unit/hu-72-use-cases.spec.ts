@@ -2,6 +2,7 @@ import { EXAMPLE_MISSIONS } from '../../src/adapters/outbound/persistence/exampl
 import { InMemoryDifficultyClearRepository } from '../../src/adapters/outbound/persistence/InMemoryDifficultyClearRepository'
 import { InMemoryEnrollmentRepository } from '../../src/adapters/outbound/persistence/InMemoryEnrollmentRepository'
 import { InMemoryExecutionRepository } from '../../src/adapters/outbound/persistence/InMemoryExecutionRepository'
+import { InMemoryReportRepository } from '../../src/adapters/outbound/persistence/InMemoryReportRepository'
 import { InMemoryMissionCatalog } from '../../src/adapters/outbound/persistence/InMemoryMissionCatalog'
 import { InMemoryStrategyRepository } from '../../src/adapters/outbound/persistence/InMemoryStrategyRepository'
 import type { ClockPort } from '../../src/application/ports/ClockPort'
@@ -150,7 +151,8 @@ const setup = (options: Partial<ExecutionOptions> = {}) => {
   const enrollments = new InMemoryEnrollmentRepository()
   const clears = new InMemoryDifficultyClearRepository()
   const strategies = new InMemoryStrategyRepository()
-  const executions = new InMemoryExecutionRepository(enrollments, clears)
+  const reports = new InMemoryReportRepository()
+  const executions = new InMemoryExecutionRepository(enrollments, clears, reports)
   const commitments = new ScriptedCommitments()
   const combat = new ScriptedCombat()
   const profiles = new ScriptedProfiles()

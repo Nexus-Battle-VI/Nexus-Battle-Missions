@@ -1,0 +1,161 @@
+import type { MissionDefinition } from '../entities/MissionDefinition'
+import type { MissionEnrollment } from '../entities/MissionEnrollment'
+import type { Settlement, SimulationResult } from '../entities/MissionExecution'
+import {
+  REPORT_SCHEMA_VERSION,
+  type CombatStats,
+  type DefeatedEnemy,
+  type MissionReport,
+  type ReportOutcome,
+  type SkillUse,
+} from '../entities/MissionReport'
+import { isoDurationSeconds } from '../value-objects/iso-duration'
+import { isCount, isRecord, simulationFactsOf } from './SettlementPolicy'
+
+/**
+ * Arma el reporte de HU-74 (CU-74.1) con lo que el cierre de HU-72 ya tiene: el
+ * resumen de Combat, los objetivos evaluados y el contenido de la mision. Es una
+ * funcion pura: no llama a Combat ni recalcula nada (P-T1 y P-T2).
+ *
+ * HU-72 valida solo los hechos que deciden el resultado. El resto del resumen se
+ * lee con tolerancia: un dato que falta o no cumple queda en `null` (o fuera de
+ * su lista) en lugar de impedir el cierre de la mision.
+ */
+export interface ReportInput {
+  readonly enrollment: MissionEnrollment
+  readonly definition: MissionDefinition
+  readonly result: SimulationResult
+  readonly settlement: Settlement
+  /** Perfil del heroe congelado en la solicitud a Combat (HU-72): da nombre y subtipo. */
+  readonly heroProfile: Readonly<Record<string, unknown>> | null
+  /** El momento del cierre. */
+  readonly generatedAt: Date
+}
+
+const countOrNull = (value: unknown): number | null => (isCount(value) ? value : null)
+
+/** El dano puede no ser entero; basta con que sea un numero finito no negativo. */
+const amountOrNull = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null
+
+const textOrNull = (value: unknown): string | null =>
+  typeof value === 'string' && value !== '' ? value : null
+
+const skillsUsedOf = (value: unknown): readonly SkillUse[] => {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const skills: SkillUse[] = []
+
+  for (const entry of value as unknown[]) {
+    const abilityId = isRecord(entry) ? textOrNull(entry.abilityId) : null
+    const count = isRecord(entry) ? countOrNull(entry.count) : null
+
+    if (abilityId !== null && count !== null) {
+      skills.push({ abilityId, count })
+    }
+  }
+
+  return skills
+}
+
+const combatStatsOf = (summary: Readonly<Record<string, unknown>>): CombatStats => ({
+  encountersCompleted: countOrNull(summary.encountersCompleted),
+  encountersTotal: countOrNull(summary.encountersTotal),
+  totalTurns: countOrNull(summary.totalTurns),
+  damageDealt: amountOrNull(summary.damageDealt),
+  damageTaken: amountOrNull(summary.damageTaken),
+  criticalEffects: countOrNull(summary.criticalEffects),
+  skillsUsed: skillsUsedOf(summary.skillsUsed),
+})
+
+/** Los enemigos regulares derrotados, con el nombre del contenido. El jefe va aparte. */
+const defeatedOf = (value: unknown, definition: MissionDefinition): readonly DefeatedEnemy[] => {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const names = new Map(definition.enemies.map((enemy) => [enemy.enemyRef, enemy.name]))
+  const defeated: DefeatedEnemy[] = []
+
+  for (const entry of value as unknown[]) {
+    const enemyRef = isRecord(entry) ? textOrNull(entry.enemyRef) : null
+    const count = isRecord(entry) ? countOrNull(entry.count) : null
+
+    if (enemyRef !== null && count !== null && enemyRef !== definition.finalBoss.enemyRef) {
+      defeated.push({ enemyRef, name: names.get(enemyRef) ?? enemyRef, count })
+    }
+  }
+
+  return defeated
+}
+
+const simulatedDurationOf = (value: unknown): string | null => {
+  const duration = textOrNull(value)
+
+  return duration !== null && isoDurationSeconds(duration) !== null ? duration : null
+}
+
+const reportOutcomeOf = (settlement: Settlement): ReportOutcome => {
+  if (settlement.outcome === 'VOIDED') {
+    throw new RangeError('Una mision anulada no tiene reporte (HU-74, P-T3).')
+  }
+
+  return settlement.outcome
+}
+
+export const missionReportOf = (input: ReportInput): MissionReport => {
+  const { enrollment, definition, result, settlement } = input
+
+  if (enrollment.startedAt === null || enrollment.endsAt === null) {
+    throw new RangeError(`La matricula ${enrollment.enrollmentId} no tiene inicio y fin.`)
+  }
+
+  const summary = result.summary
+  const met = new Map(settlement.objectives.map((objective) => [objective.id, objective.met]))
+
+  return {
+    schemaVersion: REPORT_SCHEMA_VERSION,
+    enrollmentId: enrollment.enrollmentId,
+    playerId: enrollment.playerId,
+    mission: {
+      missionId: definition.missionId,
+      name: definition.name,
+      category: definition.category,
+      difficulty: enrollment.difficulty,
+    },
+    summary: {
+      outcome: reportOutcomeOf(settlement),
+      outcomeReason: settlement.reason,
+      hero: {
+        heroId: enrollment.heroId,
+        name: textOrNull(input.heroProfile?.name),
+        subtype: textOrNull(input.heroProfile?.subtype),
+      },
+      startedAt: enrollment.startedAt,
+      // La mision termina para el jugador al vencer su duracion, aunque el
+      // planificador la cierre unos segundos despues.
+      finishedAt: enrollment.endsAt,
+      simulatedDuration: simulatedDurationOf(summary.simulatedDuration),
+    },
+    combatStats: combatStatsOf(summary),
+    enemies: {
+      defeated: defeatedOf(summary.enemiesDefeated, definition),
+      boss: {
+        enemyRef: definition.finalBoss.enemyRef,
+        name: definition.finalBoss.name,
+        defeated: simulationFactsOf(summary)?.bossDefeated ?? false,
+      },
+      masters: [],
+    },
+    objectives: definition.objectives.map((objective) => ({
+      id: objective.id,
+      text: objective.text,
+      primary: objective.primary,
+      met: met.get(objective.id) ?? null,
+      bonus: null,
+    })),
+    generatedAt: input.generatedAt,
+  }
+}
