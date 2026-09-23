@@ -2,6 +2,7 @@ import { EXAMPLE_MISSIONS } from '../../src/adapters/outbound/persistence/exampl
 import { InMemoryDifficultyClearRepository } from '../../src/adapters/outbound/persistence/InMemoryDifficultyClearRepository'
 import { InMemoryEnrollmentRepository } from '../../src/adapters/outbound/persistence/InMemoryEnrollmentRepository'
 import { InMemoryMissionCatalog } from '../../src/adapters/outbound/persistence/InMemoryMissionCatalog'
+import { InMemoryStrategyRepository } from '../../src/adapters/outbound/persistence/InMemoryStrategyRepository'
 import type { ClockPort } from '../../src/application/ports/ClockPort'
 import type { InsertPendingResult } from '../../src/application/ports/EnrollmentRepositoryPort'
 import type {
@@ -100,6 +101,7 @@ const setup = (definitions: readonly MissionDefinition[] = EXAMPLE_MISSIONS) => 
     catalog,
     enrollments,
     clears,
+    new InMemoryStrategyRepository(),
     commitments,
     new SequenceIds(),
     clock,

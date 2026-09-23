@@ -1,5 +1,6 @@
 import { DomainError } from '../errors/DomainError'
 import type { DifficultyLevel } from '../value-objects/difficulty-level'
+import type { Rotation } from '../value-objects/rotation'
 
 /**
  * Matricula de un heroe en una mision (HU-70, agregado `MissionEnrollment`).
@@ -51,6 +52,11 @@ export interface MissionEnrollment {
   /** Huella del cuerpo recibido: detecta una clave reutilizada con otro cuerpo. */
   readonly requestFingerprint: string
   readonly strategyVersion: number | null
+  /**
+   * Copia congelada de la estrategia al matricular (HU-71, P-R1): es la que
+   * recibira la simulacion. Vacia si el jugador no tenia estrategia (P-R9).
+   */
+  readonly rotations: readonly Rotation[]
   readonly commitmentId: string | null
   readonly rejection: EnrollmentRejection | null
   readonly requestedAt: Date
@@ -95,19 +101,32 @@ export interface NewEnrollment {
   readonly idempotencyKey: string
   readonly requestFingerprint: string
   readonly strategyVersion: number | null
+  /** Sin valor: matricula sin estrategia. */
+  readonly rotations?: readonly Rotation[]
   readonly requestedAt: Date
 }
 
-export const newPendingEnrollment = (input: NewEnrollment): MissionEnrollment => ({
-  ...input,
-  status: 'PENDING',
-  commitmentId: null,
-  rejection: null,
-  startedAt: null,
-  endsAt: null,
-  finishedAt: null,
-  version: 0,
-})
+export const newPendingEnrollment = (input: NewEnrollment): MissionEnrollment => {
+  const rotations = input.rotations ?? []
+
+  // Sin version no hay copia y con version la copia no esta vacia: lo mismo que
+  // impone en el motor el CHECK mission_enrollments_estrategia_congelada.
+  if ((input.strategyVersion === null) !== (rotations.length === 0)) {
+    throw new RangeError('La copia congelada de la estrategia no corresponde a su version.')
+  }
+
+  return {
+    ...input,
+    rotations,
+    status: 'PENDING',
+    commitmentId: null,
+    rejection: null,
+    startedAt: null,
+    endsAt: null,
+    finishedAt: null,
+    version: 0,
+  }
+}
 
 const MINUTE_MS = 60_000
 

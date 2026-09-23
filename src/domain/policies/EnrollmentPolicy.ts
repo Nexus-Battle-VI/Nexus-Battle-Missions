@@ -23,7 +23,8 @@ export const missingPrerequisitesOf = (
   completedMissionIds: ReadonlySet<string>,
 ): readonly string[] => definition.prerequisites.filter((id) => !completedMissionIds.has(id))
 
-const listNames = (names: readonly string[]): string => {
+/** «a», «b» y «c»: la enumeracion de los mensajes que ve el jugador. */
+export const listNames = (names: readonly string[]): string => {
   if (names.length <= 1) {
     return names.join('')
   }

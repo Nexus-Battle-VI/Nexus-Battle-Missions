@@ -30,20 +30,22 @@ export const PersistenceDriver = {
 export type PersistenceDriver = (typeof PersistenceDriver)[keyof typeof PersistenceDriver]
 
 /**
- * Como se reserva al heroe (compromiso `MISSION`, HU-70).
+ * Como habla Missions con Player/Inventory. Lo usan la reserva del heroe
+ * (compromiso `MISSION`, HU-70, `HERO_COMMITMENTS_DRIVER`) y sus habilidades
+ * (HU-71, `HERO_ABILITIES_DRIVER`).
  *
- * - `http`: Player/Inventory por el contrato interno. Es el unico permitido en
- *   produccion. Hasta que Team Alfa publique la ruta, las matriculas quedan
- *   PENDING (503), que es el resultado honesto.
- * - `memory`: doble de desarrollo que concede la reserva en proceso.
+ * - `http`: el contrato interno. Es el unico permitido en produccion. Hasta que
+ *   Team Alfa publique las rutas, la matricula queda PENDING y guardar una
+ *   estrategia responde 503: es el resultado honesto.
+ * - `memory`: dobles de desarrollo que conceden la reserva y las habilidades.
  */
-export const HeroCommitmentsDriver = {
+export const PlayerInventoryDriver = {
   Memory: 'memory',
   Http: 'http',
 } as const
 
-export type HeroCommitmentsDriver =
-  (typeof HeroCommitmentsDriver)[keyof typeof HeroCommitmentsDriver]
+export type PlayerInventoryDriver =
+  (typeof PlayerInventoryDriver)[keyof typeof PlayerInventoryDriver]
 
 export interface AppConfig {
   readonly nodeEnv: 'development' | 'test' | 'production'
@@ -58,7 +60,8 @@ export interface AppConfig {
   readonly authMode: AuthMode
   readonly cognito: CognitoConfig | null
   readonly internalServiceAuthSecret: string | null
-  readonly heroCommitmentsDriver: HeroCommitmentsDriver
+  readonly heroCommitmentsDriver: PlayerInventoryDriver
+  readonly heroAbilitiesDriver: PlayerInventoryDriver
   /** Sin barra final. `null`: las reservas quedan sin confirmar y lo avisa el registro. */
   readonly playerInventoryBaseUrl: string | null
   readonly internalHttpTimeoutMs: number
@@ -203,20 +206,26 @@ export const loadConfig = (env: RawEnv): AppConfig => {
 
   const internalServiceAuthSecret = readString(env, 'INTERNAL_SERVICE_AUTH_SECRET', '')
 
-  const heroCommitmentsDriver = readEnum(
-    env,
-    'HERO_COMMITMENTS_DRIVER',
-    [HeroCommitmentsDriver.Memory, HeroCommitmentsDriver.Http],
-    nodeEnv === 'production' ? HeroCommitmentsDriver.Http : HeroCommitmentsDriver.Memory,
-  )
-
-  // Un doble que concede reservas sin preguntar a Player/Inventory dejaria al
-  // mismo heroe en una batalla y en una mision a la vez.
-  if (nodeEnv === 'production' && heroCommitmentsDriver === HeroCommitmentsDriver.Memory) {
-    throw new ConfigurationError(
-      'HERO_COMMITMENTS_DRIVER no puede ser "memory" con NODE_ENV=production.',
+  const readPlayerInventoryDriver = (name: string): PlayerInventoryDriver => {
+    const driver = readEnum(
+      env,
+      name,
+      [PlayerInventoryDriver.Memory, PlayerInventoryDriver.Http],
+      nodeEnv === 'production' ? PlayerInventoryDriver.Http : PlayerInventoryDriver.Memory,
     )
+
+    // Un doble que concede sin preguntar a Player/Inventory dejaria al mismo
+    // heroe en una batalla y en una mision a la vez, o guardaria habilidades
+    // que el heroe no tiene.
+    if (nodeEnv === 'production' && driver === PlayerInventoryDriver.Memory) {
+      throw new ConfigurationError(`${name} no puede ser "memory" con NODE_ENV=production.`)
+    }
+
+    return driver
   }
+
+  const heroCommitmentsDriver = readPlayerInventoryDriver('HERO_COMMITMENTS_DRIVER')
+  const heroAbilitiesDriver = readPlayerInventoryDriver('HERO_ABILITIES_DRIVER')
 
   const exampleCatalog = readBoolean(env, 'MISSIONS_EXAMPLE_CATALOG', false)
 
@@ -251,6 +260,7 @@ export const loadConfig = (env: RawEnv): AppConfig => {
         : null,
     internalServiceAuthSecret: internalServiceAuthSecret === '' ? null : internalServiceAuthSecret,
     heroCommitmentsDriver,
+    heroAbilitiesDriver,
     playerInventoryBaseUrl: playerInventoryBaseUrl === '' ? null : playerInventoryBaseUrl,
     internalHttpTimeoutMs: readInteger(env, 'INTERNAL_HTTP_TIMEOUT_MS', 3_000, 100, 30_000),
     enrollmentReconcilerEnabled: readBoolean(env, 'ENROLLMENT_RECONCILER_ENABLED', false),

@@ -6,18 +6,24 @@ import { HealthController } from '../../adapters/inbound/http/health.controller'
 import { MissionBoardController } from '../../adapters/inbound/http/mission-board.controller'
 import { MissionDifficultyController } from '../../adapters/inbound/http/mission-difficulty.controller'
 import { MissionEnrollmentController } from '../../adapters/inbound/http/mission-enrollment.controller'
+import { MissionStrategyController } from '../../adapters/inbound/http/mission-strategy.controller'
+import { InMemoryHeroAbilities } from '../../adapters/outbound/inventory/InMemoryHeroAbilities'
 import { InMemoryHeroCommitments } from '../../adapters/outbound/inventory/InMemoryHeroCommitments'
+import { PlayerInventoryAbilitiesClient } from '../../adapters/outbound/inventory/PlayerInventoryAbilitiesClient'
 import { PlayerInventoryCommitmentClient } from '../../adapters/outbound/inventory/PlayerInventoryCommitmentClient'
 import { EXAMPLE_MISSIONS } from '../../adapters/outbound/persistence/example-missions'
 import { InMemoryEnrollmentRepository } from '../../adapters/outbound/persistence/InMemoryEnrollmentRepository'
 import { InMemoryMissionCatalog } from '../../adapters/outbound/persistence/InMemoryMissionCatalog'
+import { InMemoryStrategyRepository } from '../../adapters/outbound/persistence/InMemoryStrategyRepository'
 import { PostgresEnrollmentRepository } from '../../adapters/outbound/persistence/PostgresEnrollmentRepository'
 import { PostgresMissionCatalog } from '../../adapters/outbound/persistence/PostgresMissionCatalog'
+import { PostgresStrategyRepository } from '../../adapters/outbound/persistence/PostgresStrategyRepository'
 import { RandomIdGenerator } from '../../adapters/outbound/system/RandomIdGenerator'
 import {
   ENROLLMENT_REPOSITORY,
   type EnrollmentRepositoryPort,
 } from '../../application/ports/EnrollmentRepositoryPort'
+import { HERO_ABILITIES, type HeroAbilitiesPort } from '../../application/ports/HeroAbilitiesPort'
 import {
   HERO_COMMITMENTS,
   type HeroCommitmentPort,
@@ -27,13 +33,25 @@ import {
   MISSION_CATALOG,
   type MissionCatalogPort,
 } from '../../application/ports/MissionCatalogPort'
+import {
+  STRATEGY_REPOSITORY,
+  type StrategyRepositoryPort,
+} from '../../application/ports/StrategyRepositoryPort'
 import { ENROLL_IN_MISSION, EnrollInMission } from '../../application/use-cases/EnrollInMission'
 import { GET_MISSION_DETAIL, GetMissionDetail } from '../../application/use-cases/GetMissionDetail'
+import {
+  GET_MISSION_STRATEGY,
+  GetMissionStrategy,
+} from '../../application/use-cases/GetMissionStrategy'
 import { LIST_MISSION_BOARD, ListMissionBoard } from '../../application/use-cases/ListMissionBoard'
 import {
   RECONCILE_PENDING_ENROLLMENTS,
   ReconcilePendingEnrollments,
 } from '../../application/use-cases/ReconcilePendingEnrollments'
+import {
+  SAVE_MISSION_STRATEGY,
+  SaveMissionStrategy,
+} from '../../application/use-cases/SaveMissionStrategy'
 import { EnrollmentReconcilerScheduler } from '../scheduling/EnrollmentReconcilerScheduler'
 import { READINESS_CHECKS, VERSION_REPORT } from '../../adapters/inbound/http/tokens.health'
 import { AnonymousIdentityGuard } from '../../adapters/inbound/http/auth/anonymous.guard'
@@ -57,9 +75,9 @@ import {
 } from '../../application/use-cases/ListMissionDifficulties'
 import {
   AuthMode,
-  HeroCommitmentsDriver,
   loadConfig,
   PersistenceDriver,
+  PlayerInventoryDriver,
   type AppConfig,
 } from '../config/env'
 import type { ReadinessCheck, VersionReport } from '../health/health'
@@ -86,6 +104,11 @@ const unconfiguredCommitments: HeroCommitmentPort = {
   release: () => Promise.resolve('UNKNOWN'),
 }
 
+/** Igual para las habilidades del heroe: sin configuracion, guardar una estrategia es 503. */
+const unconfiguredAbilities: HeroAbilitiesPort = {
+  abilitiesOf: () => Promise.resolve({ kind: 'UNKNOWN', reason: 'NOT_CONFIGURED' }),
+}
+
 /**
  * Servicios autorizados a llamar a las rutas `@InternalOnly()` de Missions.
  *
@@ -109,6 +132,7 @@ export const INTERNAL_CALLERS: readonly string[] = []
     MissionDifficultyController,
     MissionBoardController,
     MissionEnrollmentController,
+    MissionStrategyController,
   ],
   providers: [
     {
@@ -280,7 +304,7 @@ export const INTERNAL_CALLERS: readonly string[] = []
     {
       provide: HERO_COMMITMENTS,
       useFactory: (config: AppConfig, clock: ClockPort, logger: Logger): HeroCommitmentPort => {
-        if (config.heroCommitmentsDriver === HeroCommitmentsDriver.Memory) {
+        if (config.heroCommitmentsDriver === PlayerInventoryDriver.Memory) {
           logger.warn('hero_commitments_in_memory', {
             detail:
               'HERO_COMMITMENTS_DRIVER=memory: las reservas del héroe no pasan por Player/Inventory.',
@@ -338,19 +362,81 @@ export const INTERNAL_CALLERS: readonly string[] = []
         catalog: MissionCatalogPort,
         enrollments: EnrollmentRepositoryPort,
         clears: DifficultyClearRepositoryPort,
+        strategies: StrategyRepositoryPort,
         commitments: HeroCommitmentPort,
         ids: IdGeneratorPort,
         clock: ClockPort,
       ): EnrollInMission =>
-        new EnrollInMission(catalog, enrollments, clears, commitments, ids, clock),
+        new EnrollInMission(catalog, enrollments, clears, strategies, commitments, ids, clock),
       inject: [
         MISSION_CATALOG,
         ENROLLMENT_REPOSITORY,
         DIFFICULTY_CLEAR_REPOSITORY,
+        STRATEGY_REPOSITORY,
         HERO_COMMITMENTS,
         ID_GENERATOR,
         CLOCK,
       ],
+    },
+    // --- HU-71: estrategia de rotaciones ---
+    {
+      provide: STRATEGY_REPOSITORY,
+      useFactory: (config: AppConfig, db: Kysely<Database> | null): StrategyRepositoryPort =>
+        usesPostgres(config, db)
+          ? new PostgresStrategyRepository(db)
+          : new InMemoryStrategyRepository(),
+      inject: [APP_CONFIG, DATABASE],
+    },
+    {
+      provide: HERO_ABILITIES,
+      useFactory: (config: AppConfig, clock: ClockPort, logger: Logger): HeroAbilitiesPort => {
+        if (config.heroAbilitiesDriver === PlayerInventoryDriver.Memory) {
+          logger.warn('hero_abilities_in_memory', {
+            detail:
+              'HERO_ABILITIES_DRIVER=memory: las habilidades del héroe no se validan con Player/Inventory.',
+          })
+
+          return new InMemoryHeroAbilities()
+        }
+
+        if (config.playerInventoryBaseUrl === null || config.internalServiceAuthSecret === null) {
+          logger.warn('hero_abilities_not_configured', {
+            detail:
+              'Falta PLAYER_INVENTORY_BASE_URL o INTERNAL_SERVICE_AUTH_SECRET: guardar una estrategia responderá 503.',
+          })
+
+          return unconfiguredAbilities
+        }
+
+        return new PlayerInventoryAbilitiesClient({
+          baseUrl: config.playerInventoryBaseUrl,
+          secret: config.internalServiceAuthSecret,
+          clock,
+          timeoutMs: config.internalHttpTimeoutMs,
+          onFailure: (event, detail) => {
+            logger.warn(event, detail)
+          },
+        })
+      },
+      inject: [APP_CONFIG, CLOCK, LOGGER],
+    },
+    {
+      provide: GET_MISSION_STRATEGY,
+      useFactory: (
+        catalog: MissionCatalogPort,
+        strategies: StrategyRepositoryPort,
+      ): GetMissionStrategy => new GetMissionStrategy(catalog, strategies),
+      inject: [MISSION_CATALOG, STRATEGY_REPOSITORY],
+    },
+    {
+      provide: SAVE_MISSION_STRATEGY,
+      useFactory: (
+        catalog: MissionCatalogPort,
+        strategies: StrategyRepositoryPort,
+        abilities: HeroAbilitiesPort,
+        clock: ClockPort,
+      ): SaveMissionStrategy => new SaveMissionStrategy(catalog, strategies, abilities, clock),
+      inject: [MISSION_CATALOG, STRATEGY_REPOSITORY, HERO_ABILITIES, CLOCK],
     },
     {
       provide: RECONCILE_PENDING_ENROLLMENTS,

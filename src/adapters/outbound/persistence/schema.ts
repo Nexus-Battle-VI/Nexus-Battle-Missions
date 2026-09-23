@@ -7,6 +7,7 @@ import type {
 } from '../../../domain/entities/MissionEnrollment'
 import type { DifficultyLevel } from '../../../domain/value-objects/difficulty-level'
 import type { MissionCategory } from '../../../domain/value-objects/mission-category'
+import type { Rotation } from '../../../domain/value-objects/rotation'
 
 /**
  * Esquema de la base de datos del servicio, tipado para Kysely.
@@ -24,6 +25,7 @@ export interface Database {
   readonly mission_definitions: MissionDefinitionsTable
   readonly mission_enrollments: MissionEnrollmentsTable
   readonly mission_facts: MissionFactsTable
+  readonly mission_strategies: MissionStrategiesTable
 }
 
 /**
@@ -81,6 +83,8 @@ export interface MissionEnrollmentsTable {
   readonly idempotency_key: string
   readonly request_fingerprint: string
   readonly strategy_version: number | null
+  /** Copia congelada de la estrategia (HU-71, migracion 003). No cambia tras insertarse. */
+  readonly rotations: ColumnType<Rotation[], string | undefined, never>
   readonly commitment_id: string | null
   readonly rejection: ColumnType<EnrollmentRejection | null, string | null, string | null>
   readonly requested_at: ColumnType<Date, Date, never>
@@ -88,6 +92,19 @@ export interface MissionEnrollmentsTable {
   readonly ends_at: Date | null
   readonly finished_at: Date | null
   readonly version: number
+}
+
+/**
+ * Estrategias guardadas (HU-71, migracion `003-mission-strategies`), una por
+ * jugador, heroe y mision. `version` es el bloqueo optimista de cada guardado.
+ */
+export interface MissionStrategiesTable {
+  readonly player_id: string
+  readonly hero_id: string
+  readonly mission_id: string
+  readonly rotations: ColumnType<Rotation[], string, string>
+  readonly version: number
+  readonly updated_at: ColumnType<Date, Date, Date>
 }
 
 /** Hechos internos de Missions (`MissionEnrollmentStarted`); los consume HU-72. */

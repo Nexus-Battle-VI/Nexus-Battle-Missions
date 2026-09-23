@@ -14,6 +14,7 @@ import { EXAMPLE_MISSIONS } from '../../src/adapters/outbound/persistence/exampl
 import { PostgresDifficultyClearRepository } from '../../src/adapters/outbound/persistence/PostgresDifficultyClearRepository'
 import { PostgresEnrollmentRepository } from '../../src/adapters/outbound/persistence/PostgresEnrollmentRepository'
 import { PostgresMissionCatalog } from '../../src/adapters/outbound/persistence/PostgresMissionCatalog'
+import { PostgresStrategyRepository } from '../../src/adapters/outbound/persistence/PostgresStrategyRepository'
 import type { Database } from '../../src/adapters/outbound/persistence/schema'
 import { RandomIdGenerator } from '../../src/adapters/outbound/system/RandomIdGenerator'
 import { SystemClock } from '../../src/adapters/outbound/system/SystemClock'
@@ -39,6 +40,7 @@ import {
 import { EnrollmentPendingError } from '../../src/domain/errors/mission-errors'
 import { AppModule } from '../../src/infrastructure/bootstrap/app.module'
 import { createDatabase, migrateToLatest } from '../../src/infrastructure/persistence/database'
+import { insertDefinition } from '../support/fixtures'
 
 /**
  * PostgreSQL REAL (Task HU-70.2). Lo que se prueba aqui no se puede probar con
@@ -57,33 +59,6 @@ const RETIRED: MissionDefinition = {
   active: false,
 }
 const AT = new Date('2026-10-01T15:00:00.000Z')
-
-/** Semilla de prueba: el catalogo es de solo lectura y aun no hay contenido aprobado. */
-const insertDefinition = async (db: Kysely<Database>, definition: MissionDefinition) => {
-  await db
-    .insertInto('mission_definitions')
-    .values({
-      mission_id: definition.missionId,
-      name: definition.name,
-      category: definition.category,
-      summary: definition.summary,
-      narrative: definition.narrative,
-      image_ref: definition.imageRef,
-      estimated_duration_minutes: definition.estimatedDurationMinutes,
-      recommended_power: definition.recommendedPower,
-      prerequisites: [...definition.prerequisites],
-      content: JSON.stringify({
-        objectives: definition.objectives,
-        enemies: definition.enemies,
-        finalBoss: definition.finalBoss,
-        masterEncounter: definition.masterEncounter,
-        rewards: definition.rewards,
-        highlightedRewards: definition.highlightedRewards,
-      }),
-      active: definition.active,
-    })
-    .execute()
-}
 
 let sequence = 0
 
@@ -173,7 +148,15 @@ describe('Matrículas en PostgreSQL (HU-70)', () => {
 
   describe('PostgresEnrollmentRepository', () => {
     it('guarda y relee una matricula sin perder nada', async () => {
-      const enrollment = pending({ strategyVersion: 2 })
+      const enrollment = pending({
+        strategyVersion: 2,
+        rotations: [
+          {
+            priority: 'HIGH',
+            steps: [{ kind: 'ABILITY', abilityId: 'golpe-de-tormenta' }, { kind: 'BASIC_ATTACK' }],
+          },
+        ],
+      })
 
       await expect(repository.insertPending(enrollment)).resolves.toEqual({ kind: 'INSERTED' })
       await expect(repository.findById(enrollment.enrollmentId)).resolves.toEqual(enrollment)
@@ -288,6 +271,7 @@ describe('Matrículas en PostgreSQL (HU-70)', () => {
         catalog,
         repository,
         new PostgresDifficultyClearRepository(db),
+        new PostgresStrategyRepository(db),
         new InMemoryHeroCommitments(),
         new RandomIdGenerator(),
         new SystemClock(),

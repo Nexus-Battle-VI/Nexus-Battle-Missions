@@ -18,7 +18,6 @@ import {
   LoadoutIncompleteError,
   MissionAlreadyInProgressError,
   MissionNotFoundError,
-  StrategyVersionMismatchError,
   type BusyWith,
   type MissingSlot,
   type ReadinessBlocker,
@@ -29,6 +28,7 @@ import {
   assertMissionNotInProgress,
   assertPrerequisitesMet,
 } from '../../domain/policies/EnrollmentPolicy'
+import { assertStrategyVersionMatches } from '../../domain/policies/StrategyPolicy'
 import {
   parseDifficultyLevel,
   type DifficultyLevel,
@@ -44,6 +44,7 @@ import type {
 } from '../ports/HeroCommitmentPort'
 import type { IdGeneratorPort } from '../ports/IdGeneratorPort'
 import type { MissionCatalogPort } from '../ports/MissionCatalogPort'
+import type { StrategyRepositoryPort } from '../ports/StrategyRepositoryPort'
 import { namesOf } from './ListMissionBoard'
 
 export interface EnrollCommand {
@@ -185,6 +186,7 @@ export class EnrollInMission {
     private readonly catalog: MissionCatalogPort,
     private readonly enrollments: EnrollmentRepositoryPort,
     private readonly clears: DifficultyClearRepositoryPort,
+    private readonly strategies: StrategyRepositoryPort,
     private readonly commitments: HeroCommitmentPort,
     private readonly ids: IdGeneratorPort,
     private readonly clock: ClockPort,
@@ -213,15 +215,16 @@ export class EnrollInMission {
       return this.replay(previous, fingerprint)
     }
 
-    const [definitions, completed, cleared] = await Promise.all([
+    const [definitions, completed, cleared, strategy] = await Promise.all([
       this.catalog.listActive(),
       this.clears.completedMissions(command.playerId),
       this.clears.clearedLevels(command.playerId, command.missionId),
+      this.strategies.find(command.playerId, command.heroId, command.missionId),
     ])
 
     assertPrerequisitesMet(definition, completed, namesOf(definitions))
     assertDifficultyUnlocked(command.missionId, difficulty, cleared)
-    this.assertStrategyVersion(command.strategyVersion)
+    assertStrategyVersionMatches(command.strategyVersion, strategy?.version ?? null)
 
     // Otra peticion con esta misma clave pudo matricular despues de la busqueda
     // por clave. Esa matricula activa es la de esta pulsacion: se repite, en
@@ -255,6 +258,9 @@ export class EnrollInMission {
       idempotencyKey: command.idempotencyKey,
       requestFingerprint: fingerprint,
       strategyVersion: command.strategyVersion,
+      // Copia congelada (HU-71, P-R1): editar la estrategia despues no cambia
+      // esta mision. Sin estrategia, la IA solo usara el ataque basico (P-R9).
+      rotations: strategy?.rotations ?? [],
       requestedAt: this.clock.now(),
     })
     const inserted = await this.enrollments.insertPending(pending)
@@ -287,16 +293,6 @@ export class EnrollInMission {
         }
 
         return this.replay(applied.current, fingerprint)
-    }
-  }
-
-  /**
-   * Hasta que HU-71.2 guarde estrategias, la version vigente es siempre `null`:
-   * pedir cualquier version es, por contrato, `STRATEGY_VERSION_MISMATCH`.
-   */
-  private assertStrategyVersion(requested: number | null): void {
-    if (requested !== null) {
-      throw new StrategyVersionMismatchError(requested, null)
     }
   }
 

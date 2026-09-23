@@ -12,6 +12,7 @@ import {
   INTERNAL_TIMESTAMP_HEADER,
   signInternalRequest,
 } from '../identity/internal-signature'
+import { isRecord, readJson } from './json'
 
 export interface PlayerInventoryClientOptions {
   /** Sin barra final, p. ej. `http://player-inventory:3002`. */
@@ -29,17 +30,6 @@ export type FailureDetail = Readonly<Record<string, string | number | null>>
 
 const SERVICE = 'missions'
 const BUSY_WITH: readonly BusyWith[] = ['MISSION', 'BATTLE', 'TOURNAMENT', 'AUCTION']
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const readJson = async (response: Response): Promise<unknown> => {
-  try {
-    return await response.json()
-  } catch {
-    return null
-  }
-}
 
 /**
  * Cliente del compromiso `MISSION` en Player/Inventory (propuesta del contrato

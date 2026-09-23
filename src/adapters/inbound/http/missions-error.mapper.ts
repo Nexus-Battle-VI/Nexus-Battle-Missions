@@ -20,6 +20,14 @@ import {
   MissionNotFoundError,
   StrategyVersionMismatchError,
 } from '../../../domain/errors/mission-errors'
+import {
+  HeroAbilitiesUnavailableError,
+  InvalidRotationError,
+  StrategyNotFoundError,
+  StrategyVersionConflictError,
+  TooManyRotationsError,
+  UnknownAbilityError,
+} from '../../../domain/errors/strategy-errors'
 import { ProgressionLockedError } from '../../../domain/policies/DifficultyPolicy'
 import { UnknownDifficultyError } from '../../../domain/value-objects/difficulty-level'
 
@@ -150,6 +158,64 @@ export const toMissionsHttpException = (error: unknown): HttpException => {
       message: error.message,
       enrollmentId: error.enrollmentId,
       enrollmentStatus: 'PENDING',
+    })
+  }
+
+  // --- HU-71: estrategia de rotaciones (contrato hu-71-mission-strategy-v1) ---
+
+  if (error instanceof TooManyRotationsError) {
+    return new UnprocessableEntityException({
+      statusCode: 422,
+      code: 'TOO_MANY_ROTATIONS',
+      message: error.message,
+      max: error.max,
+      received: error.received,
+    })
+  }
+
+  if (error instanceof InvalidRotationError) {
+    return new UnprocessableEntityException({
+      statusCode: 422,
+      code: 'INVALID_ROTATION',
+      message: error.message,
+      violations: error.violations,
+    })
+  }
+
+  if (error instanceof UnknownAbilityError) {
+    return new UnprocessableEntityException({
+      statusCode: 422,
+      code: 'UNKNOWN_ABILITY',
+      message: error.message,
+      abilityIds: error.abilityIds,
+    })
+  }
+
+  if (error instanceof StrategyVersionConflictError) {
+    return new ConflictException({
+      statusCode: 409,
+      code: 'VERSION_CONFLICT',
+      message: error.message,
+      expectedVersion: error.expectedVersion,
+      currentVersion: error.currentVersion,
+    })
+  }
+
+  if (error instanceof StrategyNotFoundError) {
+    return new NotFoundException({
+      statusCode: 404,
+      code: 'STRATEGY_NOT_FOUND',
+      message: error.message,
+      missionId: error.missionId,
+      heroId: error.heroId,
+    })
+  }
+
+  if (error instanceof HeroAbilitiesUnavailableError) {
+    return new ServiceUnavailableException({
+      statusCode: 503,
+      code: 'DEPENDENCY_UNAVAILABLE',
+      message: error.message,
     })
   }
 
