@@ -25,7 +25,9 @@ Desde el 2026-09-16 corre en producción en el nodo `app` y Caddy le envía `htt
 
 **Simulación y cierre: HU-72** (Task HU-72.2, ver [docs/hu-72-simulacion.md](docs/hu-72-simulacion.md)). Sin rutas nuevas: un planificador (`MISSION_EXECUTION_ENABLED`, apagado por defecto) pide a Combat la simulación de cada misión iniciada, la cierra al llegar `endsAt` (`COMPLETED` o `FAILED`), registra el _clear_ de HU-75 y libera al héroe (migración `004-mission-executions`). La ruta de simulación de Combat todavía no existe: hasta entonces, cada misión espera y se anula (`VOIDED`) sin penalización al vencer su plazo.
 
-**Reporte e historial: HU-74** (Task HU-74.2, ver [docs/hu-74-reporte.md](docs/hu-74-reporte.md)). `GET /api/v1/missions/me/reports/{enrollmentId}`, `GET /api/v1/missions/me/history` y `GET /api/v1/missions/me/history/summary`. El reporte es una foto inmutable que nace en la transacción del cierre de HU-72 (migración `005-mission-reports`). Como ninguna misión se cierra en producción sin la ruta de Combat, todavía no hay reportes; el Máster y las recompensas llegarán con HU-73.2 y HU-10.
+**Reporte e historial: HU-74** (Task HU-74.2, ver [docs/hu-74-reporte.md](docs/hu-74-reporte.md)). `GET /api/v1/missions/me/reports/{enrollmentId}`, `GET /api/v1/missions/me/history` y `GET /api/v1/missions/me/history/summary`. El reporte es una foto inmutable que nace en la transacción del cierre de HU-72 (migración `005-mission-reports`). Como ninguna misión se cierra en producción sin la ruta de Combat, todavía no hay reportes; los créditos, productos y experiencia llegarán con HU-10.
+
+**Encuentro con el Máster: HU-73** (Task HU-73.2, ver [docs/hu-73-master.md](docs/hu-73-master.md)). Sin rutas nuevas: la solicitud a Combat lleva el bloque `master` con la probabilidad del subtipo del héroe, el cierre guarda la evidencia de cada punto de evaluación (migración `006-mission-master-encounters`) y el planificador pide la épica de cada Máster derrotado a Player/Inventory, una sola vez. Player/Inventory todavía no acepta a `missions` en su ruta de entregas y la épica aún no es un producto de Catalog: hasta entonces, cada entrega queda pendiente y se reintenta.
 
 ## Qué posee este contexto
 
@@ -101,6 +103,7 @@ Ver [.env.example](.env.example). Las reglas que hacen fallar el arranque son de
 | `NODE_ENV=production` con `HERO_COMMITMENTS_DRIVER=memory`      | **No arranca** (ADR-019) |
 | `NODE_ENV=production` con `HERO_ABILITIES_DRIVER=memory`        | **No arranca**           |
 | `NODE_ENV=production` con `COMBAT_SIMULATION_DRIVER=memory`     | **No arranca**           |
+| `NODE_ENV=production` con `EPIC_GRANTS_DRIVER=memory`           | **No arranca**           |
 | `MISSIONS_EXAMPLE_CATALOG=true` sin `PERSISTENCE_DRIVER=memory` | **No arranca**           |
 
 ## Identidad y autorización

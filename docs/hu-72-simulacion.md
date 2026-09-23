@@ -20,15 +20,15 @@ El planificador está apagado por defecto (`MISSION_EXECUTION_ENABLED`), como el
 
 ## Estados de la ejecución
 
-| Desde                  | Hacia       | Disparador                                                                                | Matrícula (HU-70)      |
-| ---------------------- | ----------- | ----------------------------------------------------------------------------------------- | ---------------------- |
-| —                      | `QUEUED`    | Hecho `MissionEnrollmentStarted`                                                          | Sigue `IN_PROGRESS`    |
-| `QUEUED`               | `REQUESTED` | Se envía la solicitud a Combat                                                            | Sigue `IN_PROGRESS`    |
-| `QUEUED` o `REQUESTED` | igual       | Sin respuesta definitiva, o sin el perfil del héroe: reintento                            | Sigue `IN_PROGRESS`    |
-| `REQUESTED`            | `SIMULATED` | `200` de Combat: resultado guardado y sellado                                             | Sigue `IN_PROGRESS`    |
-| `SIMULATED`            | `SETTLED`   | Llega `endsAt`                                                                            | `COMPLETED` o `FAILED` |
-| `QUEUED` o `REQUESTED` | `VOIDED`    | Combat rechaza, el héroe ya no es del jugador o se agota el plazo                         | `VOIDED`               |
-| `SIMULATED`            | `VOIDED`    | Al cerrar, la misión ya no está en el catálogo o el resultado guardado no trae los hechos | `VOIDED`               |
+| Desde                  | Hacia       | Disparador                                                                                                                           | Matrícula (HU-70)      |
+| ---------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------- |
+| —                      | `QUEUED`    | Hecho `MissionEnrollmentStarted`                                                                                                     | Sigue `IN_PROGRESS`    |
+| `QUEUED`               | `REQUESTED` | Se envía la solicitud a Combat                                                                                                       | Sigue `IN_PROGRESS`    |
+| `QUEUED` o `REQUESTED` | igual       | Sin respuesta definitiva, o sin el perfil del héroe: reintento                                                                       | Sigue `IN_PROGRESS`    |
+| `REQUESTED`            | `SIMULATED` | `200` de Combat: resultado guardado y sellado                                                                                        | Sigue `IN_PROGRESS`    |
+| `SIMULATED`            | `SETTLED`   | Llega `endsAt`                                                                                                                       | `COMPLETED` o `FAILED` |
+| `QUEUED` o `REQUESTED` | `VOIDED`    | Combat rechaza, el héroe ya no es del jugador, se agota el plazo o el Máster está mal configurado (HU-73)                            | `VOIDED`               |
+| `SIMULATED`            | `VOIDED`    | Al cerrar, la misión ya no está en el catálogo, el resultado guardado no trae los hechos o la evidencia del Máster no cuadra (HU-73) | `VOIDED`               |
 
 Tras `SETTLED` o `VOIDED` solo cambia `heroReleasedAt`.
 
@@ -53,13 +53,13 @@ Tras `SETTLED` o `VOIDED` solo cambia `heroReleasedAt`.
 
 Evaluación de los objetivos, como fija el contrato:
 
-| Tipo                 | Se cumple si                                                          |
-| -------------------- | --------------------------------------------------------------------- |
-| `DEFEAT_BOSS`        | `summary.bossDefeated`                                                |
-| `CLEAR_ENCOUNTERS`   | `summary.encountersCompleted >= count`                                |
-| `MIN_HEALTH_PERCENT` | `summary.minHealthPercent >= percent`                                 |
-| `DEFEAT_MASTER`      | `summary.master.defeated`; si el Máster no apareció, no aplica        |
-| Sin regla            | No es evaluable en esta versión (botín, HU-10) y no bloquea el cierre |
+| Tipo                 | Se cumple si                                                                                               |
+| -------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `DEFEAT_BOSS`        | `summary.bossDefeated`                                                                                     |
+| `CLEAR_ENCOUNTERS`   | `summary.encountersCompleted >= count`                                                                     |
+| `MIN_HEALTH_PERCENT` | `summary.minHealthPercent >= percent`                                                                      |
+| `DEFEAT_MASTER`      | `summary.master.defeated`, que debe cuadrar con la evidencia de HU-73; si el Máster no apareció, no aplica |
+| Sin regla            | No es evaluable en esta versión (botín, HU-10) y no bloquea el cierre                                      |
 
 Los objetivos secundarios no cambian el resultado: alimentan las bonificaciones (HU-10) y los logros (HU-76). Un resumen al que le falte un hecho necesario no se da por bueno: el cliente lo trata como una respuesta desconocida y el cierre nunca inventa un resultado.
 
@@ -125,7 +125,7 @@ El perfil del héroe usa `HERO_ABILITIES_DRIVER` y `PLAYER_INVENTORY_BASE_URL`, 
 | Abandonar una misión (`ABANDONED`) y su penalización                       | Decisión del PO (decisión 3); no hay contrato de cancelación             |
 | Aprobar `VOIDED`, `TIME_LIMIT` y `OBJECTIVES_NOT_MET`                      | Decisión del PO (decisiones 2 y 4)                                       |
 | Perfiles de los enemigos regulares y escalado por encuentro (`powerStep`)  | Contenido de las misiones (decisiones 7 y 8)                             |
-| Sorteo y perfil del Máster (`master` va en `null`)                         | HU-73.2                                                                  |
+| Tirada, encuentro y estadísticas del Máster                                | Combat (Team Alfa); Missions ya envía el bloque `master` (HU-73.2)       |
 | Recompensas, logros y aviso de fin de misión                               | HU-10, HU-76 y Notifications, a partir de `MissionSettled`               |
 | Renovar el compromiso si Combat tarda más que el margen                    | Player/Inventory (decisión 11)                                           |
 | Esquema del perfil de combate del héroe; hoy se congela el cuerpo entero   | Player/Inventory y Combat (Team Alfa, decisión 10)                       |
@@ -133,11 +133,11 @@ El perfil del héroe usa `HERO_ABILITIES_DRIVER` y `PLAYER_INVENTORY_BASE_URL`, 
 
 ## Cómo integrarse
 
-- **HU-73 (Máster):** completa el bloque `master` de `simulationRequestFor`. El cierre ya evalúa `DEFEAT_MASTER` con `summary.master`.
+- **HU-73 (Máster, hecho en HU-73.2):** `simulationRequestFor` lleva el bloque `master` y el cierre guarda la evidencia de cada punto y la entrega pendiente de cada épica. Ver [hu-73-master.md](hu-73-master.md).
 - **HU-74.2 (hecho):** el cierre crea el reporte de la misión en su misma transacción; una anulación no tiene reporte. Ver [hu-74-reporte.md](hu-74-reporte.md).
-- **HU-76 (logros) y HU-10 (recompensas):** consumen los `mission_facts` de tipo `MissionSettled` sin `processed_at`. El `payload` trae el resultado, el motivo, los objetivos y `simulationId`; el resumen y la bitácora están en `mission_executions`, y la foto, en `mission_reports`. Una anulación llega con `missionOutcome: VOIDED` y sin objetivos.
+- **HU-76 (logros) y HU-10 (recompensas):** consumen los `mission_facts` de tipo `MissionSettled` sin `processed_at`. El `payload` trae el resultado, el motivo, los objetivos, `simulationId` y, desde HU-73, `masterEncounters`; el resumen y la bitácora están en `mission_executions`, y la foto, en `mission_reports`. Una anulación llega con `missionOutcome: VOIDED` y sin objetivos.
 - **Web:** una misión anulada vuelve a mostrarse disponible. El resultado no existe para el jugador hasta `endsAt`.
-- **Migraciones:** esta es la `004`. HU-74 añadió la `005`.
+- **Migraciones:** esta es la `004`. HU-74 añadió la `005` y HU-73, la `006`.
 
 ## Pruebas
 
