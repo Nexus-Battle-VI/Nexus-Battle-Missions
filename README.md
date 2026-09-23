@@ -19,6 +19,8 @@ Desde el 2026-09-16 corre en producción en el nodo `app` y Caddy le envía `htt
 
 **Primera ruta de negocio: HU-75** (Task HU-75.2, ver [docs/hu-75-mission-difficulty.md](docs/hu-75-mission-difficulty.md)). `mission_difficulty_clears` (migración `001-mission-difficulty-clears`) es la primera tabla. Cualquier otra ruta bajo el prefijo sigue respondiendo `404` desde NestJS hasta que la HU correspondiente la añada. Llega a producción con la siguiente promoción de `develop` a `main`.
 
+**Tablón, detalle y matrícula: HU-70** (Task HU-70.2, ver [docs/hu-70-matriculacion.md](docs/hu-70-matriculacion.md)). `GET /api/v1/missions`, `GET /api/v1/missions/{missionId}` y `POST /api/v1/missions/{missionId}/enrollments`, con la migración `002-mission-enrollments`. La reserva del héroe depende de una ruta de Player/Inventory que todavía no existe: hasta que se publique, una matrícula queda `PENDING` y responde `503`.
+
 ## Qué posee este contexto
 
 - Definiciones de misión y tablón.
@@ -84,12 +86,14 @@ Cobertura mínima del **80 %** en ambas suites; por debajo, el comando falla.
 
 Ver [.env.example](.env.example). Las reglas que hacen fallar el arranque son deliberadas:
 
-| Situación                                             | Resultado                |
-| ----------------------------------------------------- | ------------------------ |
-| `NODE_ENV=production` con `AUTH_MODE=disabled`        | **No arranca** (ADR-004) |
-| `NODE_ENV=production` con `PERSISTENCE_DRIVER=memory` | **No arranca** (ADR-019) |
-| `PERSISTENCE_DRIVER=postgres` sin `DATABASE_URL`      | **No arranca**           |
-| `AUTH_MODE=jwt` sin pool o cliente                    | **No arranca**           |
+| Situación                                                       | Resultado                |
+| --------------------------------------------------------------- | ------------------------ |
+| `NODE_ENV=production` con `AUTH_MODE=disabled`                  | **No arranca** (ADR-004) |
+| `NODE_ENV=production` con `PERSISTENCE_DRIVER=memory`           | **No arranca** (ADR-019) |
+| `PERSISTENCE_DRIVER=postgres` sin `DATABASE_URL`                | **No arranca**           |
+| `AUTH_MODE=jwt` sin pool o cliente                              | **No arranca**           |
+| `NODE_ENV=production` con `HERO_COMMITMENTS_DRIVER=memory`      | **No arranca** (ADR-019) |
+| `MISSIONS_EXAMPLE_CATALOG=true` sin `PERSISTENCE_DRIVER=memory` | **No arranca**           |
 
 ## Identidad y autorización
 
