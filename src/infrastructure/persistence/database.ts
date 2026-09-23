@@ -9,6 +9,7 @@ import {
 } from 'kysely'
 import { Pool } from 'pg'
 
+import * as missionDifficultyClears from '../../adapters/outbound/persistence/migrations/001-mission-difficulty-clears'
 import type { Database } from '../../adapters/outbound/persistence/schema'
 
 export interface DatabaseOptions {
@@ -65,10 +66,13 @@ export const createDatabase = (options: DatabaseOptions): Kysely<Database> => {
  * ruta. Importarlas explicitamente hace que el compilador las verifique y que
  * el empaquetado no pueda dejarse ninguna fuera en silencio.
  *
- * Esta vacio a proposito: el andamiaje no inventa tablas. Cada Historia de
- * Usuario anade aqui su migracion, con prefijo numerico que fija el orden.
+ * Cada Historia de Usuario anade aqui su migracion, con prefijo numerico que
+ * fija el orden. `001-mission-difficulty-clears` (HU-75, Task #384) crea la
+ * primera tabla de negocio del servicio.
  */
-export const MIGRATIONS: Readonly<Record<string, Migration>> = {}
+export const MIGRATIONS: Readonly<Record<string, Migration>> = {
+  '001-mission-difficulty-clears': missionDifficultyClears,
+}
 
 export interface MigrationOutcome {
   readonly applied: readonly string[]
