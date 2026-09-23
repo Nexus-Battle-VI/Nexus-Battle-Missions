@@ -242,6 +242,7 @@ describe('Reportes de mision en PostgreSQL (HU-74)', () => {
         completedAt: CLOSED,
       },
       fact: missionSettledFact(enrollment, settlement, P01_RESULT.simulationId, CLOSED),
+      masters: [],
       report: recordFor(enrollment),
     }
   }
@@ -473,9 +474,11 @@ describe('Reportes de mision en PostgreSQL (HU-74)', () => {
     beforeAll(async () => {
       // El ciclo recorre toda la tabla: se empieza sin lo que dejaron las pruebas
       // anteriores. PostgreSQL exige truncar a la vez todo lo que referencia a las
-      // matriculas.
-      await sql`truncate mission_report_rewards, mission_reports, mission_executions, mission_facts,
-        mission_enrollments, mission_difficulty_clears`.execute(db)
+      // matriculas, tambien la evidencia del Master de HU-73.
+      await sql`truncate mission_master_encounters, mission_report_rewards, mission_reports,
+        mission_executions, mission_facts, mission_enrollments, mission_difficulty_clears`.execute(
+        db,
+      )
 
       for (const key of [...Object.keys(ENV), 'DATABASE_URL']) {
         previousEnv[key] = process.env[key]

@@ -8,7 +8,7 @@
 ## Qué implementa esta entrega
 
 - `GET /api/v1/missions` (JWT, rol `PLAYER`): el tablón, con los filtros opcionales `category` y `status`. Cada tarjeta trae `playerStatus`, `canEnroll`, `lockReason` y `activeEnrollmentId`, derivados para el jugador del testimonio.
-- `GET /api/v1/missions/{missionId}`: el detalle con todos los bloques de CA-06. Una misión sin Máster muestra probabilidad `0` y ningún candidato. Si no existe o no está activa: `404 MISSION_NOT_FOUND`.
+- `GET /api/v1/missions/{missionId}`: el detalle con todos los bloques de CA-06. Una misión sin Máster muestra probabilidad `0` y ningún candidato. Desde HU-73, `probability` es la mayor probabilidad configurada y cada candidato trae `probabilityByHeroType`, porque la que aplica depende del subtipo del héroe. Si no existe o no está activa: `404 MISSION_NOT_FOUND`.
 - `POST /api/v1/missions/{missionId}/enrollments` con la cabecera `Idempotency-Key` obligatoria. Valida en el orden del contrato, guarda la intención `PENDING`, reserva al héroe en Player/Inventory (compromiso `MISSION`) y confirma `IN_PROGRESS` con `startedAt` y `endsAt`. En la misma transacción registra el hecho interno `MissionEnrollmentStarted`, que consume HU-72 ([hu-72-simulacion.md](hu-72-simulacion.md)).
 - Un reconciliador de matrículas `PENDING`, apagado por defecto.
 - `400 VALIDATION_ERROR` con la forma común `{ code, message }` en todas las rutas. Lo produce `createValidationPipe`, que usan `main.ts` y las pruebas.
@@ -49,7 +49,7 @@ Sigue el patrón de reserva de ADR-019: primero se guarda la intención con su `
 
 La migración `002-mission-enrollments` crea tres tablas:
 
-- `mission_definitions`: lo que muestra el tablón. Objetivos, enemigos, jefe, Máster y recompensas van en `content` (`jsonb`), que se lee entero.
+- `mission_definitions`: lo que muestra el tablón. Objetivos, enemigos, jefe, Máster (con la forma del contrato de HU-73) y recompensas van en `content` (`jsonb`), que se lee entero.
 - `mission_enrollments`: una fila por matrícula, con `version` para el bloqueo optimista de cada transición.
 - `mission_facts`: hechos internos. HU-72 marca `processed_at` al programar la simulación de cada `MissionEnrollmentStarted`.
 

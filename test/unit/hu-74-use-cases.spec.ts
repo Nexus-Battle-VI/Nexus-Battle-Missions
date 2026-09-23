@@ -43,7 +43,20 @@ const TEMPLO = 'msn_templo_olvidado'
 const CAMARA = 'msn_camara_sellada'
 const HERO = '7f3c2a9e-2d4b-4c1a-9e7f-1b2c3d4e5f60'
 const HOUR_MS = 3_600_000
-const NO_MASTER = { appeared: false, masterRef: null, defeated: false }
+/** HU-73: sin Master, o con el punto de evaluacion sin alcanzar. */
+const NO_MASTER = {
+  appeared: false,
+  masterRef: null,
+  defeated: false,
+  evaluations: [],
+  encounters: [],
+}
+
+/** El Templo evalua al Master tras el tercer encuentro; en estas pruebas no aparece. */
+const MASTER_NOT_APPEARED = {
+  ...NO_MASTER,
+  evaluations: [{ afterEncounter: 3, masterRef: 'sombra-del-olvido', appeared: false }],
+}
 
 /** Resultado del fixture P-01 de HU-72, con la duracion simulada que se pida. */
 const victory = (simulatedDuration: string): SimulationResult => ({
@@ -59,7 +72,7 @@ const victory = (simulatedDuration: string): SimulationResult => ({
     minHealthPercent: 41.5,
     criticalEffects: 9,
     bossDefeated: true,
-    master: NO_MASTER,
+    master: MASTER_NOT_APPEARED,
     simulatedDuration,
   },
   combatLog: [],
@@ -467,7 +480,7 @@ describe('Historial y su resumen (Task HU-74.2, CU-74.3, CA-05)', () => {
     expect(view.narrativeProgress).toEqual([
       { chainId: TEMPLO, missions: [TEMPLO, CAMARA], completed: 1, total: 2 },
     ])
-    // Las epicas llegaran con HU-73.2.
+    // El Master del Templo no aparece en estas misiones: sin derrota no hay epica (CA-03 de HU-73).
     expect(view.epicCollection).toEqual([])
   })
 

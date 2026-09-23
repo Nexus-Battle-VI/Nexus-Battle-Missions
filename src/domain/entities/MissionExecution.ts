@@ -66,8 +66,29 @@ export interface SimulationRequest {
     readonly fallback: 'BASIC_ATTACK'
   }
   readonly encounters: readonly SimulationEncounter[]
-  /** Lo completa HU-73.2 (Master). Hasta entonces no se sortea ningun Master. */
-  readonly master: null
+  /**
+   * HU-73: `null` si la mision no tiene Master o ningun candidato tiene
+   * probabilidad para el subtipo del heroe (P-X2).
+   */
+  readonly master: SimulationMaster | null
+}
+
+/** Un candidato tal como lo recibe Combat: la probabilidad ya resuelta para el heroe (P-X2). */
+export interface SimulationMasterCandidate {
+  readonly masterRef: string
+  readonly subtype: string
+  readonly probability: number
+  readonly levelOffset: number
+  readonly profile: Readonly<Record<string, unknown>> | null
+  readonly epicRef: string
+}
+
+/** Bloque `master` de la solicitud (contrato hu-73-master-encounter-v1). Combat tira los dados. */
+export interface SimulationMaster {
+  /** En orden de encuentro. */
+  readonly evaluationPoints: readonly { readonly afterEncounter: number }[]
+  readonly maxAppearances: number
+  readonly candidates: readonly SimulationMasterCandidate[]
 }
 
 /** Los hechos del resumen con los que Missions decide el resultado (P-S5). */

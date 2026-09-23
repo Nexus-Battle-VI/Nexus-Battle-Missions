@@ -343,6 +343,8 @@ describe('Cierre de la matricula y hecho MissionSettled (HU-72)', () => {
         reason: null,
         objectives: settlement.objectives,
         simulationId: 'sim_1',
+        // HU-73: sin evidencia del Master, la lista va vacia.
+        masterEncounters: [],
         settledAt: ENDS.toISOString(),
       },
     })

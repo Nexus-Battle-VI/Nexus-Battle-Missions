@@ -12,7 +12,8 @@ export interface ReportRepositoryPort {
   listByPlayer(playerId: string): Promise<readonly ReportRecord[]>
   /**
    * CU-74.4: una entrega se confirmo o fallo. Cambia la linea, nunca la foto.
-   * `false` si la linea no existe. La usaran HU-10 y HU-73.2.
+   * `false` si la linea no existe. La usara HU-10; la epica de HU-73 cambia su
+   * linea en la misma escritura de la entrega (`MasterEncounterRepositoryPort`).
    */
   updateRewardStatus(
     enrollmentId: string,

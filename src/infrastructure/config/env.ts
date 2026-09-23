@@ -32,8 +32,9 @@ export type PersistenceDriver = (typeof PersistenceDriver)[keyof typeof Persiste
 /**
  * Como habla Missions con otro servicio. Lo usan la reserva del heroe (HU-70,
  * `HERO_COMMITMENTS_DRIVER`), sus habilidades y su perfil (HU-71 y HU-72,
- * `HERO_ABILITIES_DRIVER`) y la simulacion en Combat (HU-72,
- * `COMBAT_SIMULATION_DRIVER`).
+ * `HERO_ABILITIES_DRIVER`), la simulacion en Combat (HU-72,
+ * `COMBAT_SIMULATION_DRIVER`) y la entrega de la epica del Master (HU-73,
+ * `EPIC_GRANTS_DRIVER`).
  *
  * - `http`: el contrato interno. Es el unico permitido en produccion. Hasta que
  *   Team Alfa publique las rutas, la matricula queda PENDING, guardar una
@@ -76,6 +77,8 @@ export interface AppConfig {
   /** Planificador de HU-72; apagado por defecto, como los demas temporizadores. */
   readonly missionExecutionEnabled: boolean
   readonly missionExecutionIntervalMs: number
+  /** HU-73: entrega de epicas en Player/Inventory, con la misma URL y secreto que la reserva. */
+  readonly epicGrantsDriver: IntegrationDriver
   /** Misiones de ejemplo del curso, solo con persistencia en memoria. */
   readonly exampleCatalog: boolean
 }
@@ -235,6 +238,7 @@ export const loadConfig = (env: RawEnv): AppConfig => {
   const heroCommitmentsDriver = readIntegrationDriver('HERO_COMMITMENTS_DRIVER')
   const heroAbilitiesDriver = readIntegrationDriver('HERO_ABILITIES_DRIVER')
   const combatSimulationDriver = readIntegrationDriver('COMBAT_SIMULATION_DRIVER')
+  const epicGrantsDriver = readIntegrationDriver('EPIC_GRANTS_DRIVER')
 
   const exampleCatalog = readBoolean(env, 'MISSIONS_EXAMPLE_CATALOG', false)
 
@@ -298,6 +302,7 @@ export const loadConfig = (env: RawEnv): AppConfig => {
       1_000,
       3_600_000,
     ),
+    epicGrantsDriver,
     exampleCatalog,
   }
 }

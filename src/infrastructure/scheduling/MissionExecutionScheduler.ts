@@ -1,10 +1,12 @@
+import type { GrantMasterEpics } from '../../application/use-cases/GrantMasterEpics'
 import type { RunMissionExecutions } from '../../application/use-cases/RunMissionExecutions'
 import { describeError } from '../observability/describe-error'
 import type { Logger } from '../observability/logger'
 
 /**
  * Ejecuta el ciclo de HU-72 cada cierto intervalo (CU-72.1 a CU-72.3): programa,
- * simula, cierra y libera. Mismo patron que el reconciliador de HU-70 y los
+ * simula, cierra y libera. Despues entrega las epicas pendientes de HU-73
+ * (CU-73.3), que el cierre acaba de dejar. Mismo patron que el reconciliador de HU-70 y los
  * demas temporizadores de ADR-019: intervalo dentro del proceso y APAGADO por
  * defecto (`MISSION_EXECUTION_ENABLED`). El estado vive en la base: un reinicio
  * retrasa la simulacion o el cierre, no los pierde.
@@ -20,6 +22,7 @@ export class MissionExecutionScheduler {
     private readonly logger: Logger,
     private readonly intervalMs: number,
     private readonly enabled: boolean,
+    private readonly epics: GrantMasterEpics | null = null,
   ) {}
 
   onModuleInit(): void {
@@ -60,7 +63,10 @@ export class MissionExecutionScheduler {
     this.running = true
 
     try {
-      const summary = await this.executions.run()
+      const summary = {
+        ...(await this.executions.run()),
+        ...(await this.epics?.run()),
+      }
 
       if (Object.values(summary).some((count) => count > 0)) {
         this.logger.info('mission_execution_cycle', { ...summary })

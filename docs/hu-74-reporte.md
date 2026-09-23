@@ -30,18 +30,18 @@ El jugador sale siempre del testimonio, nunca de la ruta ni de la consulta: nadi
 
 ## Qué trae el reporte, y de dónde sale
 
-| Bloque                              | Sale de                                                                             |
-| ----------------------------------- | ----------------------------------------------------------------------------------- |
-| `summary.outcome`, `outcomeReason`  | El cierre de HU-72                                                                  |
-| `summary.hero` (`name`, `subtype`)  | El perfil del héroe que HU-72 congela; el doble de desarrollo no los trae           |
-| `summary.startedAt` y `finishedAt`  | La matrícula: `finishedAt` es su `endsAt`, cuando la misión termina para el jugador |
-| `summary.simulatedDuration`         | El resumen de Combat, si es una duración ISO-8601 válida                            |
-| `combatStats`                       | El resumen de Combat; un dato que falta o no cumple queda en `null`                 |
-| `enemies.defeated` y `enemies.boss` | El resumen de Combat, con los nombres del contenido                                 |
-| `enemies.masters`                   | **Vacío hasta HU-73.2**: HU-72 todavía no pide sortear Máster                       |
-| `objectives`                        | Los objetivos evaluados en el cierre; `bonus` en `null` hasta HU-10                 |
-| `rewards`                           | **Vacío hasta HU-10 y HU-73.2**, que crearán las líneas y su estado                 |
-| `generatedAt`                       | El momento del cierre                                                               |
+| Bloque                              | Sale de                                                                                                                                                               |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `summary.outcome`, `outcomeReason`  | El cierre de HU-72                                                                                                                                                    |
+| `summary.hero` (`name`, `subtype`)  | El perfil del héroe que HU-72 congela; el doble de desarrollo no los trae                                                                                             |
+| `summary.startedAt` y `finishedAt`  | La matrícula: `finishedAt` es su `endsAt`, cuando la misión termina para el jugador                                                                                   |
+| `summary.simulatedDuration`         | El resumen de Combat, si es una duración ISO-8601 válida                                                                                                              |
+| `combatStats`                       | El resumen de Combat; un dato que falta o no cumple queda en `null`                                                                                                   |
+| `enemies.defeated` y `enemies.boss` | El resumen de Combat, con los nombres del contenido                                                                                                                   |
+| `enemies.masters`                   | La evidencia de HU-73: los Máster que aparecieron, con su nombre y estado                                                                                             |
+| `objectives`                        | Los objetivos evaluados en el cierre; `bonus` en `null` hasta HU-10                                                                                                   |
+| `rewards`                           | La línea `EPIC` de cada Máster derrotado (HU-73), `PENDING` hasta que Player/Inventory confirme la entrega; créditos, productos y experiencia, **vacíos hasta HU-10** |
+| `generatedAt`                       | El momento del cierre                                                                                                                                                 |
 
 La bitácora completa no va en el reporte (decisión 7 del diseño): sigue guardada en `mission_executions`.
 
@@ -73,23 +73,23 @@ El cierre inserta la foto con `on conflict do nothing`: repetirlo no la duplica 
 
 ## Lo que queda pendiente, y de qué depende
 
-| Pendiente                                                             | Depende de                                 |
-| --------------------------------------------------------------------- | ------------------------------------------ |
-| Que se generen reportes en producción                                 | La ruta de simulación de Combat (HU-72)    |
-| El Máster en el reporte y la épica en las recompensas (CA-03)         | HU-73.2                                    |
-| Créditos, productos, experiencia y bonificaciones por objetivo        | HU-10, en el Backlog                       |
-| Reporte e historial en Web                                            | HU-74.3                                    |
-| Reporte de una misión abandonada                                      | La cancelación (decisión 3 de HU-72)       |
-| Aprobar P-T3, P-T5 y P-T6 (anuladas, mejor tiempo y cadena narrativa) | Decisiones del PO (1, 3 y 4 del diseño)    |
-| Nivel del héroe en el resumen                                         | No existe en Player/Inventory (decisión 5) |
-| Retención de reportes y bitácoras                                     | Decisión del PO (decisión 6)               |
+| Pendiente                                                                                              | Depende de                                 |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------ |
+| Que se generen reportes en producción                                                                  | La ruta de simulación de Combat (HU-72)    |
+| Que la épica llegue de verdad al inventario (CA-01 de HU-73 y HU-32; el CA-03 de HU-74 queda cubierto) | Player/Inventory y Catalog (ver HU-73)     |
+| Créditos, productos, experiencia y bonificaciones por objetivo                                         | HU-10, en el Backlog                       |
+| Reporte e historial en Web                                                                             | HU-74.3                                    |
+| Reporte de una misión abandonada                                                                       | La cancelación (decisión 3 de HU-72)       |
+| Aprobar P-T3, P-T5 y P-T6 (anuladas, mejor tiempo y cadena narrativa)                                  | Decisiones del PO (1, 3 y 4 del diseño)    |
+| Nivel del héroe en el resumen                                                                          | No existe en Player/Inventory (decisión 5) |
+| Retención de reportes y bitácoras                                                                      | Decisión del PO (decisión 6)               |
 
 ## Cómo integrarse
 
 - **Web (HU-74.3):** ante `404 REPORT_NOT_AVAILABLE` muestra `endsAt`. El historial pagina con `nextCursor` sin interpretarlo, y una misión con `reportAvailable: false` no tiene reporte que abrir.
-- **HU-73.2:** completa `enemies.masters` en `missionReportOf` con su evidencia y crea la línea `EPIC` (`source: HU-73`) en el mismo cierre. La colección de épicas del resumen ya lee esas líneas.
+- **HU-73.2 (hecho):** `missionReportOf` lista en `enemies.masters` los Máster que aparecieron y el cierre crea la línea `EPIC` (`source: HU-73`) de cada uno derrotado; la entrega cambia su estado. La colección de épicas empareja cada línea con su Máster por orden de aparición. Ver [hu-73-master.md](hu-73-master.md).
 - **HU-10:** crea sus líneas (`CREDITS`, `PRODUCT` y `EXPERIENCE`, `source: HU-10`) en el cierre y actualiza su estado con `updateRewardStatus` (CU-74.4).
-- **Migraciones:** esta es la `005`. La siguiente historia usa la `006`.
+- **Migraciones:** esta es la `005`. HU-73 añadió la `006`.
 
 ## Pruebas
 
