@@ -25,6 +25,8 @@ Desde el 2026-09-16 corre en producción en el nodo `app` y Caddy le envía `htt
 
 **Simulación y cierre: HU-72** (Task HU-72.2, ver [docs/hu-72-simulacion.md](docs/hu-72-simulacion.md)). Sin rutas nuevas: un planificador (`MISSION_EXECUTION_ENABLED`, apagado por defecto) pide a Combat la simulación de cada misión iniciada, la cierra al llegar `endsAt` (`COMPLETED` o `FAILED`), registra el _clear_ de HU-75 y libera al héroe (migración `004-mission-executions`). La ruta de simulación de Combat todavía no existe: hasta entonces, cada misión espera y se anula (`VOIDED`) sin penalización al vencer su plazo.
 
+**Reporte e historial: HU-74** (Task HU-74.2, ver [docs/hu-74-reporte.md](docs/hu-74-reporte.md)). `GET /api/v1/missions/me/reports/{enrollmentId}`, `GET /api/v1/missions/me/history` y `GET /api/v1/missions/me/history/summary`. El reporte es una foto inmutable que nace en la transacción del cierre de HU-72 (migración `005-mission-reports`). Como ninguna misión se cierra en producción sin la ruta de Combat, todavía no hay reportes; el Máster y las recompensas llegarán con HU-73.2 y HU-10.
+
 ## Qué posee este contexto
 
 - Definiciones de misión y tablón.

@@ -118,25 +118,26 @@ El perfil del héroe usa `HERO_ABILITIES_DRIVER` y `PLAYER_INVENTORY_BASE_URL`, 
 
 ## Lo que queda pendiente, y de qué depende
 
-| Pendiente                                                                          | Depende de                                                               |
-| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Ruta de simulación, IA de rotaciones y enemigos, y combatientes con perfil         | Combat (Team Alfa). Hasta entonces, CA-02 y CA-03 no se acreditan        |
-| Perfil de combate del héroe por `heroId`                                           | Player/Inventory (Team Alfa, decisión 10)                                |
-| Abandonar una misión (`ABANDONED`) y su penalización                               | Decisión del PO (decisión 3); no hay contrato de cancelación             |
-| Aprobar `VOIDED`, `TIME_LIMIT` y `OBJECTIVES_NOT_MET`                              | Decisión del PO (decisiones 2 y 4)                                       |
-| Perfiles de los enemigos regulares y escalado por encuentro (`powerStep`)          | Contenido de las misiones (decisiones 7 y 8)                             |
-| Sorteo y perfil del Máster (`master` va en `null`)                                 | HU-73.2                                                                  |
-| Reporte con el resumen y la bitácora, recompensas, logros y aviso de fin de misión | HU-74, HU-10, HU-76 y Notifications, a partir de `MissionSettled`        |
-| Renovar el compromiso si Combat tarda más que el margen                            | Player/Inventory (decisión 11)                                           |
-| Esquema del perfil de combate del héroe; hoy se congela el cuerpo entero           | Player/Inventory y Combat (Team Alfa, decisión 10)                       |
-| Que abandonar (u otro cierre futuro) cierre también la ejecución                   | La HU de cancelación; hoy solo HU-72 saca una matrícula de `IN_PROGRESS` |
+| Pendiente                                                                  | Depende de                                                               |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Ruta de simulación, IA de rotaciones y enemigos, y combatientes con perfil | Combat (Team Alfa). Hasta entonces, CA-02 y CA-03 no se acreditan        |
+| Perfil de combate del héroe por `heroId`                                   | Player/Inventory (Team Alfa, decisión 10)                                |
+| Abandonar una misión (`ABANDONED`) y su penalización                       | Decisión del PO (decisión 3); no hay contrato de cancelación             |
+| Aprobar `VOIDED`, `TIME_LIMIT` y `OBJECTIVES_NOT_MET`                      | Decisión del PO (decisiones 2 y 4)                                       |
+| Perfiles de los enemigos regulares y escalado por encuentro (`powerStep`)  | Contenido de las misiones (decisiones 7 y 8)                             |
+| Sorteo y perfil del Máster (`master` va en `null`)                         | HU-73.2                                                                  |
+| Recompensas, logros y aviso de fin de misión                               | HU-10, HU-76 y Notifications, a partir de `MissionSettled`               |
+| Renovar el compromiso si Combat tarda más que el margen                    | Player/Inventory (decisión 11)                                           |
+| Esquema del perfil de combate del héroe; hoy se congela el cuerpo entero   | Player/Inventory y Combat (Team Alfa, decisión 10)                       |
+| Que abandonar (u otro cierre futuro) cierre también la ejecución           | La HU de cancelación; hoy solo HU-72 saca una matrícula de `IN_PROGRESS` |
 
 ## Cómo integrarse
 
 - **HU-73 (Máster):** completa el bloque `master` de `simulationRequestFor`. El cierre ya evalúa `DEFEAT_MASTER` con `summary.master`.
-- **HU-74 (reporte), HU-76 (logros) y HU-10 (recompensas):** consumen los `mission_facts` de tipo `MissionSettled` sin `processed_at`. El `payload` trae el resultado, el motivo, los objetivos y `simulationId`; el resumen y la bitácora están en `mission_executions`. Una anulación llega con `missionOutcome: VOIDED` y sin objetivos.
+- **HU-74.2 (hecho):** el cierre crea el reporte de la misión en su misma transacción; una anulación no tiene reporte. Ver [hu-74-reporte.md](hu-74-reporte.md).
+- **HU-76 (logros) y HU-10 (recompensas):** consumen los `mission_facts` de tipo `MissionSettled` sin `processed_at`. El `payload` trae el resultado, el motivo, los objetivos y `simulationId`; el resumen y la bitácora están en `mission_executions`, y la foto, en `mission_reports`. Una anulación llega con `missionOutcome: VOIDED` y sin objetivos.
 - **Web:** una misión anulada vuelve a mostrarse disponible. El resultado no existe para el jugador hasta `endsAt`.
-- **Migraciones:** esta es la `004`. La siguiente historia usa la `005`.
+- **Migraciones:** esta es la `004`. HU-74 añadió la `005`.
 
 ## Pruebas
 
