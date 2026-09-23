@@ -22,19 +22,38 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
     estimatedDurationMinutes: 12 * 60,
     recommendedPower: 15,
     prerequisites: [],
+    // Reglas de la tabla «Objetivos del ejemplo del curso» del contrato de HU-72.
     objectives: [
-      { id: 'obj_guardian', text: 'Derrotar al Guardián del Templo.', primary: true },
-      { id: 'obj_camaras', text: 'Explorar las 5 cámaras del templo.', primary: true },
+      {
+        id: 'obj_guardian',
+        text: 'Derrotar al Guardián del Templo.',
+        primary: true,
+        rule: { type: 'DEFEAT_BOSS' },
+      },
+      {
+        id: 'obj_camaras',
+        text: 'Explorar las 5 cámaras del templo.',
+        primary: true,
+        rule: { type: 'CLEAR_ENCOUNTERS', count: 5 },
+      },
       {
         id: 'obj_vida',
         text: 'Completar la misión sin que la vida del héroe baje del 50 %.',
         primary: false,
+        rule: { type: 'MIN_HEALTH_PERCENT', percent: 50 },
       },
-      { id: 'obj_master', text: 'Derrotar al Máster si aparece.', primary: false },
       {
+        id: 'obj_master',
+        text: 'Derrotar al Máster si aparece.',
+        primary: false,
+        rule: { type: 'DEFEAT_MASTER' },
+      },
+      {
+        // Botin: no evaluable hasta HU-10.
         id: 'obj_fragmentos',
         text: 'Encontrar los 3 fragmentos del Sello Antiguo.',
         primary: false,
+        rule: null,
       },
     ],
     enemies: [
@@ -64,6 +83,40 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
       description: 'Guerrero Tanque con habilidades potenciadas.',
       stats: { health: 100 },
     },
+    // Reparto ilustrativo del contrato de HU-72: el curso da las cantidades
+    // (10, 5 y 3) y «las 5 cámaras», no el orden.
+    encounters: [
+      {
+        index: 1,
+        kind: 'REGULAR',
+        powerStep: null,
+        enemies: [{ enemyRef: 'sombra-corrompida', count: 4 }],
+      },
+      {
+        index: 2,
+        kind: 'REGULAR',
+        powerStep: null,
+        enemies: [{ enemyRef: 'sombra-corrompida', count: 6 }],
+      },
+      {
+        index: 3,
+        kind: 'REGULAR',
+        powerStep: null,
+        enemies: [{ enemyRef: 'guardian-de-piedra', count: 5 }],
+      },
+      {
+        index: 4,
+        kind: 'REGULAR',
+        powerStep: null,
+        enemies: [{ enemyRef: 'espectro-ancestral', count: 3 }],
+      },
+      {
+        index: 5,
+        kind: 'BOSS',
+        powerStep: null,
+        enemies: [{ enemyRef: 'guardian-eterno', count: 1 }],
+      },
+    ],
     masterEncounter: {
       probability: 0.15,
       candidates: [
@@ -108,7 +161,15 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
     estimatedDurationMinutes: 6 * 60,
     recommendedPower: null,
     prerequisites: ['msn_templo_olvidado'],
-    objectives: [{ id: 'obj_sello', text: 'Abrir la cámara sellada.', primary: true }],
+    // Abrir la cámara es vencer a su custodio, el jefe final.
+    objectives: [
+      {
+        id: 'obj_sello',
+        text: 'Abrir la cámara sellada.',
+        primary: true,
+        rule: { type: 'DEFEAT_BOSS' },
+      },
+    ],
     enemies: [],
     finalBoss: {
       enemyRef: 'custodio-del-sello',
@@ -117,6 +178,14 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
       description: null,
       stats: {},
     },
+    encounters: [
+      {
+        index: 1,
+        kind: 'BOSS',
+        powerStep: null,
+        enemies: [{ enemyRef: 'custodio-del-sello', count: 1 }],
+      },
+    ],
     masterEncounter: null,
     rewards: { guaranteed: [], potential: [], objectiveBonuses: [], firstTime: [] },
     highlightedRewards: [],

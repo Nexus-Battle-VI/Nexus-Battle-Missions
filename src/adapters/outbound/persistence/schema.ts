@@ -8,6 +8,13 @@ import type {
 import type { DifficultyLevel } from '../../../domain/value-objects/difficulty-level'
 import type { MissionCategory } from '../../../domain/value-objects/mission-category'
 import type { Rotation } from '../../../domain/value-objects/rotation'
+import type {
+  CombatOutcome,
+  ExecutionStatus,
+  MissionOutcome,
+  ObjectiveResult,
+  SimulationRequest,
+} from '../../../domain/entities/MissionExecution'
 
 /**
  * Esquema de la base de datos del servicio, tipado para Kysely.
@@ -26,6 +33,7 @@ export interface Database {
   readonly mission_enrollments: MissionEnrollmentsTable
   readonly mission_facts: MissionFactsTable
   readonly mission_strategies: MissionStrategiesTable
+  readonly mission_executions: MissionExecutionsTable
 }
 
 /**
@@ -46,6 +54,7 @@ export interface MissionDefinitionContent {
   readonly objectives: MissionDefinition['objectives']
   readonly enemies: MissionDefinition['enemies']
   readonly finalBoss: MissionDefinition['finalBoss']
+  readonly encounters: MissionDefinition['encounters']
   readonly masterEncounter: MissionDefinition['masterEncounter']
   readonly rewards: MissionDefinition['rewards']
   readonly highlightedRewards: MissionDefinition['highlightedRewards']
@@ -105,6 +114,33 @@ export interface MissionStrategiesTable {
   readonly rotations: ColumnType<Rotation[], string, string>
   readonly version: number
   readonly updated_at: ColumnType<Date, Date, Date>
+}
+
+/**
+ * Ejecucion de la simulacion de cada matricula (HU-72, migracion
+ * `004-mission-executions`). Los `jsonb` se escriben como texto JSON.
+ */
+export interface MissionExecutionsTable {
+  readonly enrollment_id: string
+  readonly operation_id: string
+  readonly status: ExecutionStatus
+  readonly attempts: number
+  readonly next_attempt_at: Date | null
+  readonly deadline_at: Date
+  readonly request: ColumnType<SimulationRequest | null, string | null, string | null>
+  readonly last_error: string | null
+  readonly simulation_id: string | null
+  readonly seed_ref: string | null
+  readonly combat_outcome: CombatOutcome | null
+  readonly summary: ColumnType<Record<string, unknown> | null, string | null, string | null>
+  readonly combat_log: ColumnType<unknown[] | null, string | null, string | null>
+  readonly simulated_at: Date | null
+  readonly outcome: MissionOutcome | null
+  readonly outcome_reason: string | null
+  readonly objectives: ColumnType<ObjectiveResult[] | null, string | null, string | null>
+  readonly settled_at: Date | null
+  readonly hero_released_at: Date | null
+  readonly version: number
 }
 
 /** Hechos internos de Missions (`MissionEnrollmentStarted`); los consume HU-72. */

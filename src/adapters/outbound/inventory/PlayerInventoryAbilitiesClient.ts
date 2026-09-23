@@ -1,6 +1,8 @@
 import type {
   HeroAbilitiesOutcome,
   HeroAbilitiesPort,
+  HeroProfileOutcome,
+  HeroProfilePort,
 } from '../../../application/ports/HeroAbilitiesPort'
 import {
   INTERNAL_SERVICE_HEADER,
@@ -10,6 +12,15 @@ import {
 } from '../identity/internal-signature'
 import { isRecord, readJson } from './json'
 import type { FailureDetail, PlayerInventoryClientOptions } from './PlayerInventoryCommitmentClient'
+
+type HeroLookup =
+  | {
+      readonly kind: 'FOUND'
+      readonly abilityIds: ReadonlySet<string>
+      readonly profile: Readonly<Record<string, unknown>>
+    }
+  | { readonly kind: 'NOT_OWNED' }
+  | { readonly kind: 'UNKNOWN'; readonly reason: string }
 
 const SERVICE = 'missions'
 /** Para el registro: la ruta sin los identificadores del jugador y del heroe. */
@@ -58,8 +69,11 @@ const abilityIdsOf = (body: unknown, heroId: string): ReadonlySet<string> | null
  * guarda (503). En particular, el `404` de la ruta inexistente no trae `code` y
  * no significa «no es suyo». El jugador y el heroe van en la ruta, y no en la
  * consulta, porque Player/Inventory firma la ruta sin la consulta.
+ *
+ * La misma ruta da el perfil de combate que HU-72 congela en la solicitud de
+ * simulacion (decision 10 del diseno de HU-72): Missions no lo interpreta.
  */
-export class PlayerInventoryAbilitiesClient implements HeroAbilitiesPort {
+export class PlayerInventoryAbilitiesClient implements HeroAbilitiesPort, HeroProfilePort {
   private readonly fetchImpl: typeof fetch
 
   constructor(private readonly options: PlayerInventoryClientOptions) {
@@ -67,6 +81,18 @@ export class PlayerInventoryAbilitiesClient implements HeroAbilitiesPort {
   }
 
   async abilitiesOf(playerId: string, heroId: string): Promise<HeroAbilitiesOutcome> {
+    const hero = await this.lookup(playerId, heroId)
+
+    return hero.kind === 'FOUND' ? { kind: 'FOUND', abilityIds: hero.abilityIds } : hero
+  }
+
+  async profileOf(playerId: string, heroId: string): Promise<HeroProfileOutcome> {
+    const hero = await this.lookup(playerId, heroId)
+
+    return hero.kind === 'FOUND' ? { kind: 'FOUND', profile: hero.profile } : hero
+  }
+
+  private async lookup(playerId: string, heroId: string): Promise<HeroLookup> {
     const path = `/api/internal/v1/players/${encodeURIComponent(playerId)}/heroes/${encodeURIComponent(heroId)}`
     const timestamp = String(this.options.clock.now().getTime())
     // Un GET se firma con cuerpo vacio, como verifica Player/Inventory.
@@ -104,8 +130,8 @@ export class PlayerInventoryAbilitiesClient implements HeroAbilitiesPort {
     if (response.status === 200) {
       const abilityIds = abilityIdsOf(body, heroId)
 
-      if (abilityIds !== null) {
-        return { kind: 'FOUND', abilityIds }
+      if (abilityIds !== null && isRecord(body)) {
+        return { kind: 'FOUND', abilityIds, profile: body }
       }
 
       this.fail('player_inventory_respuesta_invalida', { route: ROUTE, status: 200 })

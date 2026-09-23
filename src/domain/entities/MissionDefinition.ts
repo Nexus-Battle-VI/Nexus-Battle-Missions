@@ -10,10 +10,35 @@ import type { MissionCategory } from '../value-objects/mission-category'
  * Donde el curso no da un valor, el contenido lo deja en `null`; no se inventan
  * estadisticas.
  */
+/**
+ * Como se evalua un objetivo con el resumen de Combat (HU-72, propuestas P-S5 y
+ * P-S6). Combat no conoce los objetivos: Missions decide con los hechos del
+ * resumen.
+ */
+export type ObjectiveRule =
+  | { readonly type: 'DEFEAT_BOSS' }
+  | { readonly type: 'CLEAR_ENCOUNTERS'; readonly count: number }
+  | { readonly type: 'MIN_HEALTH_PERCENT'; readonly percent: number }
+  | { readonly type: 'DEFEAT_MASTER' }
+
 export interface MissionObjective {
   readonly id: string
   readonly text: string
   readonly primary: boolean
+  /** `null`: no evaluable en esta version (p. ej., el botin, que depende de HU-10). */
+  readonly rule: ObjectiveRule | null
+}
+
+/**
+ * Un encuentro de la simulacion (HU-72). El reparto de enemigos en encuentros es
+ * contenido de la mision: el curso da cantidades y camaras, no el orden.
+ */
+export interface MissionEncounter {
+  readonly index: number
+  readonly kind: 'REGULAR' | 'BOSS'
+  /** Escalado por encuentro: contenido pendiente (decision 8 del diseno de HU-72). */
+  readonly powerStep: number | null
+  readonly enemies: readonly { readonly enemyRef: string; readonly count: number }[]
 }
 
 export interface MissionEnemy {
@@ -83,6 +108,8 @@ export interface MissionDefinition {
   readonly objectives: readonly MissionObjective[]
   readonly enemies: readonly MissionEnemy[]
   readonly finalBoss: MissionBoss
+  /** Encuentros que recorre la simulacion; el ultimo es el del jefe. */
+  readonly encounters: readonly MissionEncounter[]
   readonly masterEncounter: MasterEncounter | null
   readonly rewards: MissionRewards
   readonly highlightedRewards: readonly RewardLabel[]

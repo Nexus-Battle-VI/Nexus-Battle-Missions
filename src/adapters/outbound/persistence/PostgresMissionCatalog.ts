@@ -17,6 +17,7 @@ const toDefinition = (row: Selectable<MissionDefinitionsTable>): MissionDefiniti
   objectives: row.content.objectives,
   enemies: row.content.enemies,
   finalBoss: row.content.finalBoss,
+  encounters: row.content.encounters,
   masterEncounter: row.content.masterEncounter,
   rewards: row.content.rewards,
   highlightedRewards: row.content.highlightedRewards,

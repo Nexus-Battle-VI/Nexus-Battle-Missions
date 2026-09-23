@@ -20,7 +20,8 @@ export interface MissionDetailView {
   readonly name: string
   readonly category: MissionCategory
   readonly narrative: string
-  readonly objectives: readonly MissionObjective[]
+  /** Sin `rule`: como se evalua es interno del cierre de HU-72. */
+  readonly objectives: readonly Omit<MissionObjective, 'rule'>[]
   readonly estimatedDuration: string
   readonly recommendedPower: number | null
   readonly prerequisites: readonly string[]
@@ -85,7 +86,7 @@ export class GetMissionDetail {
       name: definition.name,
       category: definition.category,
       narrative: definition.narrative,
-      objectives: definition.objectives,
+      objectives: definition.objectives.map(({ id, text, primary }) => ({ id, text, primary })),
       estimatedDuration: toIsoDuration(definition.estimatedDurationMinutes),
       recommendedPower: definition.recommendedPower,
       prerequisites: definition.prerequisites,

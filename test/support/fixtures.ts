@@ -65,6 +65,7 @@ export const insertDefinition = async (
         objectives: definition.objectives,
         enemies: definition.enemies,
         finalBoss: definition.finalBoss,
+        encounters: definition.encounters,
         masterEncounter: definition.masterEncounter,
         rewards: definition.rewards,
         highlightedRewards: definition.highlightedRewards,

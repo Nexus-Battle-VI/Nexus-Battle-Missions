@@ -7,23 +7,40 @@ import { MissionBoardController } from '../../adapters/inbound/http/mission-boar
 import { MissionDifficultyController } from '../../adapters/inbound/http/mission-difficulty.controller'
 import { MissionEnrollmentController } from '../../adapters/inbound/http/mission-enrollment.controller'
 import { MissionStrategyController } from '../../adapters/inbound/http/mission-strategy.controller'
+import { CombatSimulationClient } from '../../adapters/outbound/combat/CombatSimulationClient'
+import { ScriptedCombatSimulation } from '../../adapters/outbound/combat/ScriptedCombatSimulation'
 import { InMemoryHeroAbilities } from '../../adapters/outbound/inventory/InMemoryHeroAbilities'
 import { InMemoryHeroCommitments } from '../../adapters/outbound/inventory/InMemoryHeroCommitments'
 import { PlayerInventoryAbilitiesClient } from '../../adapters/outbound/inventory/PlayerInventoryAbilitiesClient'
 import { PlayerInventoryCommitmentClient } from '../../adapters/outbound/inventory/PlayerInventoryCommitmentClient'
 import { EXAMPLE_MISSIONS } from '../../adapters/outbound/persistence/example-missions'
 import { InMemoryEnrollmentRepository } from '../../adapters/outbound/persistence/InMemoryEnrollmentRepository'
+import { InMemoryExecutionRepository } from '../../adapters/outbound/persistence/InMemoryExecutionRepository'
 import { InMemoryMissionCatalog } from '../../adapters/outbound/persistence/InMemoryMissionCatalog'
 import { InMemoryStrategyRepository } from '../../adapters/outbound/persistence/InMemoryStrategyRepository'
 import { PostgresEnrollmentRepository } from '../../adapters/outbound/persistence/PostgresEnrollmentRepository'
+import { PostgresExecutionRepository } from '../../adapters/outbound/persistence/PostgresExecutionRepository'
 import { PostgresMissionCatalog } from '../../adapters/outbound/persistence/PostgresMissionCatalog'
 import { PostgresStrategyRepository } from '../../adapters/outbound/persistence/PostgresStrategyRepository'
 import { RandomIdGenerator } from '../../adapters/outbound/system/RandomIdGenerator'
 import {
+  COMBAT_SIMULATION,
+  type CombatSimulationPort,
+} from '../../application/ports/CombatSimulationPort'
+import {
   ENROLLMENT_REPOSITORY,
   type EnrollmentRepositoryPort,
 } from '../../application/ports/EnrollmentRepositoryPort'
-import { HERO_ABILITIES, type HeroAbilitiesPort } from '../../application/ports/HeroAbilitiesPort'
+import {
+  EXECUTION_REPOSITORY,
+  type ExecutionRepositoryPort,
+} from '../../application/ports/ExecutionRepositoryPort'
+import {
+  HERO_ABILITIES,
+  HERO_PROFILES,
+  type HeroAbilitiesPort,
+  type HeroProfilePort,
+} from '../../application/ports/HeroAbilitiesPort'
 import {
   HERO_COMMITMENTS,
   type HeroCommitmentPort,
@@ -49,10 +66,15 @@ import {
   ReconcilePendingEnrollments,
 } from '../../application/use-cases/ReconcilePendingEnrollments'
 import {
+  RUN_MISSION_EXECUTIONS,
+  RunMissionExecutions,
+} from '../../application/use-cases/RunMissionExecutions'
+import {
   SAVE_MISSION_STRATEGY,
   SaveMissionStrategy,
 } from '../../application/use-cases/SaveMissionStrategy'
 import { EnrollmentReconcilerScheduler } from '../scheduling/EnrollmentReconcilerScheduler'
+import { MissionExecutionScheduler } from '../scheduling/MissionExecutionScheduler'
 import { READINESS_CHECKS, VERSION_REPORT } from '../../adapters/inbound/http/tokens.health'
 import { AnonymousIdentityGuard } from '../../adapters/inbound/http/auth/anonymous.guard'
 import { InternalServiceGuard } from '../../adapters/inbound/http/auth/internal-service.guard'
@@ -75,9 +97,9 @@ import {
 } from '../../application/use-cases/ListMissionDifficulties'
 import {
   AuthMode,
+  IntegrationDriver,
   loadConfig,
   PersistenceDriver,
-  PlayerInventoryDriver,
   type AppConfig,
 } from '../config/env'
 import type { ReadinessCheck, VersionReport } from '../health/health'
@@ -90,6 +112,7 @@ export const LOGGER = Symbol('Logger')
 export const DATABASE = Symbol('Database')
 export const DATABASE_LIFECYCLE = Symbol('DatabaseLifecycle')
 export const ENROLLMENT_RECONCILER = Symbol('EnrollmentReconcilerScheduler')
+export const MISSION_EXECUTION_SCHEDULER = Symbol('MissionExecutionScheduler')
 
 const usesPostgres = (config: AppConfig, db: Kysely<Database> | null): db is Kysely<Database> =>
   config.persistenceDriver === PersistenceDriver.Postgres && db !== null
@@ -104,9 +127,18 @@ const unconfiguredCommitments: HeroCommitmentPort = {
   release: () => Promise.resolve('UNKNOWN'),
 }
 
-/** Igual para las habilidades del heroe: sin configuracion, guardar una estrategia es 503. */
-const unconfiguredAbilities: HeroAbilitiesPort = {
+/**
+ * Igual para el heroe: sin configuracion, guardar una estrategia es 503 y la
+ * simulacion espera su perfil.
+ */
+const unconfiguredHeroes: HeroAbilitiesPort & HeroProfilePort = {
   abilitiesOf: () => Promise.resolve({ kind: 'UNKNOWN', reason: 'NOT_CONFIGURED' }),
+  profileOf: () => Promise.resolve({ kind: 'UNKNOWN', reason: 'NOT_CONFIGURED' }),
+}
+
+/** Y para Combat: la simulacion espera y la mision se anula al vencer su plazo. */
+const unconfiguredSimulations: CombatSimulationPort = {
+  simulate: () => Promise.resolve({ kind: 'UNKNOWN', reason: 'NOT_CONFIGURED' }),
 }
 
 /**
@@ -304,7 +336,7 @@ export const INTERNAL_CALLERS: readonly string[] = []
     {
       provide: HERO_COMMITMENTS,
       useFactory: (config: AppConfig, clock: ClockPort, logger: Logger): HeroCommitmentPort => {
-        if (config.heroCommitmentsDriver === PlayerInventoryDriver.Memory) {
+        if (config.heroCommitmentsDriver === IntegrationDriver.Memory) {
           logger.warn('hero_commitments_in_memory', {
             detail:
               'HERO_COMMITMENTS_DRIVER=memory: las reservas del héroe no pasan por Player/Inventory.',
@@ -390,7 +422,7 @@ export const INTERNAL_CALLERS: readonly string[] = []
     {
       provide: HERO_ABILITIES,
       useFactory: (config: AppConfig, clock: ClockPort, logger: Logger): HeroAbilitiesPort => {
-        if (config.heroAbilitiesDriver === PlayerInventoryDriver.Memory) {
+        if (config.heroAbilitiesDriver === IntegrationDriver.Memory) {
           logger.warn('hero_abilities_in_memory', {
             detail:
               'HERO_ABILITIES_DRIVER=memory: las habilidades del héroe no se validan con Player/Inventory.',
@@ -405,7 +437,7 @@ export const INTERNAL_CALLERS: readonly string[] = []
               'Falta PLAYER_INVENTORY_BASE_URL o INTERNAL_SERVICE_AUTH_SECRET: guardar una estrategia responderá 503.',
           })
 
-          return unconfiguredAbilities
+          return unconfiguredHeroes
         }
 
         return new PlayerInventoryAbilitiesClient({
@@ -463,6 +495,126 @@ export const INTERNAL_CALLERS: readonly string[] = []
           config.enrollmentReconcilerEnabled,
         ),
       inject: [APP_CONFIG, RECONCILE_PENDING_ENROLLMENTS, LOGGER],
+    },
+    // --- HU-72: simulacion y cierre de la mision ---
+    {
+      provide: EXECUTION_REPOSITORY,
+      useFactory: (
+        config: AppConfig,
+        db: Kysely<Database> | null,
+        enrollments: EnrollmentRepositoryPort,
+        clears: DifficultyClearRepositoryPort,
+      ): ExecutionRepositoryPort => {
+        if (usesPostgres(config, db)) {
+          return new PostgresExecutionRepository(db)
+        }
+
+        // En memoria, el cierre escribe a la vez en los dobles de matriculas y de
+        // clears. Si una prueba los sustituyo, las ejecuciones no los ven.
+        return new InMemoryExecutionRepository(
+          enrollments instanceof InMemoryEnrollmentRepository
+            ? enrollments
+            : new InMemoryEnrollmentRepository(),
+          clears instanceof InMemoryDifficultyClearRepository
+            ? clears
+            : new InMemoryDifficultyClearRepository(),
+        )
+      },
+      inject: [APP_CONFIG, DATABASE, ENROLLMENT_REPOSITORY, DIFFICULTY_CLEAR_REPOSITORY],
+    },
+    // El perfil del heroe sale de la misma consulta a Player/Inventory que sus habilidades.
+    { provide: HERO_PROFILES, useExisting: HERO_ABILITIES },
+    {
+      provide: COMBAT_SIMULATION,
+      useFactory: (config: AppConfig, clock: ClockPort, logger: Logger): CombatSimulationPort => {
+        if (config.combatSimulationDriver === IntegrationDriver.Memory) {
+          logger.warn('combat_simulation_in_memory', {
+            detail:
+              'COMBAT_SIMULATION_DRIVER=memory: Combat no simula las misiones; el resultado es fijo.',
+          })
+
+          return new ScriptedCombatSimulation()
+        }
+
+        if (config.combatBaseUrl === null || config.internalServiceAuthSecret === null) {
+          logger.warn('combat_simulation_not_configured', {
+            detail:
+              'Falta COMBAT_BASE_URL o INTERNAL_SERVICE_AUTH_SECRET: las misiones esperarán y se anularán al vencer su plazo.',
+          })
+
+          return unconfiguredSimulations
+        }
+
+        return new CombatSimulationClient({
+          baseUrl: config.combatBaseUrl,
+          secret: config.internalServiceAuthSecret,
+          clock,
+          timeoutMs: config.combatSimulationTimeoutMs,
+          onFailure: (event, detail) => {
+            logger.warn(event, detail)
+          },
+        })
+      },
+      inject: [APP_CONFIG, CLOCK, LOGGER],
+    },
+    {
+      provide: RUN_MISSION_EXECUTIONS,
+      useFactory: (
+        executions: ExecutionRepositoryPort,
+        enrollments: EnrollmentRepositoryPort,
+        catalog: MissionCatalogPort,
+        heroes: HeroProfilePort,
+        combat: CombatSimulationPort,
+        commitments: HeroCommitmentPort,
+        ids: IdGeneratorPort,
+        clock: ClockPort,
+        logger: Logger,
+      ): RunMissionExecutions =>
+        new RunMissionExecutions(
+          executions,
+          enrollments,
+          catalog,
+          heroes,
+          combat,
+          commitments,
+          ids,
+          clock,
+          {
+            batchSize: 50,
+            onError: (enrollmentId, error) => {
+              logger.warn('mission_execution_error', {
+                enrollmentId,
+                detail: describeError(error),
+              })
+            },
+          },
+        ),
+      inject: [
+        EXECUTION_REPOSITORY,
+        ENROLLMENT_REPOSITORY,
+        MISSION_CATALOG,
+        HERO_PROFILES,
+        COMBAT_SIMULATION,
+        HERO_COMMITMENTS,
+        ID_GENERATOR,
+        CLOCK,
+        LOGGER,
+      ],
+    },
+    {
+      provide: MISSION_EXECUTION_SCHEDULER,
+      useFactory: (
+        config: AppConfig,
+        executions: RunMissionExecutions,
+        logger: Logger,
+      ): MissionExecutionScheduler =>
+        new MissionExecutionScheduler(
+          executions,
+          logger,
+          config.missionExecutionIntervalMs,
+          config.missionExecutionEnabled,
+        ),
+      inject: [APP_CONFIG, RUN_MISSION_EXECUTIONS, LOGGER],
     },
   ],
 })

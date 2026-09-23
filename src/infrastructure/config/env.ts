@@ -30,22 +30,22 @@ export const PersistenceDriver = {
 export type PersistenceDriver = (typeof PersistenceDriver)[keyof typeof PersistenceDriver]
 
 /**
- * Como habla Missions con Player/Inventory. Lo usan la reserva del heroe
- * (compromiso `MISSION`, HU-70, `HERO_COMMITMENTS_DRIVER`) y sus habilidades
- * (HU-71, `HERO_ABILITIES_DRIVER`).
+ * Como habla Missions con otro servicio. Lo usan la reserva del heroe (HU-70,
+ * `HERO_COMMITMENTS_DRIVER`), sus habilidades y su perfil (HU-71 y HU-72,
+ * `HERO_ABILITIES_DRIVER`) y la simulacion en Combat (HU-72,
+ * `COMBAT_SIMULATION_DRIVER`).
  *
  * - `http`: el contrato interno. Es el unico permitido en produccion. Hasta que
- *   Team Alfa publique las rutas, la matricula queda PENDING y guardar una
- *   estrategia responde 503: es el resultado honesto.
- * - `memory`: dobles de desarrollo que conceden la reserva y las habilidades.
+ *   Team Alfa publique las rutas, la matricula queda PENDING, guardar una
+ *   estrategia responde 503 y la simulacion espera: es el resultado honesto.
+ * - `memory`: dobles de desarrollo.
  */
-export const PlayerInventoryDriver = {
+export const IntegrationDriver = {
   Memory: 'memory',
   Http: 'http',
 } as const
 
-export type PlayerInventoryDriver =
-  (typeof PlayerInventoryDriver)[keyof typeof PlayerInventoryDriver]
+export type IntegrationDriver = (typeof IntegrationDriver)[keyof typeof IntegrationDriver]
 
 export interface AppConfig {
   readonly nodeEnv: 'development' | 'test' | 'production'
@@ -60,14 +60,22 @@ export interface AppConfig {
   readonly authMode: AuthMode
   readonly cognito: CognitoConfig | null
   readonly internalServiceAuthSecret: string | null
-  readonly heroCommitmentsDriver: PlayerInventoryDriver
-  readonly heroAbilitiesDriver: PlayerInventoryDriver
+  readonly heroCommitmentsDriver: IntegrationDriver
+  readonly heroAbilitiesDriver: IntegrationDriver
   /** Sin barra final. `null`: las reservas quedan sin confirmar y lo avisa el registro. */
   readonly playerInventoryBaseUrl: string | null
   readonly internalHttpTimeoutMs: number
   /** Reconciliador de matriculas PENDING; apagado por defecto, como los demas temporizadores. */
   readonly enrollmentReconcilerEnabled: boolean
   readonly enrollmentReconcilerIntervalMs: number
+  readonly combatSimulationDriver: IntegrationDriver
+  /** Sin barra final. `null`: las simulaciones no se piden y lo avisa el registro. */
+  readonly combatBaseUrl: string | null
+  /** La simulacion es acelerada, pero mas larga que una llamada corriente. */
+  readonly combatSimulationTimeoutMs: number
+  /** Planificador de HU-72; apagado por defecto, como los demas temporizadores. */
+  readonly missionExecutionEnabled: boolean
+  readonly missionExecutionIntervalMs: number
   /** Misiones de ejemplo del curso, solo con persistencia en memoria. */
   readonly exampleCatalog: boolean
 }
@@ -206,26 +214,27 @@ export const loadConfig = (env: RawEnv): AppConfig => {
 
   const internalServiceAuthSecret = readString(env, 'INTERNAL_SERVICE_AUTH_SECRET', '')
 
-  const readPlayerInventoryDriver = (name: string): PlayerInventoryDriver => {
+  const readIntegrationDriver = (name: string): IntegrationDriver => {
     const driver = readEnum(
       env,
       name,
-      [PlayerInventoryDriver.Memory, PlayerInventoryDriver.Http],
-      nodeEnv === 'production' ? PlayerInventoryDriver.Http : PlayerInventoryDriver.Memory,
+      [IntegrationDriver.Memory, IntegrationDriver.Http],
+      nodeEnv === 'production' ? IntegrationDriver.Http : IntegrationDriver.Memory,
     )
 
-    // Un doble que concede sin preguntar a Player/Inventory dejaria al mismo
-    // heroe en una batalla y en una mision a la vez, o guardaria habilidades
-    // que el heroe no tiene.
-    if (nodeEnv === 'production' && driver === PlayerInventoryDriver.Memory) {
+    // Un doble que concede sin preguntar dejaria al mismo heroe en una batalla y
+    // en una mision a la vez, guardaria habilidades que el heroe no tiene o daria
+    // por simulada una mision que Combat nunca jugo.
+    if (nodeEnv === 'production' && driver === IntegrationDriver.Memory) {
       throw new ConfigurationError(`${name} no puede ser "memory" con NODE_ENV=production.`)
     }
 
     return driver
   }
 
-  const heroCommitmentsDriver = readPlayerInventoryDriver('HERO_COMMITMENTS_DRIVER')
-  const heroAbilitiesDriver = readPlayerInventoryDriver('HERO_ABILITIES_DRIVER')
+  const heroCommitmentsDriver = readIntegrationDriver('HERO_COMMITMENTS_DRIVER')
+  const heroAbilitiesDriver = readIntegrationDriver('HERO_ABILITIES_DRIVER')
+  const combatSimulationDriver = readIntegrationDriver('COMBAT_SIMULATION_DRIVER')
 
   const exampleCatalog = readBoolean(env, 'MISSIONS_EXAMPLE_CATALOG', false)
 
@@ -240,6 +249,7 @@ export const loadConfig = (env: RawEnv): AppConfig => {
     /\/+$/,
     '',
   )
+  const combatBaseUrl = readString(env, 'COMBAT_BASE_URL', '').replace(/\/+$/, '')
 
   return {
     nodeEnv,
@@ -267,6 +277,23 @@ export const loadConfig = (env: RawEnv): AppConfig => {
     enrollmentReconcilerIntervalMs: readInteger(
       env,
       'ENROLLMENT_RECONCILER_INTERVAL_MS',
+      15_000,
+      1_000,
+      3_600_000,
+    ),
+    combatSimulationDriver,
+    combatBaseUrl: combatBaseUrl === '' ? null : combatBaseUrl,
+    combatSimulationTimeoutMs: readInteger(
+      env,
+      'COMBAT_SIMULATION_TIMEOUT_MS',
+      15_000,
+      1_000,
+      120_000,
+    ),
+    missionExecutionEnabled: readBoolean(env, 'MISSION_EXECUTION_ENABLED', false),
+    missionExecutionIntervalMs: readInteger(
+      env,
+      'MISSION_EXECUTION_INTERVAL_MS',
       15_000,
       1_000,
       3_600_000,
