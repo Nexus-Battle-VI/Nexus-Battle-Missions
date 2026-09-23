@@ -10,18 +10,22 @@ import { MissionReportController } from '../../adapters/inbound/http/mission-rep
 import { MissionStrategyController } from '../../adapters/inbound/http/mission-strategy.controller'
 import { CombatSimulationClient } from '../../adapters/outbound/combat/CombatSimulationClient'
 import { ScriptedCombatSimulation } from '../../adapters/outbound/combat/ScriptedCombatSimulation'
+import { InMemoryEpicGrants } from '../../adapters/outbound/inventory/InMemoryEpicGrants'
 import { InMemoryHeroAbilities } from '../../adapters/outbound/inventory/InMemoryHeroAbilities'
 import { InMemoryHeroCommitments } from '../../adapters/outbound/inventory/InMemoryHeroCommitments'
 import { PlayerInventoryAbilitiesClient } from '../../adapters/outbound/inventory/PlayerInventoryAbilitiesClient'
 import { PlayerInventoryCommitmentClient } from '../../adapters/outbound/inventory/PlayerInventoryCommitmentClient'
+import { PlayerInventoryEpicGrantClient } from '../../adapters/outbound/inventory/PlayerInventoryEpicGrantClient'
 import { EXAMPLE_MISSIONS } from '../../adapters/outbound/persistence/example-missions'
 import { InMemoryEnrollmentRepository } from '../../adapters/outbound/persistence/InMemoryEnrollmentRepository'
 import { InMemoryExecutionRepository } from '../../adapters/outbound/persistence/InMemoryExecutionRepository'
+import { InMemoryMasterEncounterRepository } from '../../adapters/outbound/persistence/InMemoryMasterEncounterRepository'
 import { InMemoryMissionCatalog } from '../../adapters/outbound/persistence/InMemoryMissionCatalog'
 import { InMemoryReportRepository } from '../../adapters/outbound/persistence/InMemoryReportRepository'
 import { InMemoryStrategyRepository } from '../../adapters/outbound/persistence/InMemoryStrategyRepository'
 import { PostgresEnrollmentRepository } from '../../adapters/outbound/persistence/PostgresEnrollmentRepository'
 import { PostgresExecutionRepository } from '../../adapters/outbound/persistence/PostgresExecutionRepository'
+import { PostgresMasterEncounterRepository } from '../../adapters/outbound/persistence/PostgresMasterEncounterRepository'
 import { PostgresMissionCatalog } from '../../adapters/outbound/persistence/PostgresMissionCatalog'
 import { PostgresReportRepository } from '../../adapters/outbound/persistence/PostgresReportRepository'
 import { PostgresStrategyRepository } from '../../adapters/outbound/persistence/PostgresStrategyRepository'
@@ -34,6 +38,7 @@ import {
   ENROLLMENT_REPOSITORY,
   type EnrollmentRepositoryPort,
 } from '../../application/ports/EnrollmentRepositoryPort'
+import { EPIC_GRANTS, type EpicGrantPort } from '../../application/ports/EpicGrantPort'
 import {
   EXECUTION_REPOSITORY,
   type ExecutionRepositoryPort,
@@ -50,6 +55,10 @@ import {
 } from '../../application/ports/HeroCommitmentPort'
 import { ID_GENERATOR, type IdGeneratorPort } from '../../application/ports/IdGeneratorPort'
 import {
+  MASTER_ENCOUNTER_REPOSITORY,
+  type MasterEncounterRepositoryPort,
+} from '../../application/ports/MasterEncounterRepositoryPort'
+import {
   MISSION_CATALOG,
   type MissionCatalogPort,
 } from '../../application/ports/MissionCatalogPort'
@@ -63,6 +72,7 @@ import {
 } from '../../application/ports/StrategyRepositoryPort'
 import { ENROLL_IN_MISSION, EnrollInMission } from '../../application/use-cases/EnrollInMission'
 import { GET_MISSION_DETAIL, GetMissionDetail } from '../../application/use-cases/GetMissionDetail'
+import { GRANT_MASTER_EPICS, GrantMasterEpics } from '../../application/use-cases/GrantMasterEpics'
 import {
   GET_MISSION_HISTORY_SUMMARY,
   GetMissionHistorySummary,
@@ -155,6 +165,11 @@ const unconfiguredHeroes: HeroAbilitiesPort & HeroProfilePort = {
 /** Y para Combat: la simulacion espera y la mision se anula al vencer su plazo. */
 const unconfiguredSimulations: CombatSimulationPort = {
   simulate: () => Promise.resolve({ kind: 'UNKNOWN', reason: 'NOT_CONFIGURED' }),
+}
+
+/** Igual para las epicas de HU-73: sin configuracion, la entrega queda pendiente. */
+const unconfiguredEpicGrants: EpicGrantPort = {
+  grant: () => Promise.resolve({ kind: 'UNKNOWN', reason: 'NOT_CONFIGURED' }),
 }
 
 /**
@@ -522,13 +537,18 @@ export const INTERNAL_CALLERS: readonly string[] = []
         enrollments: EnrollmentRepositoryPort,
         clears: DifficultyClearRepositoryPort,
         reports: ReportRepositoryPort,
+        masters: MasterEncounterRepositoryPort,
       ): ExecutionRepositoryPort => {
         if (usesPostgres(config, db)) {
           return new PostgresExecutionRepository(db)
         }
 
         // En memoria, el cierre escribe a la vez en los dobles de matriculas,
-        // clears y reportes. Si una prueba los sustituyo, las ejecuciones no los ven.
+        // clears, reportes y evidencia del Master. Si una prueba los sustituyo,
+        // las ejecuciones no los ven.
+        const reportsInMemory =
+          reports instanceof InMemoryReportRepository ? reports : new InMemoryReportRepository()
+
         return new InMemoryExecutionRepository(
           enrollments instanceof InMemoryEnrollmentRepository
             ? enrollments
@@ -536,7 +556,10 @@ export const INTERNAL_CALLERS: readonly string[] = []
           clears instanceof InMemoryDifficultyClearRepository
             ? clears
             : new InMemoryDifficultyClearRepository(),
-          reports instanceof InMemoryReportRepository ? reports : new InMemoryReportRepository(),
+          reportsInMemory,
+          masters instanceof InMemoryMasterEncounterRepository
+            ? masters
+            : new InMemoryMasterEncounterRepository(reportsInMemory),
         )
       },
       inject: [
@@ -545,6 +568,7 @@ export const INTERNAL_CALLERS: readonly string[] = []
         ENROLLMENT_REPOSITORY,
         DIFFICULTY_CLEAR_REPOSITORY,
         REPORT_REPOSITORY,
+        MASTER_ENCOUNTER_REPOSITORY,
       ],
     },
     // El perfil del heroe sale de la misma consulta a Player/Inventory que sus habilidades.
@@ -632,14 +656,89 @@ export const INTERNAL_CALLERS: readonly string[] = []
         config: AppConfig,
         executions: RunMissionExecutions,
         logger: Logger,
+        epics: GrantMasterEpics,
       ): MissionExecutionScheduler =>
         new MissionExecutionScheduler(
           executions,
           logger,
           config.missionExecutionIntervalMs,
           config.missionExecutionEnabled,
+          epics,
         ),
-      inject: [APP_CONFIG, RUN_MISSION_EXECUTIONS, LOGGER],
+      inject: [APP_CONFIG, RUN_MISSION_EXECUTIONS, LOGGER, GRANT_MASTER_EPICS],
+    },
+    // --- HU-73: evidencia del Master y entrega de su epica ---
+    {
+      provide: MASTER_ENCOUNTER_REPOSITORY,
+      useFactory: (
+        config: AppConfig,
+        db: Kysely<Database> | null,
+        reports: ReportRepositoryPort,
+      ): MasterEncounterRepositoryPort =>
+        usesPostgres(config, db)
+          ? new PostgresMasterEncounterRepository(db)
+          : new InMemoryMasterEncounterRepository(
+              reports instanceof InMemoryReportRepository ? reports : undefined,
+            ),
+      inject: [APP_CONFIG, DATABASE, REPORT_REPOSITORY],
+    },
+    {
+      provide: EPIC_GRANTS,
+      useFactory: (config: AppConfig, clock: ClockPort, logger: Logger): EpicGrantPort => {
+        if (config.epicGrantsDriver === IntegrationDriver.Memory) {
+          logger.warn('epic_grants_in_memory', {
+            detail:
+              'EPIC_GRANTS_DRIVER=memory: las épicas del Máster no llegan al inventario de Player/Inventory.',
+          })
+
+          return new InMemoryEpicGrants()
+        }
+
+        if (config.playerInventoryBaseUrl === null || config.internalServiceAuthSecret === null) {
+          logger.warn('epic_grants_not_configured', {
+            detail:
+              'Falta PLAYER_INVENTORY_BASE_URL o INTERNAL_SERVICE_AUTH_SECRET: las épicas quedarán pendientes.',
+          })
+
+          return unconfiguredEpicGrants
+        }
+
+        return new PlayerInventoryEpicGrantClient({
+          baseUrl: config.playerInventoryBaseUrl,
+          secret: config.internalServiceAuthSecret,
+          clock,
+          timeoutMs: config.internalHttpTimeoutMs,
+          onFailure: (event, detail) => {
+            logger.warn(event, detail)
+          },
+        })
+      },
+      inject: [APP_CONFIG, CLOCK, LOGGER],
+    },
+    {
+      provide: GRANT_MASTER_EPICS,
+      useFactory: (
+        masters: MasterEncounterRepositoryPort,
+        enrollments: EnrollmentRepositoryPort,
+        catalog: MissionCatalogPort,
+        grants: EpicGrantPort,
+        clock: ClockPort,
+        logger: Logger,
+      ): GrantMasterEpics =>
+        new GrantMasterEpics(masters, enrollments, catalog, grants, clock, {
+          batchSize: 50,
+          onError: (enrollmentId, error) => {
+            logger.warn('epic_grant_error', { enrollmentId, detail: describeError(error) })
+          },
+        }),
+      inject: [
+        MASTER_ENCOUNTER_REPOSITORY,
+        ENROLLMENT_REPOSITORY,
+        MISSION_CATALOG,
+        EPIC_GRANTS,
+        CLOCK,
+        LOGGER,
+      ],
     },
     // --- HU-74: reporte e historial ---
     {

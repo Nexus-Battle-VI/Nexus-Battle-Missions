@@ -1,5 +1,9 @@
 import type { ColumnType, Generated } from 'kysely'
 
+import type {
+  EpicGrantStatus,
+  MasterEncounterStatus,
+} from '../../../domain/entities/MasterEncounterRecord'
 import type { MissionDefinition } from '../../../domain/entities/MissionDefinition'
 import type {
   EnrollmentRejection,
@@ -42,6 +46,7 @@ export interface Database {
   readonly mission_executions: MissionExecutionsTable
   readonly mission_reports: MissionReportsTable
   readonly mission_report_rewards: MissionReportRewardsTable
+  readonly mission_master_encounters: MissionMasterEncountersTable
 }
 
 /**
@@ -181,6 +186,30 @@ export interface MissionReportRewardsTable {
   readonly status: RewardStatus
   readonly source: ColumnType<RewardSource, RewardSource, never>
   readonly updated_at: Date
+}
+
+/**
+ * Evidencia del Master por matricula (HU-73, migracion
+ * `006-mission-master-encounters`). Lo escribe el cierre; despues solo cambia la
+ * entrega de la epica.
+ */
+export interface MissionMasterEncountersTable {
+  readonly enrollment_id: ColumnType<string, string, never>
+  readonly sequence: ColumnType<number, number, never>
+  readonly after_encounter: ColumnType<number | null, number | null, never>
+  readonly master_ref: ColumnType<string | null, string | null, never>
+  readonly status: ColumnType<MasterEncounterStatus, MasterEncounterStatus, never>
+  readonly epic_ref: ColumnType<string | null, string | null, never>
+  readonly level_offset: ColumnType<number | null, number | null, never>
+  readonly turns: ColumnType<number | null, number | null, never>
+  readonly grant_operation_id: ColumnType<string | null, string | null, never>
+  readonly grant_status: EpicGrantStatus | null
+  readonly grant_attempts: ColumnType<number, number | undefined, number>
+  readonly grant_next_attempt_at: Date | null
+  readonly grant_last_error: string | null
+  readonly granted_at: Date | null
+  readonly reward_line_no: ColumnType<number | null, number | null, never>
+  readonly grant_product_id: string | null
 }
 
 /** Hechos internos de Missions (`MissionEnrollmentStarted`); los consume HU-72. */

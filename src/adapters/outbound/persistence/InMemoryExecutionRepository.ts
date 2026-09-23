@@ -6,14 +6,15 @@ import type {
 import type { MissionExecution } from '../../../domain/entities/MissionExecution'
 import type { InMemoryDifficultyClearRepository } from './InMemoryDifficultyClearRepository'
 import type { InMemoryEnrollmentRepository } from './InMemoryEnrollmentRepository'
+import { InMemoryMasterEncounterRepository } from './InMemoryMasterEncounterRepository'
 import type { InMemoryReportRepository } from './InMemoryReportRepository'
 
 const byTime = (date: Date | null): number => date?.getTime() ?? Number.MAX_SAFE_INTEGER
 
 /**
  * Doble de desarrollo y pruebas de `mission_executions` (HU-72). Comparte estado
- * con los dobles de matriculas, clears y reportes porque el cierre los escribe a
- * la vez: `close` comprueba las dos versiones antes de escribir nada y despues
+ * con los dobles de matriculas, clears, reportes y evidencia del Master porque el
+ * cierre los escribe a la vez: `close` comprueba las dos versiones antes de escribir nada y despues
  * aplica todo sin esperas, que es el equivalente en memoria de la transaccion.
  */
 export class InMemoryExecutionRepository implements ExecutionRepositoryPort {
@@ -23,6 +24,9 @@ export class InMemoryExecutionRepository implements ExecutionRepositoryPort {
     private readonly enrollments: InMemoryEnrollmentRepository,
     private readonly clears: InMemoryDifficultyClearRepository,
     private readonly reports: InMemoryReportRepository,
+    private readonly masters: InMemoryMasterEncounterRepository = new InMemoryMasterEncounterRepository(
+      reports,
+    ),
   ) {}
 
   pendingStarts(limit: number): Promise<readonly StartedMission[]> {
@@ -115,6 +119,8 @@ export class InMemoryExecutionRepository implements ExecutionRepositoryPort {
     if (closure.report !== null) {
       this.reports.recordNow(closure.report)
     }
+
+    this.masters.recordNow(closure.masters)
 
     return Promise.resolve(true)
   }

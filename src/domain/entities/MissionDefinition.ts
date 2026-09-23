@@ -61,18 +61,36 @@ export interface MasterEpic {
   readonly name: string
   readonly generalEffect: string | null
   readonly epicEffect: string | null
+  /** El producto de Catalog que se entrega; `null` mientras no exista (decision 7 de HU-73). */
+  readonly productId: string | null
 }
 
 export interface MasterCandidate {
   readonly masterRef: string
   readonly name: string
-  readonly heroType: string
+  /** Subtipo del Master; el detalle de HU-70 lo muestra como `heroType`. */
+  readonly subtype: string
+  /** Niveles por encima del heroe: literal de la HU, dos (CA-04). */
+  readonly levelOffset: number
+  /** Estadisticas base: contenido pendiente; `null` si el curso no las da. */
+  readonly profile: Readonly<Record<string, unknown>> | null
+  /**
+   * Fraccion entre 0 y 1 por subtipo del heroe (CA-02); `"*"` vale para
+   * cualquiera. La fuente y la unidad siguen pendientes (decision 1 de HU-73).
+   */
+  readonly probabilityByHeroType: Readonly<Record<string, number>>
   readonly epic: MasterEpic
 }
 
+/**
+ * Configuracion del Master de una mision (HU-73, propuesta P-X1). Cada punto de
+ * evaluacion es una oportunidad al terminar ese encuentro; el tope limita las
+ * apariciones de toda la mision (P-X3).
+ */
 export interface MasterEncounter {
-  /** Fraccion entre 0 y 1. La fuente y la unidad siguen pendientes (HU-73). */
-  readonly probability: number
+  readonly evaluationPoints: readonly { readonly afterEncounter: number }[]
+  /** 1 si el contenido no lo fija (P-X3). */
+  readonly maxAppearances?: number
   readonly candidates: readonly MasterCandidate[]
 }
 

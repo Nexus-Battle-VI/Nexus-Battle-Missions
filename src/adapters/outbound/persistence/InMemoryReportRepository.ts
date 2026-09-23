@@ -46,10 +46,20 @@ export class InMemoryReportRepository implements ReportRepositoryPort {
     status: RewardStatus,
     at: Date,
   ): Promise<boolean> {
+    return Promise.resolve(this.updateRewardStatusNow(enrollmentId, lineNo, status, at))
+  }
+
+  /** Sincrona, para la entrega de la epica de HU-73, que cambia la linea a la vez. */
+  updateRewardStatusNow(
+    enrollmentId: string,
+    lineNo: number,
+    status: RewardStatus,
+    at: Date,
+  ): boolean {
     const record = this.records.get(enrollmentId)
 
     if (!record?.rewards.some((line) => line.lineNo === lineNo)) {
-      return Promise.resolve(false)
+      return false
     }
 
     this.records.set(enrollmentId, {
@@ -59,6 +69,6 @@ export class InMemoryReportRepository implements ReportRepositoryPort {
       ),
     })
 
-    return Promise.resolve(true)
+    return true
   }
 }

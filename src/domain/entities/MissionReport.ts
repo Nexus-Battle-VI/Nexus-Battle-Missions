@@ -81,7 +81,7 @@ export interface ReportEnemies {
   /** Los regulares; el jefe va aparte, en `boss`. */
   readonly defeated: readonly DefeatedEnemy[]
   readonly boss: ReportBoss
-  /** La evidencia la aporta HU-73.2; hasta entonces, vacia (HU-72 no pide sortear Master). */
+  /** Los Master que aparecieron, segun la evidencia de HU-73; vacia si no aparecio ninguno. */
   readonly masters: readonly ReportMaster[]
 }
 

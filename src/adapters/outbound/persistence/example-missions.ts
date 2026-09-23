@@ -117,13 +117,19 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
         enemies: [{ enemyRef: 'guardian-eterno', count: 1 }],
       },
     ],
+    // Contrato de HU-73: el curso da una sola probabilidad (0.15) y no fija el
+    // punto; se evalua tras el tercer encuentro, como en el ejemplo del contrato.
     masterEncounter: {
-      probability: 0.15,
+      evaluationPoints: [{ afterEncounter: 3 }],
+      maxAppearances: 1,
       candidates: [
         {
           masterRef: 'sombra-del-olvido',
           name: 'Sombra del Olvido',
-          heroType: 'PICARO_VENENO',
+          subtype: 'PICARO_VENENO',
+          levelOffset: 2,
+          profile: null,
+          probabilityByHeroType: { '*': 0.15 },
           epic: {
             epicRef: 'velo-de-sombras',
             name: 'Velo de Sombras',
@@ -131,6 +137,8 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
             epicEffect:
               'Solo Pícaro Veneno: intangible durante 1 turno y envenena al atacante ' +
               '(+3 de daño durante 2 turnos).',
+            // La epica todavia no existe como producto de Catalog (decision 7).
+            productId: null,
           },
         },
       ],

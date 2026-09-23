@@ -65,7 +65,14 @@ const P01_RESULT: SimulationResult = {
     minHealthPercent: 41.5,
     criticalEffects: 9,
     bossDefeated: true,
-    master: { appeared: false, masterRef: null, defeated: false },
+    // HU-73: el Templo pide sortear el Master tras el tercer encuentro; no aparece.
+    master: {
+      appeared: false,
+      masterRef: null,
+      defeated: false,
+      evaluations: [{ afterEncounter: 3, masterRef: 'sombra-del-olvido', appeared: false }],
+      encounters: [],
+    },
     simulatedDuration: 'PT9H40M',
   },
   combatLog: [{ seq: 1, type: 'simulationFinished', combatOutcome: 'HERO_VICTORIOUS' }],
@@ -275,7 +282,21 @@ describe('RunMissionExecutions: simulacion (Task HU-72.2, CU-72.1)', () => {
       timeBudget: 'PT12H',
       hero: { heroId: HERO, profile: PROFILE },
       strategy: { version: 1, rotations: COURSE_STRATEGY, fallback: 'BASIC_ATTACK' },
-      master: null,
+      // HU-73 (P-X2): la probabilidad ya resuelta para el subtipo del heroe.
+      master: {
+        evaluationPoints: [{ afterEncounter: 3 }],
+        maxAppearances: 1,
+        candidates: [
+          {
+            masterRef: 'sombra-del-olvido',
+            subtype: 'PICARO_VENENO',
+            probability: 0.15,
+            levelOffset: 2,
+            profile: null,
+            epicRef: 'velo-de-sombras',
+          },
+        ],
+      },
     })
     expect(
       request?.encounters.map(({ index, kind, enemies }) => [

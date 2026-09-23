@@ -1,3 +1,4 @@
+import { isAppearance, type MasterEncounterRecord } from '../entities/MasterEncounterRecord'
 import type { MissionDefinition } from '../entities/MissionDefinition'
 import type { MissionEnrollment } from '../entities/MissionEnrollment'
 import type { Settlement, SimulationResult } from '../entities/MissionExecution'
@@ -6,6 +7,7 @@ import {
   type CombatStats,
   type DefeatedEnemy,
   type MissionReport,
+  type ReportMaster,
   type ReportOutcome,
   type SkillUse,
 } from '../entities/MissionReport'
@@ -28,6 +30,8 @@ export interface ReportInput {
   readonly settlement: Settlement
   /** Perfil del heroe congelado en la solicitud a Combat (HU-72): da nombre y subtipo. */
   readonly heroProfile: Readonly<Record<string, unknown>> | null
+  /** La evidencia del Master de HU-73; sin ella, ningun Master aparecio. */
+  readonly masters?: readonly MasterEncounterRecord[]
   /** El momento del cierre. */
   readonly generatedAt: Date
 }
@@ -40,6 +44,30 @@ const amountOrNull = (value: unknown): number | null =>
 
 const textOrNull = (value: unknown): string | null =>
   typeof value === 'string' && value !== '' ? value : null
+
+/** Solo los Master que aparecieron (CA-03); la no aparicion queda en la evidencia de HU-73. */
+const mastersOf = (
+  records: readonly MasterEncounterRecord[],
+  definition: MissionDefinition,
+): readonly ReportMaster[] => {
+  // El contenido vigente llega de `jsonb`: sin la forma esperada, solo se pierde el nombre.
+  const config: unknown = definition.masterEncounter
+  const candidates: readonly unknown[] =
+    isRecord(config) && Array.isArray(config.candidates) ? config.candidates : []
+  const names = new Map(
+    candidates.flatMap((candidate) =>
+      isRecord(candidate) && typeof candidate.masterRef === 'string'
+        ? [[candidate.masterRef, textOrNull(candidate.name)] as const]
+        : [],
+    ),
+  )
+
+  return records.flatMap(({ masterRef, status }) =>
+    masterRef !== null && isAppearance(status)
+      ? [{ masterRef, name: names.get(masterRef) ?? masterRef, status }]
+      : [],
+  )
+}
 
 const skillsUsedOf = (value: unknown): readonly SkillUse[] => {
   if (!Array.isArray(value)) {
@@ -147,7 +175,7 @@ export const missionReportOf = (input: ReportInput): MissionReport => {
         name: definition.finalBoss.name,
         defeated: simulationFactsOf(summary)?.bossDefeated ?? false,
       },
-      masters: [],
+      masters: mastersOf(input.masters ?? [], definition),
     },
     objectives: definition.objectives.map((objective) => ({
       id: objective.id,

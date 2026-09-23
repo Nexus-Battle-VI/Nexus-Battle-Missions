@@ -110,22 +110,31 @@ export interface EpicCollectionEntry {
 const isEpicLine = (line: ReportRewardLine): line is ReportRewardLine & { reference: string } =>
   line.kind === 'EPIC' && line.reference !== null
 
-/** Las epicas ganadas en misiones, con el estado de su entrega, de la primera a la ultima. */
+/**
+ * Las epicas ganadas en misiones, con el estado de su entrega, de la primera a
+ * la ultima. HU-73 crea las lineas `EPIC` y los Master derrotados del reporte en
+ * el mismo orden de aparicion: la linea i es la del Master derrotado i.
+ */
 export const epicCollectionOf = (
   records: readonly ReportRecord[],
 ): readonly EpicCollectionEntry[] =>
   records
-    .flatMap(({ report, rewards }) =>
-      rewards.filter(isEpicLine).map((line) => ({
-        epicRef: line.reference,
-        name: line.name,
-        masterRef:
-          report.enemies.masters.find((master) => master.status === 'APPEARED_DEFEATED')
-            ?.masterRef ?? null,
-        obtainedAt: report.generatedAt,
-        status: line.status,
-      })),
-    )
+    .flatMap(({ report, rewards }) => {
+      const defeated = report.enemies.masters.filter(
+        (master) => master.status === 'APPEARED_DEFEATED',
+      )
+
+      return rewards
+        .filter(isEpicLine)
+        .sort((a, b) => a.lineNo - b.lineNo)
+        .map((line, index) => ({
+          epicRef: line.reference,
+          name: line.name,
+          masterRef: defeated[index]?.masterRef ?? null,
+          obtainedAt: report.generatedAt,
+          status: line.status,
+        }))
+    })
     .sort(
       (a, b) =>
         a.obtainedAt.getTime() - b.obtainedAt.getTime() || compareText(a.epicRef, b.epicRef),
