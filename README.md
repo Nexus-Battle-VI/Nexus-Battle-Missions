@@ -21,6 +21,8 @@ Desde el 2026-09-16 corre en producción en el nodo `app` y Caddy le envía `htt
 
 **Tablón, detalle y matrícula: HU-70** (Task HU-70.2, ver [docs/hu-70-matriculacion.md](docs/hu-70-matriculacion.md)). `GET /api/v1/missions`, `GET /api/v1/missions/{missionId}` y `POST /api/v1/missions/{missionId}/enrollments`, con la migración `002-mission-enrollments`. La reserva del héroe depende de una ruta de Player/Inventory que todavía no existe: hasta que se publique, una matrícula queda `PENDING` y responde `503`.
 
+**Estrategia de rotaciones: HU-71** (Task HU-71.2, ver [docs/hu-71-rotaciones.md](docs/hu-71-rotaciones.md)). `GET` y `PUT /api/v1/missions/{missionId}/strategies/{heroId}` guardan hasta tres rotaciones por jugador, héroe y misión, con versión optimista, y la matrícula congela una copia (migración `003-mission-strategies`). Validar las habilidades también depende de una ruta de Player/Inventory que no existe: hasta entonces, guardar responde `503`.
+
 ## Qué posee este contexto
 
 - Definiciones de misión y tablón.
@@ -93,6 +95,7 @@ Ver [.env.example](.env.example). Las reglas que hacen fallar el arranque son de
 | `PERSISTENCE_DRIVER=postgres` sin `DATABASE_URL`                | **No arranca**           |
 | `AUTH_MODE=jwt` sin pool o cliente                              | **No arranca**           |
 | `NODE_ENV=production` con `HERO_COMMITMENTS_DRIVER=memory`      | **No arranca** (ADR-019) |
+| `NODE_ENV=production` con `HERO_ABILITIES_DRIVER=memory`        | **No arranca**           |
 | `MISSIONS_EXAMPLE_CATALOG=true` sin `PERSISTENCE_DRIVER=memory` | **No arranca**           |
 
 ## Identidad y autorización

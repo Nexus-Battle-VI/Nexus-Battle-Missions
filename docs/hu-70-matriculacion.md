@@ -66,22 +66,21 @@ Una fila que viola varias restricciones solo informa la primera que el motor com
 
 ## Lo que queda pendiente, y de qué depende
 
-| Pendiente                                                                                      | Depende de                                                          |
-| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Rutas de compromiso y de liberación en Player/Inventory                                        | Team Alfa, con la propuesta del contrato de HU-70                   |
-| Misiones reales en el catálogo de PostgreSQL                                                   | Contenido aprobado por el PO; hoy solo existe el ejemplo en memoria |
-| Qué es «mazo completo»                                                                         | Decisión del PO (P-M7)                                              |
-| Estrategias guardadas: hoy toda `strategyVersion` no nula responde `STRATEGY_VERSION_MISMATCH` | HU-71.2                                                             |
-| Simular, terminar la matrícula (`COMPLETED`, `FAILED` o `ABANDONED`) y liberar al héroe        | HU-72.2, que consume `MissionEnrollmentStarted`                     |
-| Rechazar JcJ, torneo o cambios de equipo mientras la matrícula está en curso (CA-05)           | Combat, Torneo y Player/Inventory, con el compromiso vigente        |
-| Mensajes que nombren las ranuras que faltan                                                    | Los nombres de familia y de ranura, que fija Player/Inventory       |
+| Pendiente                                                                               | Depende de                                                          |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Rutas de compromiso y de liberación en Player/Inventory                                 | Team Alfa, con la propuesta del contrato de HU-70                   |
+| Misiones reales en el catálogo de PostgreSQL                                            | Contenido aprobado por el PO; hoy solo existe el ejemplo en memoria |
+| Qué es «mazo completo»                                                                  | Decisión del PO (P-M7)                                              |
+| Simular, terminar la matrícula (`COMPLETED`, `FAILED` o `ABANDONED`) y liberar al héroe | HU-72.2, que consume `MissionEnrollmentStarted`                     |
+| Rechazar JcJ, torneo o cambios de equipo mientras la matrícula está en curso (CA-05)    | Combat, Torneo y Player/Inventory, con el compromiso vigente        |
+| Mensajes que nombren las ranuras que faltan                                             | Los nombres de familia y de ranura, que fija Player/Inventory       |
 
 ## Cómo integrarse
 
 - **Web:** genera la `Idempotency-Key` al pulsar «Iniciar misión» y la reutiliza en los reintentos de esa pulsación. Ante un `503` con `enrollmentStatus: PENDING`, reintenta con la misma clave. Muestra `message` tal cual.
 - **HU-72:** lee los `mission_facts` de tipo `MissionEnrollmentStarted` sin `processed_at`. Cierra la matrícula con una transición nueva del dominio y `saveTransition`, que exige la `version` leída.
-- **HU-71.2:** sustituye la comprobación provisional de `strategyVersion` por la versión guardada del jugador y congela esa estrategia en la matrícula.
-- **Migraciones:** esta es la `002`. La siguiente historia usa la `003`.
+- **HU-71.2 (hecho):** la matrícula compara `strategyVersion` con la estrategia guardada para ese jugador, héroe y misión, y congela una copia de sus rotaciones. Ver [hu-71-rotaciones.md](hu-71-rotaciones.md).
+- **Migraciones:** esta es la `002`. HU-71 añadió la `003`.
 
 ## Pruebas
 
