@@ -29,6 +29,22 @@ export const PersistenceDriver = {
 
 export type PersistenceDriver = (typeof PersistenceDriver)[keyof typeof PersistenceDriver]
 
+/**
+ * Como se reserva al heroe (compromiso `MISSION`, HU-70).
+ *
+ * - `http`: Player/Inventory por el contrato interno. Es el unico permitido en
+ *   produccion. Hasta que Team Alfa publique la ruta, las matriculas quedan
+ *   PENDING (503), que es el resultado honesto.
+ * - `memory`: doble de desarrollo que concede la reserva en proceso.
+ */
+export const HeroCommitmentsDriver = {
+  Memory: 'memory',
+  Http: 'http',
+} as const
+
+export type HeroCommitmentsDriver =
+  (typeof HeroCommitmentsDriver)[keyof typeof HeroCommitmentsDriver]
+
 export interface AppConfig {
   readonly nodeEnv: 'development' | 'test' | 'production'
   readonly serviceName: string
@@ -42,6 +58,15 @@ export interface AppConfig {
   readonly authMode: AuthMode
   readonly cognito: CognitoConfig | null
   readonly internalServiceAuthSecret: string | null
+  readonly heroCommitmentsDriver: HeroCommitmentsDriver
+  /** Sin barra final. `null`: las reservas quedan sin confirmar y lo avisa el registro. */
+  readonly playerInventoryBaseUrl: string | null
+  readonly internalHttpTimeoutMs: number
+  /** Reconciliador de matriculas PENDING; apagado por defecto, como los demas temporizadores. */
+  readonly enrollmentReconcilerEnabled: boolean
+  readonly enrollmentReconcilerIntervalMs: number
+  /** Misiones de ejemplo del curso, solo con persistencia en memoria. */
+  readonly exampleCatalog: boolean
 }
 
 type RawEnv = Readonly<Record<string, string | undefined>>
@@ -178,6 +203,35 @@ export const loadConfig = (env: RawEnv): AppConfig => {
 
   const internalServiceAuthSecret = readString(env, 'INTERNAL_SERVICE_AUTH_SECRET', '')
 
+  const heroCommitmentsDriver = readEnum(
+    env,
+    'HERO_COMMITMENTS_DRIVER',
+    [HeroCommitmentsDriver.Memory, HeroCommitmentsDriver.Http],
+    nodeEnv === 'production' ? HeroCommitmentsDriver.Http : HeroCommitmentsDriver.Memory,
+  )
+
+  // Un doble que concede reservas sin preguntar a Player/Inventory dejaria al
+  // mismo heroe en una batalla y en una mision a la vez.
+  if (nodeEnv === 'production' && heroCommitmentsDriver === HeroCommitmentsDriver.Memory) {
+    throw new ConfigurationError(
+      'HERO_COMMITMENTS_DRIVER no puede ser "memory" con NODE_ENV=production.',
+    )
+  }
+
+  const exampleCatalog = readBoolean(env, 'MISSIONS_EXAMPLE_CATALOG', false)
+
+  if (exampleCatalog && persistenceDriver !== PersistenceDriver.Memory) {
+    throw new ConfigurationError(
+      'MISSIONS_EXAMPLE_CATALOG solo se admite con PERSISTENCE_DRIVER=memory: el ejemplo del ' +
+        'curso no es contenido aprobado.',
+    )
+  }
+
+  const playerInventoryBaseUrl = readString(env, 'PLAYER_INVENTORY_BASE_URL', '').replace(
+    /\/+$/,
+    '',
+  )
+
   return {
     nodeEnv,
     serviceName: readString(env, 'SERVICE_NAME', 'nexus-battle-missions'),
@@ -196,5 +250,17 @@ export const loadConfig = (env: RawEnv): AppConfig => {
         ? { userPoolId: cognitoUserPoolId, clientId: cognitoClientId }
         : null,
     internalServiceAuthSecret: internalServiceAuthSecret === '' ? null : internalServiceAuthSecret,
+    heroCommitmentsDriver,
+    playerInventoryBaseUrl: playerInventoryBaseUrl === '' ? null : playerInventoryBaseUrl,
+    internalHttpTimeoutMs: readInteger(env, 'INTERNAL_HTTP_TIMEOUT_MS', 3_000, 100, 30_000),
+    enrollmentReconcilerEnabled: readBoolean(env, 'ENROLLMENT_RECONCILER_ENABLED', false),
+    enrollmentReconcilerIntervalMs: readInteger(
+      env,
+      'ENROLLMENT_RECONCILER_INTERVAL_MS',
+      15_000,
+      1_000,
+      3_600_000,
+    ),
+    exampleCatalog,
   }
 }

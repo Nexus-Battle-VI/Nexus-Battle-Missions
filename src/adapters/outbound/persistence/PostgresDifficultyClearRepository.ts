@@ -27,6 +27,18 @@ export class PostgresDifficultyClearRepository implements DifficultyClearReposit
     return new Set(rows.map((row) => row.difficulty))
   }
 
+  async completedMissions(playerId: string): Promise<ReadonlySet<string>> {
+    // La clave primaria empieza por `player_id`: la consulta usa su indice.
+    const rows = await this.db
+      .selectFrom('mission_difficulty_clears')
+      .select('mission_id')
+      .distinct()
+      .where('player_id', '=', playerId)
+      .execute()
+
+    return new Set(rows.map((row) => row.mission_id))
+  }
+
   async record(clear: MissionDifficultyClear): Promise<boolean> {
     const inserted = await this.db
       .insertInto('mission_difficulty_clears')

@@ -3,7 +3,38 @@ import { APP_GUARD, Reflector } from '@nestjs/core'
 import type { Kysely } from 'kysely'
 
 import { HealthController } from '../../adapters/inbound/http/health.controller'
+import { MissionBoardController } from '../../adapters/inbound/http/mission-board.controller'
 import { MissionDifficultyController } from '../../adapters/inbound/http/mission-difficulty.controller'
+import { MissionEnrollmentController } from '../../adapters/inbound/http/mission-enrollment.controller'
+import { InMemoryHeroCommitments } from '../../adapters/outbound/inventory/InMemoryHeroCommitments'
+import { PlayerInventoryCommitmentClient } from '../../adapters/outbound/inventory/PlayerInventoryCommitmentClient'
+import { EXAMPLE_MISSIONS } from '../../adapters/outbound/persistence/example-missions'
+import { InMemoryEnrollmentRepository } from '../../adapters/outbound/persistence/InMemoryEnrollmentRepository'
+import { InMemoryMissionCatalog } from '../../adapters/outbound/persistence/InMemoryMissionCatalog'
+import { PostgresEnrollmentRepository } from '../../adapters/outbound/persistence/PostgresEnrollmentRepository'
+import { PostgresMissionCatalog } from '../../adapters/outbound/persistence/PostgresMissionCatalog'
+import { RandomIdGenerator } from '../../adapters/outbound/system/RandomIdGenerator'
+import {
+  ENROLLMENT_REPOSITORY,
+  type EnrollmentRepositoryPort,
+} from '../../application/ports/EnrollmentRepositoryPort'
+import {
+  HERO_COMMITMENTS,
+  type HeroCommitmentPort,
+} from '../../application/ports/HeroCommitmentPort'
+import { ID_GENERATOR, type IdGeneratorPort } from '../../application/ports/IdGeneratorPort'
+import {
+  MISSION_CATALOG,
+  type MissionCatalogPort,
+} from '../../application/ports/MissionCatalogPort'
+import { ENROLL_IN_MISSION, EnrollInMission } from '../../application/use-cases/EnrollInMission'
+import { GET_MISSION_DETAIL, GetMissionDetail } from '../../application/use-cases/GetMissionDetail'
+import { LIST_MISSION_BOARD, ListMissionBoard } from '../../application/use-cases/ListMissionBoard'
+import {
+  RECONCILE_PENDING_ENROLLMENTS,
+  ReconcilePendingEnrollments,
+} from '../../application/use-cases/ReconcilePendingEnrollments'
+import { EnrollmentReconcilerScheduler } from '../scheduling/EnrollmentReconcilerScheduler'
 import { READINESS_CHECKS, VERSION_REPORT } from '../../adapters/inbound/http/tokens.health'
 import { AnonymousIdentityGuard } from '../../adapters/inbound/http/auth/anonymous.guard'
 import { InternalServiceGuard } from '../../adapters/inbound/http/auth/internal-service.guard'
@@ -24,7 +55,13 @@ import {
   LIST_MISSION_DIFFICULTIES,
   ListMissionDifficulties,
 } from '../../application/use-cases/ListMissionDifficulties'
-import { AuthMode, loadConfig, PersistenceDriver, type AppConfig } from '../config/env'
+import {
+  AuthMode,
+  HeroCommitmentsDriver,
+  loadConfig,
+  PersistenceDriver,
+  type AppConfig,
+} from '../config/env'
 import type { ReadinessCheck, VersionReport } from '../health/health'
 import { describeError } from '../observability/describe-error'
 import { createLogger, type Logger } from '../observability/logger'
@@ -34,6 +71,20 @@ export const APP_CONFIG = Symbol('AppConfig')
 export const LOGGER = Symbol('Logger')
 export const DATABASE = Symbol('Database')
 export const DATABASE_LIFECYCLE = Symbol('DatabaseLifecycle')
+export const ENROLLMENT_RECONCILER = Symbol('EnrollmentReconcilerScheduler')
+
+const usesPostgres = (config: AppConfig, db: Kysely<Database> | null): db is Kysely<Database> =>
+  config.persistenceDriver === PersistenceDriver.Postgres && db !== null
+
+/**
+ * Sin URL de Player/Inventory o sin secreto interno, la reserva no puede
+ * pedirse. No se inventa una respuesta: queda sin confirmar y la matricula sigue
+ * PENDING (503), igual que cuando Player/Inventory no responde.
+ */
+const unconfiguredCommitments: HeroCommitmentPort = {
+  commit: () => Promise.resolve({ kind: 'UNKNOWN', reason: 'NOT_CONFIGURED' }),
+  release: () => Promise.resolve('UNKNOWN'),
+}
 
 /**
  * Servicios autorizados a llamar a las rutas `@InternalOnly()` de Missions.
@@ -53,7 +104,12 @@ export const INTERNAL_CALLERS: readonly string[] = []
  * independiente del framework.
  */
 @Module({
-  controllers: [HealthController, MissionDifficultyController],
+  controllers: [
+    HealthController,
+    MissionDifficultyController,
+    MissionBoardController,
+    MissionEnrollmentController,
+  ],
   providers: [
     {
       provide: APP_CONFIG,
@@ -203,6 +259,124 @@ export const INTERNAL_CALLERS: readonly string[] = []
       useFactory: (clears: DifficultyClearRepositoryPort): ListMissionDifficulties =>
         new ListMissionDifficulties(clears),
       inject: [DIFFICULTY_CLEAR_REPOSITORY],
+    },
+    // --- HU-70: tablon, detalle y matricula ---
+    {
+      provide: MISSION_CATALOG,
+      useFactory: (config: AppConfig, db: Kysely<Database> | null): MissionCatalogPort =>
+        usesPostgres(config, db)
+          ? new PostgresMissionCatalog(db)
+          : new InMemoryMissionCatalog(config.exampleCatalog ? EXAMPLE_MISSIONS : []),
+      inject: [APP_CONFIG, DATABASE],
+    },
+    {
+      provide: ENROLLMENT_REPOSITORY,
+      useFactory: (config: AppConfig, db: Kysely<Database> | null): EnrollmentRepositoryPort =>
+        usesPostgres(config, db)
+          ? new PostgresEnrollmentRepository(db)
+          : new InMemoryEnrollmentRepository(),
+      inject: [APP_CONFIG, DATABASE],
+    },
+    {
+      provide: HERO_COMMITMENTS,
+      useFactory: (config: AppConfig, clock: ClockPort, logger: Logger): HeroCommitmentPort => {
+        if (config.heroCommitmentsDriver === HeroCommitmentsDriver.Memory) {
+          logger.warn('hero_commitments_in_memory', {
+            detail:
+              'HERO_COMMITMENTS_DRIVER=memory: las reservas del héroe no pasan por Player/Inventory.',
+          })
+
+          return new InMemoryHeroCommitments()
+        }
+
+        if (config.playerInventoryBaseUrl === null || config.internalServiceAuthSecret === null) {
+          logger.warn('hero_commitments_not_configured', {
+            detail:
+              'Falta PLAYER_INVENTORY_BASE_URL o INTERNAL_SERVICE_AUTH_SECRET: las matrículas quedarán PENDING.',
+          })
+
+          return unconfiguredCommitments
+        }
+
+        return new PlayerInventoryCommitmentClient({
+          baseUrl: config.playerInventoryBaseUrl,
+          secret: config.internalServiceAuthSecret,
+          clock,
+          timeoutMs: config.internalHttpTimeoutMs,
+          onFailure: (event, detail) => {
+            logger.warn(event, detail)
+          },
+        })
+      },
+      inject: [APP_CONFIG, CLOCK, LOGGER],
+    },
+    {
+      provide: ID_GENERATOR,
+      useFactory: (): IdGeneratorPort => new RandomIdGenerator(),
+    },
+    {
+      provide: LIST_MISSION_BOARD,
+      useFactory: (
+        catalog: MissionCatalogPort,
+        enrollments: EnrollmentRepositoryPort,
+        clears: DifficultyClearRepositoryPort,
+      ): ListMissionBoard => new ListMissionBoard(catalog, enrollments, clears),
+      inject: [MISSION_CATALOG, ENROLLMENT_REPOSITORY, DIFFICULTY_CLEAR_REPOSITORY],
+    },
+    {
+      provide: GET_MISSION_DETAIL,
+      useFactory: (
+        catalog: MissionCatalogPort,
+        enrollments: EnrollmentRepositoryPort,
+        clears: DifficultyClearRepositoryPort,
+      ): GetMissionDetail => new GetMissionDetail(catalog, enrollments, clears),
+      inject: [MISSION_CATALOG, ENROLLMENT_REPOSITORY, DIFFICULTY_CLEAR_REPOSITORY],
+    },
+    {
+      provide: ENROLL_IN_MISSION,
+      useFactory: (
+        catalog: MissionCatalogPort,
+        enrollments: EnrollmentRepositoryPort,
+        clears: DifficultyClearRepositoryPort,
+        commitments: HeroCommitmentPort,
+        ids: IdGeneratorPort,
+        clock: ClockPort,
+      ): EnrollInMission =>
+        new EnrollInMission(catalog, enrollments, clears, commitments, ids, clock),
+      inject: [
+        MISSION_CATALOG,
+        ENROLLMENT_REPOSITORY,
+        DIFFICULTY_CLEAR_REPOSITORY,
+        HERO_COMMITMENTS,
+        ID_GENERATOR,
+        CLOCK,
+      ],
+    },
+    {
+      provide: RECONCILE_PENDING_ENROLLMENTS,
+      useFactory: (
+        catalog: MissionCatalogPort,
+        enrollments: EnrollmentRepositoryPort,
+        commitments: HeroCommitmentPort,
+        clock: ClockPort,
+      ): ReconcilePendingEnrollments =>
+        new ReconcilePendingEnrollments(catalog, enrollments, commitments, clock),
+      inject: [MISSION_CATALOG, ENROLLMENT_REPOSITORY, HERO_COMMITMENTS, CLOCK],
+    },
+    {
+      provide: ENROLLMENT_RECONCILER,
+      useFactory: (
+        config: AppConfig,
+        reconcile: ReconcilePendingEnrollments,
+        logger: Logger,
+      ): EnrollmentReconcilerScheduler =>
+        new EnrollmentReconcilerScheduler(
+          reconcile,
+          logger,
+          config.enrollmentReconcilerIntervalMs,
+          config.enrollmentReconcilerEnabled,
+        ),
+      inject: [APP_CONFIG, RECONCILE_PENDING_ENROLLMENTS, LOGGER],
     },
   ],
 })

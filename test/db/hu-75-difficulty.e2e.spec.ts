@@ -1,11 +1,12 @@
 import 'reflect-metadata'
 
-import { ValidationPipe, type INestApplication } from '@nestjs/common'
+import type { INestApplication } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql'
 import { sql, type Kysely } from 'kysely'
 import request from 'supertest'
 
+import { createValidationPipe } from '../../src/adapters/inbound/http/validation.pipe'
 import type { Database } from '../../src/adapters/outbound/persistence/schema'
 import {
   DIFFICULTY_CLEAR_REPOSITORY,
@@ -104,9 +105,7 @@ describe('HU-75 de punta a punta: HTTP real y PostgreSQL real (Task HU-75.4)', (
       .compile()
     const instance = moduleRef.createNestApplication()
     instance.setGlobalPrefix('api')
-    instance.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
-    )
+    instance.useGlobalPipes(createValidationPipe())
     await instance.init()
 
     return instance

@@ -1,6 +1,12 @@
-import type { ColumnType } from 'kysely'
+import type { ColumnType, Generated } from 'kysely'
 
+import type { MissionDefinition } from '../../../domain/entities/MissionDefinition'
+import type {
+  EnrollmentRejection,
+  EnrollmentStatus,
+} from '../../../domain/entities/MissionEnrollment'
 import type { DifficultyLevel } from '../../../domain/value-objects/difficulty-level'
+import type { MissionCategory } from '../../../domain/value-objects/mission-category'
 
 /**
  * Esquema de la base de datos del servicio, tipado para Kysely.
@@ -15,6 +21,9 @@ import type { DifficultyLevel } from '../../../domain/value-objects/difficulty-l
  */
 export interface Database {
   readonly mission_difficulty_clears: MissionDifficultyClearsTable
+  readonly mission_definitions: MissionDefinitionsTable
+  readonly mission_enrollments: MissionEnrollmentsTable
+  readonly mission_facts: MissionFactsTable
 }
 
 /**
@@ -28,4 +37,65 @@ export interface MissionDifficultyClearsTable {
   readonly difficulty: DifficultyLevel
   readonly completed_at: ColumnType<Date, Date | string, never>
   readonly created_at: ColumnType<Date, Date | string | undefined, never>
+}
+
+/** Contenido de una definicion que se lee entero (`content`, jsonb). */
+export interface MissionDefinitionContent {
+  readonly objectives: MissionDefinition['objectives']
+  readonly enemies: MissionDefinition['enemies']
+  readonly finalBoss: MissionDefinition['finalBoss']
+  readonly masterEncounter: MissionDefinition['masterEncounter']
+  readonly rewards: MissionDefinition['rewards']
+  readonly highlightedRewards: MissionDefinition['highlightedRewards']
+}
+
+/**
+ * Definiciones del tablon (HU-70, migracion `002-mission-enrollments`). Los
+ * `jsonb` se escriben como texto JSON: el driver convertiria un arreglo de
+ * JavaScript en un arreglo de PostgreSQL, no en JSON.
+ */
+export interface MissionDefinitionsTable {
+  readonly mission_id: string
+  readonly name: string
+  readonly category: MissionCategory
+  readonly summary: string
+  readonly narrative: string
+  readonly image_ref: string | null
+  readonly estimated_duration_minutes: number
+  readonly recommended_power: number | null
+  readonly prerequisites: ColumnType<string[], string[] | undefined, string[]>
+  readonly content: ColumnType<MissionDefinitionContent, string, string>
+  readonly active: ColumnType<boolean, boolean | undefined, boolean>
+  readonly created_at: ColumnType<Date, Date | string | undefined, never>
+}
+
+/** Matriculas (HU-70). `version` es el bloqueo optimista de cada transicion. */
+export interface MissionEnrollmentsTable {
+  readonly enrollment_id: string
+  readonly player_id: string
+  readonly mission_id: string
+  readonly hero_id: string
+  readonly difficulty: DifficultyLevel
+  readonly status: EnrollmentStatus
+  readonly operation_id: string
+  readonly idempotency_key: string
+  readonly request_fingerprint: string
+  readonly strategy_version: number | null
+  readonly commitment_id: string | null
+  readonly rejection: ColumnType<EnrollmentRejection | null, string | null, string | null>
+  readonly requested_at: ColumnType<Date, Date, never>
+  readonly started_at: Date | null
+  readonly ends_at: Date | null
+  readonly finished_at: Date | null
+  readonly version: number
+}
+
+/** Hechos internos de Missions (`MissionEnrollmentStarted`); los consume HU-72. */
+export interface MissionFactsTable {
+  readonly fact_id: Generated<string>
+  readonly type: string
+  readonly enrollment_id: string
+  readonly payload: ColumnType<Record<string, unknown>, string, never>
+  readonly created_at: ColumnType<Date, Date, never>
+  readonly processed_at: ColumnType<Date | null, Date | null | undefined, Date | null>
 }

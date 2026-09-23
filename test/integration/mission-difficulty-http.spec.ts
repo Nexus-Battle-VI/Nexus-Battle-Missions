@@ -1,9 +1,10 @@
 import 'reflect-metadata'
 
-import { ValidationPipe, type INestApplication } from '@nestjs/common'
+import type { INestApplication } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import request from 'supertest'
 
+import { createValidationPipe } from '../../src/adapters/inbound/http/validation.pipe'
 import {
   DIFFICULTY_CLEAR_REPOSITORY,
   type DifficultyClearRepositoryPort,
@@ -59,9 +60,7 @@ const buildApp = async (clears?: DifficultyClearRepositoryPort): Promise<INestAp
 
   const app = (await builder.compile()).createNestApplication()
   app.setGlobalPrefix('api')
-  app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
-  )
+  app.useGlobalPipes(createValidationPipe())
   await app.init()
 
   return app
@@ -186,6 +185,7 @@ describe('GET /api/v1/missions/:missionId/difficulties (Task HU-75.2)', () => {
     beforeAll(async () => {
       broken = await buildApp({
         clearedLevels: () => Promise.reject(new Error('connect ECONNREFUSED 10.0.0.5:5432')),
+        completedMissions: () => Promise.reject(new Error('connect ECONNREFUSED 10.0.0.5:5432')),
         record: () => Promise.reject(new Error('connect ECONNREFUSED 10.0.0.5:5432')),
       })
     })

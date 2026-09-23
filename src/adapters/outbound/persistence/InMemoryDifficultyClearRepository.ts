@@ -27,6 +27,19 @@ export class InMemoryDifficultyClearRepository implements DifficultyClearReposit
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await
+  async completedMissions(playerId: string): Promise<ReadonlySet<string>> {
+    const missions = new Set<string>()
+
+    for (const clear of this.clears.values()) {
+      if (clear.playerId === playerId) {
+        missions.add(clear.missionId)
+      }
+    }
+
+    return missions
+  }
+
+  // eslint-disable-next-line @typescript-eslint/require-await
   async record(clear: MissionDifficultyClear): Promise<boolean> {
     // Clave compuesta serializada como lista: unir con un separador fijo haria
     // colisionar al jugador `a:b` en la mision `c` con el jugador `a` en `b:c`.

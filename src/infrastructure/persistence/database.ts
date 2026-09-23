@@ -10,6 +10,7 @@ import {
 import { Pool } from 'pg'
 
 import * as missionDifficultyClears from '../../adapters/outbound/persistence/migrations/001-mission-difficulty-clears'
+import * as missionEnrollments from '../../adapters/outbound/persistence/migrations/002-mission-enrollments'
 import type { Database } from '../../adapters/outbound/persistence/schema'
 
 export interface DatabaseOptions {
@@ -68,10 +69,12 @@ export const createDatabase = (options: DatabaseOptions): Kysely<Database> => {
  *
  * Cada Historia de Usuario anade aqui su migracion, con prefijo numerico que
  * fija el orden. `001-mission-difficulty-clears` (HU-75, Task #384) crea la
- * primera tabla de negocio del servicio.
+ * primera tabla de negocio del servicio; `002-mission-enrollments` (HU-70, Task
+ * #366), el tablon, las matriculas y los hechos internos.
  */
 export const MIGRATIONS: Readonly<Record<string, Migration>> = {
   '001-mission-difficulty-clears': missionDifficultyClears,
+  '002-mission-enrollments': missionEnrollments,
 }
 
 export interface MigrationOutcome {
