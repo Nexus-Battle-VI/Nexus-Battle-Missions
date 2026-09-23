@@ -12,6 +12,13 @@ export interface DifficultyClearRepositoryPort {
   clearedLevels(playerId: string, missionId: string): Promise<ReadonlySet<DifficultyLevel>>
 
   /**
+   * Misiones que ESE jugador completo al menos una vez, en cualquier nivel. Es lo
+   * que cumple un requisito previo de HU-70 (propuesta P-M10): no hay un segundo
+   * registro de «mision completada».
+   */
+  completedMissions(playerId: string): Promise<ReadonlySet<string>>
+
+  /**
    * Registra un nivel completado. Idempotente: repetir el mismo jugador, mision
    * y nivel no duplica nada y conserva la fecha del primero. Devuelve `true`
    * solo cuando el hecho era nuevo.

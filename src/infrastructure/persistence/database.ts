@@ -10,6 +10,11 @@ import {
 import { Pool } from 'pg'
 
 import * as missionDifficultyClears from '../../adapters/outbound/persistence/migrations/001-mission-difficulty-clears'
+import * as missionEnrollments from '../../adapters/outbound/persistence/migrations/002-mission-enrollments'
+import * as missionStrategies from '../../adapters/outbound/persistence/migrations/003-mission-strategies'
+import * as missionExecutions from '../../adapters/outbound/persistence/migrations/004-mission-executions'
+import * as missionReports from '../../adapters/outbound/persistence/migrations/005-mission-reports'
+import * as missionMasterEncounters from '../../adapters/outbound/persistence/migrations/006-mission-master-encounters'
 import type { Database } from '../../adapters/outbound/persistence/schema'
 
 export interface DatabaseOptions {
@@ -68,10 +73,22 @@ export const createDatabase = (options: DatabaseOptions): Kysely<Database> => {
  *
  * Cada Historia de Usuario anade aqui su migracion, con prefijo numerico que
  * fija el orden. `001-mission-difficulty-clears` (HU-75, Task #384) crea la
- * primera tabla de negocio del servicio.
+ * primera tabla de negocio del servicio; `002-mission-enrollments` (HU-70, Task
+ * #366), el tablon, las matriculas y los hechos internos;
+ * `003-mission-strategies` (HU-71, Task #370), las estrategias y su copia
+ * congelada en la matricula; `004-mission-executions` (HU-72, Task #374), la
+ * ejecucion de la simulacion y el cierre de la mision; `005-mission-reports`
+ * (HU-74, Task #380), el reporte inmutable y sus lineas de recompensa;
+ * `006-mission-master-encounters` (HU-73, Task #377), la evidencia del Master y
+ * la entrega de su epica.
  */
 export const MIGRATIONS: Readonly<Record<string, Migration>> = {
   '001-mission-difficulty-clears': missionDifficultyClears,
+  '002-mission-enrollments': missionEnrollments,
+  '003-mission-strategies': missionStrategies,
+  '004-mission-executions': missionExecutions,
+  '005-mission-reports': missionReports,
+  '006-mission-master-encounters': missionMasterEncounters,
 }
 
 export interface MigrationOutcome {
