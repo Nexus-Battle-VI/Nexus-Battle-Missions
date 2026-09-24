@@ -20,7 +20,7 @@ Motor: **PostgreSQL**, base lógica `missions` con usuario y credenciales propio
 ## Invariantes que debe imponer el motor
 
 - «Un héroe no está en dos misiones activas»: índice único parcial en PostgreSQL.
-- «No se accede a una dificultad sin completar la anterior»: se valida contra el historial persistido.
+- «No se accede a una dificultad sin completar la anterior»: se valida contra el historial persistido (`mission_difficulty_clears`, clave primaria por jugador, misión y nivel; HU-75).
 - Un logro se otorga una sola vez por jugador: restricción de unicidad.
 - Las recompensas se entregan de forma idempotente por matrícula.
 
@@ -41,7 +41,8 @@ Todas las llamadas salientes que mueven créditos o productos siguen el patrón 
 ## Contrato previsto
 
 - `GET /api/v1/missions` — tablón.
-- `POST /api/v1/missions/{missionId}/enrollments` — matricular un héroe.
+- `GET /api/v1/missions/{missionId}/difficulties` — niveles de dificultad y su desbloqueo (HU-75, **implementado**; ver [hu-75-mission-difficulty.md](hu-75-mission-difficulty.md)).
+- `POST /api/v1/missions/{missionId}/enrollments` — matricular un héroe (HU-70; HU-75 añade `difficulty`).
 - `PUT /api/v1/missions/enrollments/{enrollmentId}/rotations` — rotaciones.
 - `GET /api/v1/missions/me/reports/{enrollmentId}` — reporte.
 - `GET /api/v1/missions/me/achievements` — logros.
@@ -54,4 +55,4 @@ Los vencimientos usan un intervalo dentro del proceso, apagado por defecto, con 
 
 - El epic está en el milestone M2 pero ninguna de sus Historias de Usuario lo está.
 - HU-72 depende del motor de combate (HU-17 a HU-20 y HU-24): las HU que no lo necesitan (HU-70, HU-71, HU-75) pueden avanzar antes.
-- El incremento de estadísticas enemigas por dificultad y las tablas de Máster no están definidos en las HU.
+- HU-75 fija el incremento de Heroico (+50 %) y Legendario (+100 %). Qué estadísticas escalan, su redondeo y los parámetros de Mítico siguen pendientes del PO, igual que las tablas de Máster.
