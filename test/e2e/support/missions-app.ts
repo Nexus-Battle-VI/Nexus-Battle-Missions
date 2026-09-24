@@ -140,10 +140,39 @@ export const restoreChainEnv = (): void => {
   }
 }
 
-/** Las tablas del cierre, en el orden que exige el motor para truncar. */
+/**
+ * Deja el estado de las misiones como recien migrado, entre escenarios.
+ *
+ * LAS TABLAS SE DESCUBREN SOLAS, y es deliberado. La primera version llevaba la
+ * lista escrita a mano, y la migracion `009-mission-achievements` la dejo
+ * incompleta: el sintoma no fue «faltan filas», fue un `truncate` que revienta
+ * con «cannot truncate a table referenced in a foreign key constraint», porque
+ * las tablas nuevas referencian a las viejas. Una lista que hay que acordarse de
+ * ampliar en cada migracion es una lista que se olvida.
+ *
+ * Se CONSERVA `mission_definitions`: es el catalogo, y las migraciones
+ * `010-playable-missions` y `012-content-v2` lo siembran. Lo que cada escenario
+ * tiene que dejar limpio es el estado jugado —matriculas, ejecuciones, informes,
+ * recompensas, logros, botin—, no el contenido.
+ */
 export const truncateMissionTables = async (db: Kysely<Database>): Promise<void> => {
-  await sql`truncate mission_experience_rewards, mission_master_encounters, mission_report_rewards, mission_reports,
-    mission_executions, mission_facts, mission_enrollments, mission_difficulty_clears`.execute(db)
+  const { rows } = await sql<{ table_name: string }>`
+    select table_name
+    from information_schema.tables
+    where table_schema = current_schema()
+      and table_type = 'BASE TABLE'
+      and table_name not like 'kysely\_%'
+      and table_name <> 'mission_definitions'
+    order by table_name`.execute(db)
+
+  if (rows.length === 0) {
+    return
+  }
+
+  await sql`truncate ${sql.join(
+    rows.map((row) => sql.id(row.table_name)),
+    sql`, `,
+  )} cascade`.execute(db)
 }
 
 export const bootMissions = async (options: BootOptions): Promise<MissionsApp> => {

@@ -579,9 +579,15 @@ describe('Cadena de experiencia de HU-09 (Task HU-09.6)', () => {
   it('S-03 · sube uno, sube varios y el nivel maximo no descarta experiencia', async () => {
     const observed: Record<string, unknown> = {}
 
-    // (a) Una sola derrota con cara 1 (12 XP) desde 195: cruza el umbral de 200 y
-    // sube EXACTAMENTE un nivel. La camara sellada exige el templo como
-    // requisito, y el requisito es un dato de partida.
+    // (a) Desde 195, y con todas las caras en 1 (12 XP): la PRIMERA acreditacion
+    // cruza el umbral de 200 y sube EXACTAMENTE un nivel. La camara sellada exige
+    // el templo como requisito, y el requisito es un dato de partida.
+    //
+    // NO se afirma cuantas derrotas tiene la camara. La version anterior daba por
+    // hecho que era UNA, y el contenido v2 la dejo en siete: el caso fallaba por
+    // el contenido, no por la cadena. Lo que se comprueba es la ARITMETICA --que
+    // la primera acreditacion es la que cruza, y que el nivel final es el que la
+    // tabla de HU-08 asigna al acumulado--, y eso vale con cualquier contenido.
     await scenario(
       (builder) => builder.overrideProvider(EXPERIENCE_ROLLS).useValue(new ScriptedRolls(() => 1)),
       async (missions) => {
@@ -589,24 +595,33 @@ describe('Cadena de experiencia de HU-09 (Task HU-09.6)', () => {
         await seedClear(db, SUBJECT, TEMPLO.missionId)
 
         const enrollment = await runChain(missions, { missionId: CAMARA.missionId })
+        const rewards = await rewardsOf(enrollment.enrollmentId)
         const grants = await readGrants(databases, enrollment.enrollmentId)
         const progression = await readProgression(databases, SUBJECT, HERO_ID)
         const report = await reportOf(missions, enrollment.enrollmentId)
+        const totalXp = 195 + sumOf(rewards.map((reward) => reward.amount ?? 0))
 
-        expect(grants).toHaveLength(1)
-        expect(grants[0]?.amount).toBe(ROLL_AMOUNTS[1])
+        expect(grants).toHaveLength(rewards.length)
+        expect(grants.every((grant) => grant.amount === ROLL_AMOUNTS[1])).toBe(true)
+
+        // La primera es la que cruza: 195 + 12 = 207, que es el nivel 2.
         expect(grants[0]?.result).toMatchObject({ currentXp: 207, level: 2, levelsGained: 1 })
-        expect(progression).toMatchObject({ currentXp: 207, level: 2 })
+        expect(progression).toMatchObject({ currentXp: totalXp, level: expectedLevel(totalXp) })
         expect(report.experience).toMatchObject({
-          defeats: 1,
-          totalXp: 12,
-          level: 2,
-          currentXp: 207,
-          levelsGained: 1,
-          leveledUp: true,
+          defeats: rewards.length,
+          totalXp: totalXp - 195,
+          level: expectedLevel(totalXp),
+          currentXp: totalXp,
+          levelsGained: expectedLevel(totalXp) - 1,
+          leveledUp: expectedLevel(totalXp) > 1,
         })
 
-        observed.single = { before: 195, after: progression?.currentXp, level: progression?.level }
+        observed.single = {
+          before: 195,
+          after: progression?.currentXp,
+          level: progression?.level,
+          defeats: rewards.length,
+        }
       },
     )
 
