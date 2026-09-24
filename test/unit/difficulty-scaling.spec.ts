@@ -7,19 +7,37 @@ describe('Descriptor de escalado (HU-75, CA-02 y CA-04)', () => {
     ['HEROIC', 1.5, 'IMPROVED'],
     ['LEGENDARY', 2, 'PREMIUM'],
   ] as const)('%s multiplica las estadisticas enemigas por %s y usa %s', (level, factor, tier) => {
-    expect(scalingOf(level)).toEqual({
+    expect(scalingOf(level)).toMatchObject({
       difficulty: level,
       enemyStatMultiplier: factor,
       rewardTier: tier,
     })
   })
 
-  it('Mitico no lleva un multiplicador inventado: queda pendiente del PO', () => {
-    expect(scalingOf('MYTHIC')).toEqual({
+  it('Mitico usa el multiplicador definido por el equipo', () => {
+    expect(scalingOf('MYTHIC')).toMatchObject({
       difficulty: 'MYTHIC',
-      enemyStatMultiplier: null,
+      enemyStatMultiplier: 2.5,
       rewardTier: 'EXCLUSIVE',
     })
+  })
+
+  it('P-J8: cada nivel cambia tambien la composicion y las recompensas, de menos a mas', () => {
+    expect(
+      DIFFICULTY_LEVELS.map((level) => {
+        const scaling = scalingOf(level)
+        return [
+          scaling.extraEnemiesPerEncounter,
+          scaling.bossEnrageBonus,
+          scaling.lootProbabilityMultiplier,
+        ]
+      }),
+    ).toEqual([
+      [0, 0, 1],
+      [1, 0, 1.25],
+      [1, 2, 1.5],
+      [2, 4, 2],
+    ])
   })
 
   it('cada nivel apunta a su propia tabla de recompensa, en el mismo orden', () => {

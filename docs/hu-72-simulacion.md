@@ -69,7 +69,7 @@ La simulación es de Combat (ADR-019 y ADR-021): la IA de las rotaciones y de lo
 
 ## Dependencias de Team Alfa
 
-**Ninguna de estas rutas existe todavía.** Son las propuestas de los contratos:
+Las rutas internas de Combat y Player/Inventory se implementaron en los repositorios de Alfa; el despliegue debe incluir sus cambios:
 
 - **Simulación en Combat:** `POST /api/internal/v1/combat/simulations`, firmado con HMAC. `CombatSimulationClient` envía el cuerpo en JSON canónico, así que la solicitud congelada que vuelve de `jsonb` con otro orden de claves se envía y se firma igual.
   - `200` con el cuerpo del contrato: resultado. Uno con otro `operationId`, sin resumen, sin bitácora o con un `combatOutcome` desconocido no se da por bueno.
@@ -78,7 +78,7 @@ La simulación es de Combat (ADR-019 y ADR-021): la IA de las rotaciones y de lo
 - **Perfil del héroe:** sale de la misma ruta propuesta a Player/Inventory para las habilidades de HU-71 (`GET /api/internal/v1/players/{playerId}/heroes/{heroId}`). Missions congela el cuerpo en la solicitud sin interpretarlo (decisión 10 del diseño): hasta que Team Alfa fije el esquema del perfil, se guarda y se reenvía a Combat el cuerpo entero de esa respuesta. Sin respuesta, la ejecución espera; si el héroe ya no es del jugador, la misión se anula (`HERO_NOT_OWNED`).
 - **Liberación del héroe:** la de HU-70, `POST /api/internal/v1/inventory/commitments/{operationId}/release`.
 
-Con `COMBAT_SIMULATION_DRIVER=http`, que es el valor de producción, cada misión espera a Combat y se anula al vencer su plazo, sin penalización. Es el resultado honesto: ADR-019 prefiere una misión que espera a una simulada con otras reglas.
+Con `COMBAT_SIMULATION_DRIVER=http`, que es el valor de producción, Combat resuelve los encuentros reales. Si la dependencia no responde, se conserva el reintento y se anula al vencer el plazo.
 
 `COMBAT_SIMULATION_DRIVER=memory` usa `ScriptedCombatSimulation`, un doble de desarrollo con un resultado **fijo**: el héroe vence todos los encuentros sin recibir daño. Sirve para recorrer el flujo, pero **no acredita CA-02 ni CA-03**. Con `NODE_ENV=production` el servicio no arranca en ese modo.
 
@@ -116,6 +116,13 @@ Deshacer la migración falla si ya hay matrículas `VOIDED`: el CHECK anterior n
 
 El perfil del héroe usa `HERO_ABILITIES_DRIVER` y `PLAYER_INVENTORY_BASE_URL`, y la firma, `INTERNAL_SERVICE_AUTH_SECRET`.
 
+El contenido de `mission_definitions` puede incluir `enemies[].profile` y
+`finalBoss.profile`; la solicitud congelada los envía a Combat sin interpretarlos
+ni mostrarlos en el detalle público. Si el contenido no los define, los enemigos
+regulares viajan con `profile: null` y el jefe conserva solo las estadísticas
+parciales documentadas. Los ejemplos de desarrollo siguen sin perfiles
+aprobados, por lo que no acreditan una simulación real.
+
 ## Lo que queda pendiente, y de qué depende
 
 | Pendiente                                                                  | Depende de                                                               |
@@ -126,7 +133,7 @@ El perfil del héroe usa `HERO_ABILITIES_DRIVER` y `PLAYER_INVENTORY_BASE_URL`, 
 | Aprobar `VOIDED`, `TIME_LIMIT` y `OBJECTIVES_NOT_MET`                      | Decisión del PO (decisiones 2 y 4)                                       |
 | Perfiles de los enemigos regulares y escalado por encuentro (`powerStep`)  | Contenido de las misiones (decisiones 7 y 8)                             |
 | Tirada, encuentro y estadísticas del Máster                                | Combat (Team Alfa); Missions ya envía el bloque `master` (HU-73.2)       |
-| Recompensas, logros y aviso de fin de misión                               | HU-10, HU-76 y Notifications, a partir de `MissionSettled`               |
+| Recompensas y aviso de fin de misión                                       | HU-10 y Notifications, a partir de `MissionSettled`                      |
 | Renovar el compromiso si Combat tarda más que el margen                    | Player/Inventory (decisión 11)                                           |
 | Esquema del perfil de combate del héroe; hoy se congela el cuerpo entero   | Player/Inventory y Combat (Team Alfa, decisión 10)                       |
 | Que abandonar (u otro cierre futuro) cierre también la ejecución           | La HU de cancelación; hoy solo HU-72 saca una matrícula de `IN_PROGRESS` |
@@ -135,9 +142,9 @@ El perfil del héroe usa `HERO_ABILITIES_DRIVER` y `PLAYER_INVENTORY_BASE_URL`, 
 
 - **HU-73 (Máster, hecho en HU-73.2):** `simulationRequestFor` lleva el bloque `master` y el cierre guarda la evidencia de cada punto y la entrega pendiente de cada épica. Ver [hu-73-master.md](hu-73-master.md).
 - **HU-74.2 (hecho):** el cierre crea el reporte de la misión en su misma transacción; una anulación no tiene reporte. Ver [hu-74-reporte.md](hu-74-reporte.md).
-- **HU-76 (logros) y HU-10 (recompensas):** consumen los `mission_facts` de tipo `MissionSettled` sin `processed_at`. El `payload` trae el resultado, el motivo, los objetivos, `simulationId` y, desde HU-73, `masterEncounters`; el resumen y la bitácora están en `mission_executions`, y la foto, en `mission_reports`. Una anulación llega con `missionOutcome: VOIDED` y sin objetivos.
+- **HU-76 (logros, hecho en HU-76.2) y HU-10 (recompensas):** leen los `mission_facts` de tipo `MissionSettled`. `processed_at` es solo de HU-72, para los `MissionEnrollmentStarted`: cada consumidor lleva su propio registro y no lo marca. HU-76 cuenta los hechos de cada jugador ([hu-76-logros.md](hu-76-logros.md)). El `payload` trae el resultado, el motivo, los objetivos, `simulationId` y, desde HU-73, `masterEncounters`; el resumen y la bitácora están en `mission_executions`, y la foto, en `mission_reports`. Una anulación llega con `missionOutcome: VOIDED` y sin objetivos.
 - **Web:** una misión anulada vuelve a mostrarse disponible. El resultado no existe para el jugador hasta `endsAt`.
-- **Migraciones:** esta es la `004`. HU-74 añadió la `005` y HU-73, la `006`.
+- **Migraciones:** esta es la `004`. HU-74 añadió la `005`; HU-73, la `006`, y HU-76, la `007`.
 
 ## Pruebas
 

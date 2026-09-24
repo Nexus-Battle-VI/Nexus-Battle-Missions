@@ -94,6 +94,7 @@ const P01_RESULT: SimulationResult = {
       { enemyRef: 'sombra-corrompida', count: 10 },
       { enemyRef: 'guardian-eterno', count: 1 },
     ],
+    loot: [{ label: 'Fragmento del Sello Antiguo', quantity: 2, productId: null }],
   },
   combatLog: [{ seq: 1, type: 'simulationFinished', combatOutcome: 'HERO_VICTORIOUS' }],
 }
@@ -107,6 +108,7 @@ const line = (overrides: Partial<ReportRewardLine>): ReportRewardLine => ({
   quantity: 50,
   status: 'PENDING',
   source: 'HU-10',
+  progression: null,
   updatedAt: CLOSED,
   ...overrides,
 })
@@ -243,6 +245,8 @@ describe('Reportes de mision en PostgreSQL (HU-74)', () => {
       },
       fact: missionSettledFact(enrollment, settlement, P01_RESULT.simulationId, CLOSED),
       masters: [],
+      experience: [],
+      loot: [],
       report: recordFor(enrollment),
     }
   }
@@ -419,13 +423,27 @@ describe('Reportes de mision en PostgreSQL (HU-74)', () => {
     it.each([
       ['una linea no positiva', { line_no: 0 }, 'mission_report_rewards_linea_positiva'],
       ['un tipo desconocido', { kind: 'GEMS' }, 'mission_report_rewards_tipo_conocido'],
-      ['una cantidad no positiva', { quantity: 0 }, 'mission_report_rewards_cantidad_positiva'],
+      ['una cantidad negativa', { quantity: -1 }, 'mission_report_rewards_cantidad_no_negativa'],
       ['un estado desconocido', { status: 'LOST' }, 'mission_report_rewards_estado_conocido'],
       ['un origen desconocido', { source: 'HU-99' }, 'mission_report_rewards_origen_conocido'],
     ])('el motor rechaza en una linea %s', async (_caso, values, constraint) => {
       await expect(insertRow('mission_report_rewards', await rewardRow(values))).rejects.toThrow(
         new RegExp(constraint),
       )
+    })
+
+    /**
+     * HU-09 (Task HU-09.5): la migracion 008 afloja la cantidad a `>= 0` porque la
+     * linea de experiencia NACE EN CERO -- su importe lo decide una tirada que
+     * ocurre despues del cierre --, y admite su origen.
+     */
+    it('el motor admite una linea de experiencia sin importe todavia', async () => {
+      await expect(
+        insertRow(
+          'mission_report_rewards',
+          await rewardRow({ kind: 'EXPERIENCE', quantity: 0, source: 'HU-09', name: 'Sombra' }),
+        ),
+      ).resolves.toBeDefined()
     })
 
     it('una linea por numero y solo de un reporte que existe', async () => {
@@ -475,7 +493,7 @@ describe('Reportes de mision en PostgreSQL (HU-74)', () => {
       // El ciclo recorre toda la tabla: se empieza sin lo que dejaron las pruebas
       // anteriores. PostgreSQL exige truncar a la vez todo lo que referencia a las
       // matriculas, tambien la evidencia del Master de HU-73.
-      await sql`truncate mission_master_encounters, mission_report_rewards, mission_reports,
+      await sql`truncate mission_loot_grants, mission_experience_rewards, mission_master_encounters, mission_report_rewards, mission_reports,
         mission_executions, mission_facts, mission_enrollments, mission_difficulty_clears`.execute(
         db,
       )
@@ -541,8 +559,18 @@ describe('Reportes de mision en PostgreSQL (HU-74)', () => {
         enrollmentId,
         summary: { outcome: 'COMPLETED', finishedAt: endsAt, simulatedDuration: 'PT12H' },
         enemies: { boss: { defeated: true } },
-        rewards: [],
       })
+
+      // HU-09 (Task HU-09.5): la experiencia de cada derrota nace con la foto, y en
+      // PostgreSQL tambien: 19 lineas PENDING -- 10 + 5 + 3 regulares y el jefe --,
+      // que nadie acredita porque el barrido de HU-09 no corre aqui.
+      const rewards = report.body.rewards as { kind: string; status: string }[]
+
+      expect(rewards).toHaveLength(19)
+      expect(rewards.every((line) => line.kind === 'EXPERIENCE' && line.status === 'PENDING')).toBe(
+        true,
+      )
+      expect(report.body.experience).toMatchObject({ defeats: 19, credited: 0, pending: 19 })
 
       const history = await get('/api/v1/missions/me/history')
       expect(history.body).toMatchObject({

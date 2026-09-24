@@ -163,8 +163,7 @@ describe('Reporte e historial por HTTP (Task HU-74.2)', () => {
       summary: {
         outcome: 'COMPLETED',
         outcomeReason: null,
-        // El doble de Player/Inventory no trae nombre ni subtipo.
-        hero: { heroId: HERO, name: null, subtype: null },
+        hero: { heroId: HERO, name: 'Guerrero de prueba', subtype: 'GUERRERO_ARMAS' },
         startedAt: normal.startedAt,
         finishedAt: normal.endsAt,
         // El doble de Combat devuelve el presupuesto de tiempo como duracion.
@@ -180,7 +179,6 @@ describe('Reporte e historial por HTTP (Task HU-74.2)', () => {
         boss: { enemyRef: 'guardian-eterno', name: 'El Guardián Eterno', defeated: true },
         masters: [],
       },
-      rewards: [],
       generatedAt: normal.endsAt,
     })
     expect(
@@ -193,9 +191,40 @@ describe('Reporte e historial por HTTP (Task HU-74.2)', () => {
       ['obj_camaras', true],
       ['obj_vida', true],
       ['obj_master', null],
-      ['obj_fragmentos', null],
+      // P-J1: Combat (y su doble) informa el botin; sin fragmentos, el objetivo no se cumple.
+      ['obj_fragmentos', false],
     ])
     expect(response.body).not.toHaveProperty('playerId')
+  })
+
+  it('R-6: la experiencia de cada derrota llega al reporte, aun sin acreditar (HU-09.5)', async () => {
+    const response = await get(`${REPORTS}/${normal.enrollmentId}`)
+    const rewards = response.body.rewards as Record<string, unknown>[]
+
+    // Una linea por NPC derrotado -- 10 + 5 + 3 regulares y el jefe -- y ninguna con
+    // importe todavia: la tirada la pide el barrido de HU-09, que aqui no corre.
+    expect(rewards).toHaveLength(19)
+    expect(rewards[0]).toEqual({
+      kind: 'EXPERIENCE',
+      reference: 'sombra-corrompida#1',
+      name: 'Sombras Corrompidas',
+      rarity: null,
+      quantity: 0,
+      status: 'PENDING',
+      source: 'HU-09',
+    })
+    expect(response.body.experience).toEqual({
+      defeats: 19,
+      totalXp: 0,
+      credited: 0,
+      pending: 19,
+      failed: 0,
+      level: null,
+      currentXp: null,
+      maxLevel: null,
+      levelsGained: 0,
+      leveledUp: false,
+    })
   })
 
   it('el historial lista las terminadas y pagina con el cursor opaco', async () => {
@@ -262,19 +291,32 @@ describe('Reporte e historial por HTTP (Task HU-74.2)', () => {
       bestTimes: [
         {
           missionId: TEMPLO,
+          missionName: 'El Templo Olvidado',
           difficulty: 'NORMAL',
           simulatedDuration: 'PT12H',
           enrollmentId: normal.enrollmentId,
         },
         {
           missionId: TEMPLO,
+          missionName: 'El Templo Olvidado',
           difficulty: 'HEROIC',
           simulatedDuration: 'PT12H',
           enrollmentId: heroic.enrollmentId,
         },
       ],
       epicCollection: [],
-      narrativeProgress: [{ chainId: TEMPLO, missions: [TEMPLO, CAMARA], completed: 1, total: 2 }],
+      // El catalogo de ejemplo no tiene epicas enlazadas a productos: el album esta vacio.
+      epicAlbum: [],
+      lootCollection: [],
+      narrativeProgress: [
+        {
+          chainId: TEMPLO,
+          missions: [TEMPLO, CAMARA],
+          missionNames: ['El Templo Olvidado', 'La Cámara Sellada'],
+          completed: 1,
+          total: 2,
+        },
+      ],
     })
   })
 

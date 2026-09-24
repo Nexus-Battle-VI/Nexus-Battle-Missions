@@ -456,6 +456,7 @@ describe('Proyecciones del historial (HU-74, CA-05)', () => {
       quantity: 1,
       status: 'CREDITED',
       source: 'HU-73',
+      progression: null,
       updatedAt: CLOSED,
       ...overrides,
     })
@@ -496,6 +497,7 @@ describe('Proyecciones del historial (HU-74, CA-05)', () => {
         epicRef: 'otra-epica',
         name: 'Otra épica',
         masterRef: null,
+        masterName: null,
         obtainedAt: new Date('2026-10-02T03:00:00Z'),
         status: 'PENDING',
       },
@@ -503,6 +505,7 @@ describe('Proyecciones del historial (HU-74, CA-05)', () => {
         epicRef: 'velo-de-sombras',
         name: 'Velo de Sombras',
         masterRef: 'sombra-del-olvido',
+        masterName: 'Sombra del Olvido',
         obtainedAt: new Date('2026-10-04T03:00:00Z'),
         status: 'CREDITED',
       },

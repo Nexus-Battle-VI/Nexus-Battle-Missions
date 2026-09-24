@@ -29,7 +29,7 @@ export class PlayerInventoryEpicGrantClient implements EpicGrantPort {
     const response = await signedPost(this.options, PATH, {
       operationId: request.operationId,
       playerId: request.playerId,
-      items: [{ productId: request.productId, quantity: 1 }],
+      items: [{ productId: request.productId, quantity: request.quantity ?? 1 }],
     })
 
     if (response === null) {

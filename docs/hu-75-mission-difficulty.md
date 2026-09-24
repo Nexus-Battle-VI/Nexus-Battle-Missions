@@ -2,7 +2,7 @@
 
 - **Task:** HU-75.2 ([Management #384](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/384)).
 - **Historia:** [HU-75 #60](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/60) · EPIC-08 · RF-75.
-- **Contrato del que parte:** [hu-75-mission-difficulty-v1](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/blob/develop/docs/contracts/hu-75-mission-difficulty-v1.md) y el [diseño](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/blob/develop/docs/architecture/hu-75-dificultad-escalonada.md) de la Task HU-75.1, en revisión en [Infrastructure #125](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/pull/125).
+- **Contrato del que parte:** el contrato y el diseño HU-75.1 están en revisión en [Infrastructure #154](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/pull/154); el GET de esta entrega está en `develop` de Missions y la matrícula con `difficulty` sigue en la PR #15.
 - **Fuente funcional:** HU-75 y la sección 7.8.11 del documento del curso.
 
 ## Qué implementa esta entrega
@@ -22,10 +22,10 @@ Missions pasa de andamiaje a tener su primera ruta y su primera tabla de negocio
 | Normal siempre disponible                                                                         | Propuesta P-D2 del diseño, pendiente de confirmación del PO | `DifficultyPolicy.ts`                        |
 | Repetir un nivel ya completado está permitido                                                     | Propuesta P-D3                                              | `DifficultyPolicy.ts`                        |
 | Heroico `1.5` y Legendario `2` sobre las estadísticas enemigas                                    | Requisito explícito (50 % y 100 % más)                      | `domain/value-objects/difficulty-scaling.ts` |
-| Mítico sin multiplicador (`null`)                                                                 | Pendiente del PO: ni la HU ni el curso dan un número        | `difficulty-scaling.ts`                      |
+| Mítico con multiplicador `2.5`, editable por misión                                               | Decisión del equipo para completar la regla no definida     | `difficulty-scaling.ts` y `combatRules`      |
 | `rewardTier`: `STANDARD`, `IMPROVED`, `PREMIUM` y `EXCLUSIVE`                                     | Propuesta P-D7, sujeta a acuerdo con HU-10                  | `difficulty-scaling.ts`                      |
 
-Missions no escala ninguna estadística: HU-72 envía el multiplicador a Combat en cada solicitud de simulación, y Combat lo aplicará cuando publique esa ruta.
+Missions envía a Combat el multiplicador del contenido editable de la misión, o el factor general si no existe. Combat escala las estadísticas enemigas en la simulación.
 
 ## Modelo de datos
 
@@ -39,6 +39,11 @@ La clave primaria empieza por `player_id, mission_id`, que es la consulta de des
 El registro es idempotente con `on conflict do nothing`: repetir el mismo hecho, incluso en paralelo, deja una fila, conserva la fecha del primero y devuelve `true` una sola vez.
 
 ## Lo que queda pendiente, y de qué depende
+
+El listado siguiente describe las dependencias al escribir HU-75. La migración
+`010-playable-missions` y el motor de Combat resuelven el contenido inicial,
+el escalado y el registro de niveles al cerrar misiones completadas. La
+conversión de `rewardTier` en entregas sigue en HU-10.
 
 | Pendiente                                                                                    | Depende de                                                                                                                                                                |
 | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -215,6 +215,8 @@ describe('Ejecuciones de mision en PostgreSQL (HU-72)', () => {
       },
       fact: missionSettledFact(enrollment, settlement, P01_RESULT.simulationId, ENDS),
       masters: [],
+      experience: [],
+      loot: [],
       report: null,
     }
   }
@@ -378,6 +380,8 @@ describe('Ejecuciones de mision en PostgreSQL (HU-72)', () => {
           clear: null,
           fact: missionSettledFact(enrollment, voidedSettlement('INVALID_STRATEGY'), null, AT),
           masters: [],
+          experience: [],
+          loot: [],
           report: null,
         }),
       ).resolves.toBe(true)
@@ -412,6 +416,8 @@ describe('Ejecuciones de mision en PostgreSQL (HU-72)', () => {
             ENDS,
           ),
           masters: [],
+          experience: [],
+          loot: [],
           report: null,
         }),
       ).resolves.toBe(true)
@@ -555,7 +561,7 @@ describe('Ejecuciones de mision en PostgreSQL (HU-72)', () => {
       // El ciclo recorre toda la tabla: se empieza sin lo que dejaron las pruebas
       // anteriores. PostgreSQL exige truncar a la vez todo lo que referencia a las
       // matriculas, tambien los reportes de HU-74 y la evidencia del Master de HU-73.
-      await sql`truncate mission_master_encounters, mission_report_rewards, mission_reports,
+      await sql`truncate mission_loot_grants, mission_experience_rewards, mission_master_encounters, mission_report_rewards, mission_reports,
         mission_executions, mission_facts, mission_enrollments, mission_difficulty_clears`.execute(
         db,
       )
@@ -609,16 +615,16 @@ describe('Ejecuciones de mision en PostgreSQL (HU-72)', () => {
       const executor = app.get<RunMissionExecutions>(RUN_MISSION_EXECUTIONS)
 
       await expect(executor.run()).resolves.toEqual(cycle({ queued: 1, simulated: 1 }))
-      expect((await get('/api/v1/missions')).body.items).toEqual([
+      expect((await get('/api/v1/missions')).body.items).toContainEqual(
         expect.objectContaining({ missionId: TEMPLO, playerStatus: 'IN_PROGRESS' }),
-      ])
+      )
 
       clock.current = new Date(String(enrolled.body.endsAt))
       await expect(executor.run()).resolves.toEqual(cycle({ settled: 1, released: 1 }))
 
-      expect((await get('/api/v1/missions')).body.items).toEqual([
+      expect((await get('/api/v1/missions')).body.items).toContainEqual(
         expect.objectContaining({ missionId: TEMPLO, playerStatus: 'COMPLETED', canEnroll: true }),
-      ])
+      )
       const levels = (await get(`/api/v1/missions/${TEMPLO}/difficulties`)).body.items as {
         difficulty: string
         unlocked: boolean

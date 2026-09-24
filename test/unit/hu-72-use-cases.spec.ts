@@ -185,10 +185,12 @@ const setup = (options: Partial<ExecutionOptions> = {}) => {
     )
 
   return {
+    catalog,
     enrollments,
     clears,
     strategies,
     executions,
+    reports,
     commitments,
     combat,
     profiles,
@@ -292,8 +294,8 @@ describe('RunMissionExecutions: simulacion (Task HU-72.2, CU-72.1)', () => {
             subtype: 'PICARO_VENENO',
             probability: 0.15,
             levelOffset: 2,
-            profile: null,
-            epicRef: 'velo-de-sombras',
+            profile: EXAMPLE_MISSIONS[0]!.masterEncounter?.candidates[0]?.profile,
+            epicRef: 'toma-y-lleva',
           },
         ],
       },
@@ -311,16 +313,34 @@ describe('RunMissionExecutions: simulacion (Task HU-72.2, CU-72.1)', () => {
       [4, 'REGULAR', ['3 Espectros Ancestrales']],
       [5, 'BOSS', ['1 El Guardián Eterno']],
     ])
-    // El jefe va con lo que da el contenido; lo que el curso no da, en null.
-    expect(request?.encounters[4]?.enemies[0]?.profile).toEqual({
-      subtype: 'GUERRERO_TANQUE',
-      maxHealth: 100,
-      attack: null,
-      defense: null,
-      damage: null,
-      abilities: null,
-    })
-    expect(request?.encounters[0]?.enemies[0]?.profile).toBeNull()
+    expect(request?.encounters[4]?.enemies[0]?.profile).toEqual(
+      EXAMPLE_MISSIONS[0]!.finalBoss.profile,
+    )
+    expect(request?.encounters[0]?.enemies[0]?.profile).toEqual(
+      EXAMPLE_MISSIONS[0]!.enemies[0]!.profile,
+    )
+  })
+
+  it('envia a Combat perfiles de enemigos y jefe cuando el contenido los define', async () => {
+    const { enroll, runner, combat } = setup()
+    const example = EXAMPLE_MISSIONS[0]!
+    const regularProfile = { subtype: 'GUERRERO_ARMAS', maxHealth: 24, attack: 8, defense: 3 }
+    const bossProfile = { subtype: 'GUERRERO_TANQUE', maxHealth: 100, attack: 13, defense: 9 }
+    const content: MissionDefinition = {
+      ...example,
+      enemies: example.enemies.map((enemy) =>
+        enemy.enemyRef === 'sombra-corrompida' ? { ...enemy, profile: regularProfile } : enemy,
+      ),
+      finalBoss: { ...example.finalBoss, profile: bossProfile },
+    }
+    await enroll.execute(command())
+    await runner(new InMemoryMissionCatalog([content])).run()
+
+    expect(combat.requests[0]?.encounters[0]?.enemies[0]?.profile).toEqual(regularProfile)
+    expect(combat.requests[0]?.encounters[4]?.enemies[0]?.profile).toEqual(bossProfile)
+    expect(combat.requests[0]?.encounters[2]?.enemies[0]?.profile).toEqual(
+      example.enemies[1]?.profile,
+    )
   })
 
   it('T-01: sin respuesta de Combat reintenta con el mismo operationId a los 5 s y a los 30 s (P-S3)', async () => {
@@ -463,6 +483,25 @@ describe('RunMissionExecutions: simulacion (Task HU-72.2, CU-72.1)', () => {
 })
 
 describe('RunMissionExecutions: cierre (Task HU-72.2, CU-72.2)', () => {
+  it('cierra con el contenido congelado aunque un administrador lo edite durante la mision', async () => {
+    const { enroll, executor, catalog, reports, clock } = setup()
+    await enroll.execute(command())
+    await executor.run()
+    await catalog.save({
+      ...EXAMPLE_MISSIONS[0]!,
+      name: 'Templo cambiado',
+      objectives: [
+        { id: 'obj_nuevo', text: 'Nuevo objetivo', primary: true, rule: { type: 'DEFEAT_MASTER' } },
+      ],
+    })
+    clock.current = ENDS
+    await executor.run()
+    const record = await reports.findByEnrollment('enr_1')
+    expect(record?.report.mission.name).toBe('El Templo Olvidado')
+    expect(record?.report.objectives.map((objective) => objective.id)).toContain('obj_guardian')
+    expect(record?.report.objectives.map((objective) => objective.id)).not.toContain('obj_nuevo')
+  })
+
   it('P-01: al llegar endsAt se completa, registra el clear y el hecho, y libera al heroe', async () => {
     const { enroll, executor, executions, enrollments, clears, commitments, clock } = setup()
     await enroll.execute(command())
@@ -573,21 +612,21 @@ describe('RunMissionExecutions: cierre (Task HU-72.2, CU-72.2)', () => {
     await expect(executor.run()).resolves.toEqual(cycle())
   })
 
-  it('una mision que desaparece del catalogo antes del cierre se anula y libera al heroe', async () => {
+  it('una mision que desaparece del catalogo despues de simularse cierra con su copia', async () => {
     const { enroll, executor, runner, enrollments, commitments, clock } = setup()
     await enroll.execute(command())
     await executor.run()
     clock.current = ENDS
 
     await expect(runner(new InMemoryMissionCatalog([])).run()).resolves.toEqual(
-      cycle({ voided: 1, released: 1 }),
+      cycle({ settled: 1, released: 1 }),
     )
-    await expect(enrollments.findById('enr_1')).resolves.toMatchObject({ status: 'VOIDED' })
+    await expect(enrollments.findById('enr_1')).resolves.toMatchObject({ status: 'COMPLETED' })
     // La simulacion llego a hacerse: su referencia queda en el hecho.
     expect(settledPayloads(enrollments)).toEqual([
       expect.objectContaining({
-        missionOutcome: 'VOIDED',
-        reason: 'MISSION_NOT_FOUND',
+        missionOutcome: 'COMPLETED',
+        reason: null,
         simulationId: 'sim_p01',
       }),
     ])

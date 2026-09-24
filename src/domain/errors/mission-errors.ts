@@ -14,6 +14,17 @@ export class MissionNotFoundError extends DomainError {
   }
 }
 
+/**
+ * `404 ENROLLMENT_NOT_FOUND` (diseno «misiones jugables», P-J6): la matricula no
+ * existe o no es del jugador. Son el mismo caso para no revelar las ajenas.
+ */
+export class EnrollmentNotFoundError extends DomainError {
+  constructor(readonly enrollmentId: string) {
+    super('Esa misión no existe o no es tuya.')
+    this.name = 'EnrollmentNotFoundError'
+  }
+}
+
 /** `422 MISSION_LOCKED` (CA-07): faltan misiones previas. */
 export class MissionLockedError extends DomainError {
   constructor(
@@ -129,5 +140,16 @@ export class StrategyVersionMismatchError extends DomainError {
   ) {
     super('Tu estrategia cambió. Revísala antes de iniciar la misión.')
     this.name = 'StrategyVersionMismatchError'
+  }
+}
+
+/**
+ * `503 ESTIMATE_UNAVAILABLE` (diseno «misiones jugables», P-J7): no hubo
+ * estimacion. No bloquea nada: el jugador puede enviar al heroe sin ella.
+ */
+export class EstimateUnavailableError extends DomainError {
+  constructor(readonly reason: string) {
+    super('No pudimos calcular la probabilidad de éxito ahora. Puedes enviar al héroe igual.')
+    this.name = 'EstimateUnavailableError'
   }
 }

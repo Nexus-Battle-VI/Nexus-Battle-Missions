@@ -38,6 +38,24 @@ describe('Persistencia PostgreSQL', () => {
     const outcome = await migrateToLatest(db)
 
     expect(outcome.error).toBeUndefined()
+    const definitions = await db
+      .selectFrom('mission_definitions')
+      .select(['mission_id', 'content'])
+      .orderBy('mission_id')
+      .execute()
+    // Contenido v2 (P-J9): la base nueva ya nace con las cinco misiones.
+    expect(definitions.map((item) => item.mission_id)).toEqual([
+      'msn_arena_caidos',
+      'msn_camara_sellada',
+      'msn_camino_templo',
+      'msn_templo_olvidado',
+      'msn_travesia_bosque',
+    ])
+    expect(
+      definitions.every(
+        (item) => item.content.combatRules !== undefined && item.content.finalBoss.profile !== null,
+      ),
+    ).toBe(true)
   })
 
   it('registra las migraciones aplicadas y no las repite', async () => {

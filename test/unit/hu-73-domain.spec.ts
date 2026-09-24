@@ -41,7 +41,8 @@ import { uuidV5 } from '../../src/domain/value-objects/deterministic-uuid'
 
 const TEMPLO = EXAMPLE_MISSIONS[0]!
 const MASTER = 'sombra-del-olvido'
-const EPIC = 'velo-de-sombras'
+// La epica oficial del Picaro Veneno (P-J5), la que entrega la Sombra del Olvido.
+const EPIC = 'toma-y-lleva'
 const ENROLLMENT = 'enr_01JB8Y3K7Q'
 const AT = new Date('2026-10-01T15:00:00.000Z')
 const ENDS = new Date('2026-10-02T03:00:00.000Z')
@@ -81,7 +82,7 @@ const sent = (
       subtype: 'PICARO_VENENO',
       probability,
       levelOffset: 2,
-      profile: null,
+      profile: TEMPLO.masterEncounter?.candidates[0]?.profile ?? null,
       epicRef: EPIC,
     },
   ],
@@ -521,11 +522,12 @@ describe('Epica ganada y su linea en el reporte (HU-73, CA-01 y CA-03)', () => {
         lineNo: 1,
         kind: 'EPIC',
         reference: EPIC,
-        name: 'Velo de Sombras',
+        name: 'Toma y lleva',
         rarity: null,
         quantity: 1,
         status: 'PENDING',
         source: 'HU-73',
+        progression: null,
         updatedAt: ENDS,
       },
     ])
@@ -854,7 +856,7 @@ describe('Casos limite que la revision pidio cubrir (HU-73)', () => {
     })
 
     expect(epicOf(conDos, OTHER, EPIC)).toEqual({ name: 'Otra', productId: 'prod-otro' })
-    expect(epicOf(conDos, MASTER, EPIC)).toEqual({ name: 'Velo de Sombras', productId: null })
+    expect(epicOf(conDos, MASTER, EPIC)).toEqual({ name: 'Toma y lleva', productId: null })
     expect(epicOf(conDos, 'nadie', EPIC)).toBeNull()
     for (const roto of [null, undefined, 'x', { candidates: 'x' }, { candidates: [{}, 7] }]) {
       expect(epicOf(roto, MASTER, EPIC)).toBeNull()

@@ -20,8 +20,7 @@ export const EXAMPLE_HERO_ABILITIES: readonly string[] = [
  * jugador y tiene las mismas habilidades. Prohibido en produccion, donde la
  * validacion la da Player/Inventory.
  *
- * Su perfil (HU-72) solo trae el heroe y esas habilidades: el doble de Combat
- * no lo lee.
+ * El perfil de desarrollo incluye estadisticas jugables para el motor real.
  */
 export class InMemoryHeroAbilities implements HeroAbilitiesPort, HeroProfilePort {
   private readonly abilityIds: ReadonlySet<string>
@@ -39,7 +38,32 @@ export class InMemoryHeroAbilities implements HeroAbilitiesPort, HeroProfilePort
       kind: 'FOUND',
       profile: {
         heroId,
-        abilities: [...this.abilityIds].map((abilityId) => ({ abilityId })),
+        name: 'Guerrero de prueba',
+        subtype: 'GUERRERO_ARMAS',
+        effectiveStats: {
+          health: 40,
+          power: 5,
+          attack: 10,
+          defense: 8,
+          damage: { mode: 'DICE', count: 1, sides: 4 },
+          healing: null,
+        },
+        abilities: [...this.abilityIds].map((abilityId) => ({
+          abilityId,
+          name: abilityId.replaceAll('-', ' '),
+          powerCost: { mode: 'FIXED', amount: 2 },
+          chargeTurns: 2,
+          effects: [
+            {
+              kind: 'STAT_MODIFIER',
+              target: 'SELF',
+              statistic: 'DAMAGE',
+              operation: 'INCREASE',
+              magnitude: { mode: 'FIXED', amount: 2 },
+              hasActivationCondition: false,
+            },
+          ],
+        })),
       },
     })
   }

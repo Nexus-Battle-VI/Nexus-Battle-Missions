@@ -3,10 +3,32 @@ import { APP_GUARD, Reflector } from '@nestjs/core'
 import type { Kysely } from 'kysely'
 
 import { HealthController } from '../../adapters/inbound/http/health.controller'
+import { MissionAchievementController } from '../../adapters/inbound/http/mission-achievement.controller'
 import { MissionBoardController } from '../../adapters/inbound/http/mission-board.controller'
+import { MissionContentController } from '../../adapters/inbound/http/mission-content.controller'
 import { MissionDifficultyController } from '../../adapters/inbound/http/mission-difficulty.controller'
 import { MissionEnrollmentController } from '../../adapters/inbound/http/mission-enrollment.controller'
 import { MissionReportController } from '../../adapters/inbound/http/mission-report.controller'
+import { MissionProgressController } from '../../adapters/inbound/http/mission-progress.controller'
+import { MissionEstimateController } from '../../adapters/inbound/http/mission-estimate.controller'
+import { CombatEstimateClient } from '../../adapters/outbound/combat/CombatEstimateClient'
+import { ScriptedCombatEstimates } from '../../adapters/outbound/combat/ScriptedCombatEstimates'
+import {
+  MISSION_ESTIMATES,
+  type MissionEstimatePort,
+} from '../../application/ports/MissionEstimatePort'
+import {
+  ESTIMATE_MISSION_SUCCESS,
+  EstimateMissionSuccess,
+} from '../../application/use-cases/EstimateMissionSuccess'
+import {
+  LIST_ACTIVE_MISSIONS,
+  ListActiveMissions,
+} from '../../application/use-cases/ListActiveMissions'
+import {
+  GET_MISSION_PROGRESS,
+  GetMissionProgress,
+} from '../../application/use-cases/GetMissionProgress'
 import { MissionStrategyController } from '../../adapters/inbound/http/mission-strategy.controller'
 import { CombatSimulationClient } from '../../adapters/outbound/combat/CombatSimulationClient'
 import { ScriptedCombatSimulation } from '../../adapters/outbound/combat/ScriptedCombatSimulation'
@@ -16,13 +38,19 @@ import { InMemoryHeroCommitments } from '../../adapters/outbound/inventory/InMem
 import { PlayerInventoryAbilitiesClient } from '../../adapters/outbound/inventory/PlayerInventoryAbilitiesClient'
 import { PlayerInventoryCommitmentClient } from '../../adapters/outbound/inventory/PlayerInventoryCommitmentClient'
 import { PlayerInventoryEpicGrantClient } from '../../adapters/outbound/inventory/PlayerInventoryEpicGrantClient'
+import { APPROVED_ACHIEVEMENTS } from '../../adapters/outbound/persistence/approved-achievements'
+import { EXAMPLE_ACHIEVEMENTS } from '../../adapters/outbound/persistence/example-achievements'
 import { EXAMPLE_MISSIONS } from '../../adapters/outbound/persistence/example-missions'
+import { InMemoryAchievementEvidence } from '../../adapters/outbound/persistence/InMemoryAchievementEvidence'
+import { InMemoryAchievementRepository } from '../../adapters/outbound/persistence/InMemoryAchievementRepository'
 import { InMemoryEnrollmentRepository } from '../../adapters/outbound/persistence/InMemoryEnrollmentRepository'
 import { InMemoryExecutionRepository } from '../../adapters/outbound/persistence/InMemoryExecutionRepository'
 import { InMemoryMasterEncounterRepository } from '../../adapters/outbound/persistence/InMemoryMasterEncounterRepository'
 import { InMemoryMissionCatalog } from '../../adapters/outbound/persistence/InMemoryMissionCatalog'
 import { InMemoryReportRepository } from '../../adapters/outbound/persistence/InMemoryReportRepository'
 import { InMemoryStrategyRepository } from '../../adapters/outbound/persistence/InMemoryStrategyRepository'
+import { PostgresAchievementEvidence } from '../../adapters/outbound/persistence/PostgresAchievementEvidence'
+import { PostgresAchievementRepository } from '../../adapters/outbound/persistence/PostgresAchievementRepository'
 import { PostgresEnrollmentRepository } from '../../adapters/outbound/persistence/PostgresEnrollmentRepository'
 import { PostgresExecutionRepository } from '../../adapters/outbound/persistence/PostgresExecutionRepository'
 import { PostgresMasterEncounterRepository } from '../../adapters/outbound/persistence/PostgresMasterEncounterRepository'
@@ -30,6 +58,35 @@ import { PostgresMissionCatalog } from '../../adapters/outbound/persistence/Post
 import { PostgresReportRepository } from '../../adapters/outbound/persistence/PostgresReportRepository'
 import { PostgresStrategyRepository } from '../../adapters/outbound/persistence/PostgresStrategyRepository'
 import { RandomIdGenerator } from '../../adapters/outbound/system/RandomIdGenerator'
+import { StaticAchievementCatalog } from '../../adapters/outbound/persistence/StaticAchievementCatalog'
+import {
+  ACHIEVEMENT_CATALOG,
+  type AchievementCatalogPort,
+} from '../../application/ports/AchievementCatalogPort'
+import {
+  ACHIEVEMENT_EVIDENCE,
+  type AchievementEvidencePort,
+} from '../../application/ports/AchievementEvidencePort'
+import {
+  ACHIEVEMENT_REPOSITORY,
+  type AchievementRepositoryPort,
+} from '../../application/ports/AchievementRepositoryPort'
+import {
+  RECOGNITION_GRANTS,
+  type RecognitionGrantPort,
+} from '../../application/ports/RecognitionGrantPort'
+import {
+  EVALUATE_MISSION_ACHIEVEMENTS,
+  EvaluateMissionAchievements,
+} from '../../application/use-cases/EvaluateMissionAchievements'
+import {
+  GET_MISSION_ACHIEVEMENTS,
+  GetMissionAchievements,
+} from '../../application/use-cases/GetMissionAchievements'
+import {
+  GRANT_ACHIEVEMENT_RECOGNITIONS,
+  GrantAchievementRecognitions,
+} from '../../application/use-cases/GrantAchievementRecognitions'
 import {
   COMBAT_SIMULATION,
   type CombatSimulationPort,
@@ -62,6 +119,7 @@ import {
   MISSION_CATALOG,
   type MissionCatalogPort,
 } from '../../application/ports/MissionCatalogPort'
+import { MISSION_CONTENT } from '../../application/ports/MissionContentPort'
 import {
   REPORT_REPOSITORY,
   type ReportRepositoryPort,
@@ -73,6 +131,36 @@ import {
 import { ENROLL_IN_MISSION, EnrollInMission } from '../../application/use-cases/EnrollInMission'
 import { GET_MISSION_DETAIL, GetMissionDetail } from '../../application/use-cases/GetMissionDetail'
 import { GRANT_MASTER_EPICS, GrantMasterEpics } from '../../application/use-cases/GrantMasterEpics'
+import { GRANT_MISSION_LOOT, GrantMissionLoot } from '../../application/use-cases/GrantMissionLoot'
+import { LOOT_GRANTS, type LootGrantPort } from '../../application/ports/LootGrantPort'
+import {
+  LOOT_GRANT_REPOSITORY,
+  type LootGrantRepositoryPort,
+} from '../../application/ports/LootGrantRepositoryPort'
+import { InMemoryLootGrantRepository } from '../../adapters/outbound/persistence/InMemoryLootGrantRepository'
+import { PostgresLootGrantRepository } from '../../adapters/outbound/persistence/PostgresLootGrantRepository'
+import {
+  COORDINATE_EXPERIENCE_REWARD,
+  CoordinateExperienceReward,
+} from '../../application/use-cases/CoordinateExperienceReward'
+import {
+  EXPERIENCE_ROLLS,
+  type ExperienceRollPort,
+} from '../../application/ports/ExperienceRollPort'
+import {
+  EXPERIENCE_CREDITS,
+  type ExperienceCreditPort,
+} from '../../application/ports/ExperienceCreditPort'
+import {
+  EXPERIENCE_REWARD_REPOSITORY,
+  type ExperienceRewardRepositoryPort,
+} from '../../application/ports/ExperienceRewardRepositoryPort'
+import { CombatExperienceRollClient } from '../../adapters/outbound/combat/CombatExperienceRollClient'
+import { InMemoryExperienceRolls } from '../../adapters/outbound/combat/InMemoryExperienceRolls'
+import { InMemoryExperienceCredits } from '../../adapters/outbound/inventory/InMemoryExperienceCredits'
+import { PlayerInventoryExperienceClient } from '../../adapters/outbound/inventory/PlayerInventoryExperienceClient'
+import { InMemoryExperienceRewardRepository } from '../../adapters/outbound/persistence/InMemoryExperienceRewardRepository'
+import { PostgresExperienceRewardRepository } from '../../adapters/outbound/persistence/PostgresExperienceRewardRepository'
 import {
   GET_MISSION_HISTORY_SUMMARY,
   GetMissionHistorySummary,
@@ -101,6 +189,7 @@ import {
 } from '../../application/use-cases/SaveMissionStrategy'
 import { EnrollmentReconcilerScheduler } from '../scheduling/EnrollmentReconcilerScheduler'
 import { MissionExecutionScheduler } from '../scheduling/MissionExecutionScheduler'
+import { ExperienceRewardScheduler } from '../scheduling/ExperienceRewardScheduler'
 import { READINESS_CHECKS, VERSION_REPORT } from '../../adapters/inbound/http/tokens.health'
 import { AnonymousIdentityGuard } from '../../adapters/inbound/http/auth/anonymous.guard'
 import { InternalServiceGuard } from '../../adapters/inbound/http/auth/internal-service.guard'
@@ -139,6 +228,7 @@ export const DATABASE = Symbol('Database')
 export const DATABASE_LIFECYCLE = Symbol('DatabaseLifecycle')
 export const ENROLLMENT_RECONCILER = Symbol('EnrollmentReconcilerScheduler')
 export const MISSION_EXECUTION_SCHEDULER = Symbol('MissionExecutionScheduler')
+export const EXPERIENCE_REWARD_SCHEDULER = Symbol('ExperienceRewardScheduler')
 
 const usesPostgres = (config: AppConfig, db: Kysely<Database> | null): db is Kysely<Database> =>
   config.persistenceDriver === PersistenceDriver.Postgres && db !== null
@@ -167,9 +257,24 @@ const unconfiguredSimulations: CombatSimulationPort = {
   simulate: () => Promise.resolve({ kind: 'UNKNOWN', reason: 'NOT_CONFIGURED' }),
 }
 
+/** Sin Combat configurado no hay estimacion: la ruta responde 503 y nada se bloquea. */
+const unconfiguredEstimates: MissionEstimatePort = {
+  estimate: () => Promise.resolve({ kind: 'UNAVAILABLE', reason: 'NOT_CONFIGURED' }),
+}
+
 /** Igual para las epicas de HU-73: sin configuracion, la entrega queda pendiente. */
 const unconfiguredEpicGrants: EpicGrantPort = {
   grant: () => Promise.resolve({ kind: 'UNKNOWN', reason: 'NOT_CONFIGURED' }),
+}
+
+/** HU-09: sin configuracion no se tira, y la recompensa queda esperando. */
+const unconfiguredRolls: ExperienceRollPort = {
+  rollDefeats: () => Promise.resolve({ kind: 'UNKNOWN', reason: 'NOT_CONFIGURED' }),
+}
+
+/** Ni se acredita: la recompensa queda en su estado no terminal y se reintenta. */
+const unconfiguredCredits: ExperienceCreditPort = {
+  credit: () => Promise.resolve({ kind: 'UNKNOWN', reason: 'NOT_CONFIGURED' }),
 }
 
 /**
@@ -194,11 +299,71 @@ export const INTERNAL_CALLERS: readonly string[] = []
     HealthController,
     MissionDifficultyController,
     MissionBoardController,
+    MissionContentController,
     MissionEnrollmentController,
     MissionStrategyController,
     MissionReportController,
+    MissionProgressController,
+    MissionEstimateController,
+    MissionAchievementController,
   ],
   providers: [
+    // --- Diseno «misiones jugables», P-J7: probabilidad de exito antes de enviar ---
+    {
+      provide: MISSION_ESTIMATES,
+      useFactory: (config: AppConfig, clock: ClockPort, logger: Logger): MissionEstimatePort => {
+        if (config.combatSimulationDriver === IntegrationDriver.Memory) {
+          return new ScriptedCombatEstimates()
+        }
+
+        if (config.combatBaseUrl === null || config.internalServiceAuthSecret === null) {
+          return unconfiguredEstimates
+        }
+
+        return new CombatEstimateClient({
+          baseUrl: config.combatBaseUrl,
+          secret: config.internalServiceAuthSecret,
+          clock,
+          timeoutMs: config.combatSimulationTimeoutMs,
+          onFailure: (event, detail) => {
+            logger.warn(event, detail)
+          },
+        })
+      },
+      inject: [APP_CONFIG, CLOCK, LOGGER],
+    },
+    {
+      provide: ESTIMATE_MISSION_SUCCESS,
+      useFactory: (
+        catalog: MissionCatalogPort,
+        heroes: HeroProfilePort,
+        strategies: StrategyRepositoryPort,
+        estimates: MissionEstimatePort,
+      ): EstimateMissionSuccess =>
+        new EstimateMissionSuccess(catalog, heroes, strategies, estimates),
+      inject: [MISSION_CATALOG, HERO_PROFILES, STRATEGY_REPOSITORY, MISSION_ESTIMATES],
+    },
+    // --- Diseno «misiones jugables», P-J6: misiones en curso y su progreso ---
+    {
+      provide: LIST_ACTIVE_MISSIONS,
+      useFactory: (
+        enrollments: EnrollmentRepositoryPort,
+        catalog: MissionCatalogPort,
+        executions: ExecutionRepositoryPort,
+        clock: ClockPort,
+      ): ListActiveMissions => new ListActiveMissions(enrollments, catalog, executions, clock),
+      inject: [ENROLLMENT_REPOSITORY, MISSION_CATALOG, EXECUTION_REPOSITORY, CLOCK],
+    },
+    {
+      provide: GET_MISSION_PROGRESS,
+      useFactory: (
+        enrollments: EnrollmentRepositoryPort,
+        executions: ExecutionRepositoryPort,
+        catalog: MissionCatalogPort,
+        clock: ClockPort,
+      ): GetMissionProgress => new GetMissionProgress(enrollments, executions, catalog, clock),
+      inject: [ENROLLMENT_REPOSITORY, EXECUTION_REPOSITORY, MISSION_CATALOG, CLOCK],
+    },
     {
       provide: APP_CONFIG,
       useFactory: (): AppConfig => loadConfig(process.env),
@@ -344,9 +509,11 @@ export const INTERNAL_CALLERS: readonly string[] = []
     },
     {
       provide: LIST_MISSION_DIFFICULTIES,
-      useFactory: (clears: DifficultyClearRepositoryPort): ListMissionDifficulties =>
-        new ListMissionDifficulties(clears),
-      inject: [DIFFICULTY_CLEAR_REPOSITORY],
+      useFactory: (
+        clears: DifficultyClearRepositoryPort,
+        catalog: MissionCatalogPort,
+      ): ListMissionDifficulties => new ListMissionDifficulties(clears, catalog),
+      inject: [DIFFICULTY_CLEAR_REPOSITORY, MISSION_CATALOG],
     },
     // --- HU-70: tablon, detalle y matricula ---
     {
@@ -357,6 +524,7 @@ export const INTERNAL_CALLERS: readonly string[] = []
           : new InMemoryMissionCatalog(config.exampleCatalog ? EXAMPLE_MISSIONS : []),
       inject: [APP_CONFIG, DATABASE],
     },
+    { provide: MISSION_CONTENT, useExisting: MISSION_CATALOG },
     {
       provide: ENROLLMENT_REPOSITORY,
       useFactory: (config: AppConfig, db: Kysely<Database> | null): EnrollmentRepositoryPort =>
@@ -538,6 +706,8 @@ export const INTERNAL_CALLERS: readonly string[] = []
         clears: DifficultyClearRepositoryPort,
         reports: ReportRepositoryPort,
         masters: MasterEncounterRepositoryPort,
+        experience: ExperienceRewardRepositoryPort,
+        loot: LootGrantRepositoryPort,
       ): ExecutionRepositoryPort => {
         if (usesPostgres(config, db)) {
           return new PostgresExecutionRepository(db)
@@ -560,6 +730,16 @@ export const INTERNAL_CALLERS: readonly string[] = []
           masters instanceof InMemoryMasterEncounterRepository
             ? masters
             : new InMemoryMasterEncounterRepository(reportsInMemory),
+          // HU-09 (Task HU-09.5): el cierre inserta aqui las recompensas PENDING, y
+          // el barrido que las tira y las acredita lee de ESTE mismo doble. Con uno
+          // distinto, en memoria se cerraban misiones cuyas recompensas nadie veia.
+          experience instanceof InMemoryExperienceRewardRepository
+            ? experience
+            : new InMemoryExperienceRewardRepository(reportsInMemory),
+          // P-J1: la entrega del botin lee de ESTE mismo doble lo que escribe el cierre.
+          loot instanceof InMemoryLootGrantRepository
+            ? loot
+            : new InMemoryLootGrantRepository(reportsInMemory),
         )
       },
       inject: [
@@ -569,6 +749,8 @@ export const INTERNAL_CALLERS: readonly string[] = []
         DIFFICULTY_CLEAR_REPOSITORY,
         REPORT_REPOSITORY,
         MASTER_ENCOUNTER_REPOSITORY,
+        EXPERIENCE_REWARD_REPOSITORY,
+        LOOT_GRANT_REPOSITORY,
       ],
     },
     // El perfil del heroe sale de la misma consulta a Player/Inventory que sus habilidades.
@@ -657,6 +839,9 @@ export const INTERNAL_CALLERS: readonly string[] = []
         executions: RunMissionExecutions,
         logger: Logger,
         epics: GrantMasterEpics,
+        achievements: EvaluateMissionAchievements,
+        recognitions: GrantAchievementRecognitions,
+        loot: GrantMissionLoot,
       ): MissionExecutionScheduler =>
         new MissionExecutionScheduler(
           executions,
@@ -664,8 +849,61 @@ export const INTERNAL_CALLERS: readonly string[] = []
           config.missionExecutionIntervalMs,
           config.missionExecutionEnabled,
           epics,
+          achievements,
+          recognitions,
+          loot,
         ),
-      inject: [APP_CONFIG, RUN_MISSION_EXECUTIONS, LOGGER, GRANT_MASTER_EPICS],
+      inject: [
+        APP_CONFIG,
+        RUN_MISSION_EXECUTIONS,
+        LOGGER,
+        GRANT_MASTER_EPICS,
+        EVALUATE_MISSION_ACHIEVEMENTS,
+        GRANT_ACHIEVEMENT_RECOGNITIONS,
+        GRANT_MISSION_LOOT,
+      ],
+    },
+    // --- Diseno «misiones jugables», P-J1: entrega del botin del jefe ---
+    {
+      provide: LOOT_GRANT_REPOSITORY,
+      useFactory: (
+        config: AppConfig,
+        db: Kysely<Database> | null,
+        reports: ReportRepositoryPort,
+      ): LootGrantRepositoryPort =>
+        usesPostgres(config, db)
+          ? new PostgresLootGrantRepository(db)
+          : new InMemoryLootGrantRepository(
+              reports instanceof InMemoryReportRepository ? reports : undefined,
+            ),
+      inject: [APP_CONFIG, DATABASE, REPORT_REPOSITORY],
+    },
+    // Mismo contrato de entregas de HU-59 y mismo cliente que la epica.
+    { provide: LOOT_GRANTS, useExisting: EPIC_GRANTS },
+    {
+      provide: GRANT_MISSION_LOOT,
+      useFactory: (
+        grants: LootGrantRepositoryPort,
+        enrollments: EnrollmentRepositoryPort,
+        catalog: MissionCatalogPort,
+        inventory: LootGrantPort,
+        clock: ClockPort,
+        logger: Logger,
+      ): GrantMissionLoot =>
+        new GrantMissionLoot(grants, enrollments, catalog, inventory, clock, {
+          batchSize: 50,
+          onError: (enrollmentId, error) => {
+            logger.warn('loot_grant_error', { enrollmentId, detail: describeError(error) })
+          },
+        }),
+      inject: [
+        LOOT_GRANT_REPOSITORY,
+        ENROLLMENT_REPOSITORY,
+        MISSION_CATALOG,
+        LOOT_GRANTS,
+        CLOCK,
+        LOGGER,
+      ],
     },
     // --- HU-73: evidencia del Master y entrega de su epica ---
     {
@@ -740,6 +978,128 @@ export const INTERNAL_CALLERS: readonly string[] = []
         LOGGER,
       ],
     },
+    // --- HU-09 (Task HU-09.4): recompensa de experiencia por derrota ---
+    {
+      provide: EXPERIENCE_REWARD_REPOSITORY,
+      useFactory: (
+        config: AppConfig,
+        db: Kysely<Database> | null,
+        reports: ReportRepositoryPort,
+      ): ExperienceRewardRepositoryPort =>
+        usesPostgres(config, db)
+          ? new PostgresExperienceRewardRepository(db)
+          : // En memoria, el avance de una recompensa mueve ademas su linea del
+            // reporte (Task HU-09.5), asi que los dos dobles comparten estado.
+            new InMemoryExperienceRewardRepository(
+              reports instanceof InMemoryReportRepository ? reports : undefined,
+            ),
+      inject: [APP_CONFIG, DATABASE, REPORT_REPOSITORY],
+    },
+    {
+      provide: EXPERIENCE_ROLLS,
+      useFactory: (config: AppConfig, clock: ClockPort, logger: Logger): ExperienceRollPort => {
+        if (config.experienceRewardsDriver === IntegrationDriver.Memory) {
+          logger.warn('experience_rolls_in_memory', {
+            detail:
+              'EXPERIENCE_REWARDS_DRIVER=memory: las tiradas no las hace Combat; se reparten caras fijas.',
+          })
+
+          return new InMemoryExperienceRolls()
+        }
+
+        if (config.combatBaseUrl === null || config.internalServiceAuthSecret === null) {
+          logger.warn('experience_rolls_not_configured', {
+            detail: 'Falta COMBAT_BASE_URL o INTERNAL_SERVICE_AUTH_SECRET: no se pediran tiradas.',
+          })
+
+          return unconfiguredRolls
+        }
+
+        return new CombatExperienceRollClient({
+          baseUrl: config.combatBaseUrl,
+          secret: config.internalServiceAuthSecret,
+          clock,
+          timeoutMs: config.internalHttpTimeoutMs,
+          onFailure: (event, detail) => {
+            logger.warn(event, detail)
+          },
+        })
+      },
+      inject: [APP_CONFIG, CLOCK, LOGGER],
+    },
+    {
+      provide: EXPERIENCE_CREDITS,
+      useFactory: (config: AppConfig, clock: ClockPort, logger: Logger): ExperienceCreditPort => {
+        if (config.experienceRewardsDriver === IntegrationDriver.Memory) {
+          logger.warn('experience_credits_in_memory', {
+            detail:
+              'EXPERIENCE_REWARDS_DRIVER=memory: la experiencia no llega al heroe de Player/Inventory.',
+          })
+
+          return new InMemoryExperienceCredits()
+        }
+
+        if (config.playerInventoryBaseUrl === null || config.internalServiceAuthSecret === null) {
+          logger.warn('experience_credits_not_configured', {
+            detail:
+              'Falta PLAYER_INVENTORY_BASE_URL o INTERNAL_SERVICE_AUTH_SECRET: no se acreditara.',
+          })
+
+          return unconfiguredCredits
+        }
+
+        return new PlayerInventoryExperienceClient({
+          baseUrl: config.playerInventoryBaseUrl,
+          secret: config.internalServiceAuthSecret,
+          clock,
+          timeoutMs: config.internalHttpTimeoutMs,
+          onFailure: (event, detail) => {
+            logger.warn(event, detail)
+          },
+        })
+      },
+      inject: [APP_CONFIG, CLOCK, LOGGER],
+    },
+    {
+      provide: COORDINATE_EXPERIENCE_REWARD,
+      useFactory: (
+        rewards: ExperienceRewardRepositoryPort,
+        enrollments: EnrollmentRepositoryPort,
+        rolls: ExperienceRollPort,
+        credits: ExperienceCreditPort,
+        clock: ClockPort,
+        logger: Logger,
+      ): CoordinateExperienceReward =>
+        new CoordinateExperienceReward(rewards, enrollments, rolls, credits, clock, {
+          batchSize: 50,
+          onError: (enrollmentId, error) => {
+            logger.warn('experience_reward_error', { enrollmentId, detail: describeError(error) })
+          },
+        }),
+      inject: [
+        EXPERIENCE_REWARD_REPOSITORY,
+        ENROLLMENT_REPOSITORY,
+        EXPERIENCE_ROLLS,
+        EXPERIENCE_CREDITS,
+        CLOCK,
+        LOGGER,
+      ],
+    },
+    {
+      provide: EXPERIENCE_REWARD_SCHEDULER,
+      useFactory: (
+        config: AppConfig,
+        rewards: CoordinateExperienceReward,
+        logger: Logger,
+      ): ExperienceRewardScheduler =>
+        new ExperienceRewardScheduler(
+          rewards,
+          logger,
+          config.experienceRewardIntervalMs,
+          config.experienceRewardEnabled,
+        ),
+      inject: [APP_CONFIG, COORDINATE_EXPERIENCE_REWARD, LOGGER],
+    },
     // --- HU-74: reporte e historial ---
     {
       provide: REPORT_REPOSITORY,
@@ -773,6 +1133,122 @@ export const INTERNAL_CALLERS: readonly string[] = []
         catalog: MissionCatalogPort,
       ): GetMissionHistorySummary => new GetMissionHistorySummary(reports, catalog),
       inject: [REPORT_REPOSITORY, MISSION_CATALOG],
+    },
+    // --- HU-76: logros y reconocimientos ---
+    {
+      // El ejemplo solo con MISSIONS_EXAMPLE_CATALOG; si no, el aprobado por el PO
+      // (decision 1). Hoy son el mismo. Un catalogo roto impide arrancar.
+      provide: ACHIEVEMENT_CATALOG,
+      useFactory: (config: AppConfig): AchievementCatalogPort =>
+        new StaticAchievementCatalog(
+          config.exampleCatalog ? EXAMPLE_ACHIEVEMENTS : APPROVED_ACHIEVEMENTS,
+        ),
+      inject: [APP_CONFIG],
+    },
+    {
+      provide: ACHIEVEMENT_EVIDENCE,
+      useFactory: (
+        config: AppConfig,
+        db: Kysely<Database> | null,
+        enrollments: EnrollmentRepositoryPort,
+        reports: ReportRepositoryPort,
+        masters: MasterEncounterRepositoryPort,
+      ): AchievementEvidencePort =>
+        usesPostgres(config, db)
+          ? new PostgresAchievementEvidence(db)
+          : new InMemoryAchievementEvidence(enrollments, reports, masters),
+      inject: [
+        APP_CONFIG,
+        DATABASE,
+        ENROLLMENT_REPOSITORY,
+        REPORT_REPOSITORY,
+        MASTER_ENCOUNTER_REPOSITORY,
+      ],
+    },
+    {
+      provide: ACHIEVEMENT_REPOSITORY,
+      useFactory: (
+        config: AppConfig,
+        db: Kysely<Database> | null,
+        enrollments: EnrollmentRepositoryPort,
+        masters: MasterEncounterRepositoryPort,
+      ): AchievementRepositoryPort =>
+        usesPostgres(config, db)
+          ? new PostgresAchievementRepository(db)
+          : // En memoria cuenta los hechos del doble de matriculas; si una prueba
+            // lo sustituyo, no ve ninguno.
+            new InMemoryAchievementRepository(
+              enrollments instanceof InMemoryEnrollmentRepository
+                ? enrollments
+                : new InMemoryEnrollmentRepository(),
+              masters,
+            ),
+      inject: [APP_CONFIG, DATABASE, ENROLLMENT_REPOSITORY, MASTER_ENCOUNTER_REPOSITORY],
+    },
+    // El cosmetico sale por el mismo cliente y el mismo contrato de HU-59 que la
+    // epica: EPIC_GRANTS_DRIVER gobierna las dos entregas.
+    { provide: RECOGNITION_GRANTS, useExisting: EPIC_GRANTS },
+    {
+      provide: EVALUATE_MISSION_ACHIEVEMENTS,
+      useFactory: (
+        catalog: AchievementCatalogPort,
+        achievements: AchievementRepositoryPort,
+        evidence: AchievementEvidencePort,
+        clears: DifficultyClearRepositoryPort,
+        missions: MissionCatalogPort,
+        clock: ClockPort,
+        logger: Logger,
+      ): EvaluateMissionAchievements =>
+        new EvaluateMissionAchievements(catalog, achievements, evidence, clears, missions, clock, {
+          batchSize: 50,
+          onError: (error) => {
+            logger.warn('achievement_evaluation_error', { detail: describeError(error) })
+          },
+        }),
+      inject: [
+        ACHIEVEMENT_CATALOG,
+        ACHIEVEMENT_REPOSITORY,
+        ACHIEVEMENT_EVIDENCE,
+        DIFFICULTY_CLEAR_REPOSITORY,
+        MISSION_CATALOG,
+        CLOCK,
+        LOGGER,
+      ],
+    },
+    {
+      provide: GRANT_ACHIEVEMENT_RECOGNITIONS,
+      useFactory: (
+        achievements: AchievementRepositoryPort,
+        catalog: AchievementCatalogPort,
+        grants: RecognitionGrantPort,
+        clock: ClockPort,
+        logger: Logger,
+      ): GrantAchievementRecognitions =>
+        new GrantAchievementRecognitions(achievements, catalog, grants, clock, {
+          batchSize: 50,
+          onError: (error) => {
+            logger.warn('achievement_recognition_error', { detail: describeError(error) })
+          },
+        }),
+      inject: [ACHIEVEMENT_REPOSITORY, ACHIEVEMENT_CATALOG, RECOGNITION_GRANTS, CLOCK, LOGGER],
+    },
+    {
+      provide: GET_MISSION_ACHIEVEMENTS,
+      useFactory: (
+        catalog: AchievementCatalogPort,
+        achievements: AchievementRepositoryPort,
+        evidence: AchievementEvidencePort,
+        clears: DifficultyClearRepositoryPort,
+        missions: MissionCatalogPort,
+      ): GetMissionAchievements =>
+        new GetMissionAchievements(catalog, achievements, evidence, clears, missions),
+      inject: [
+        ACHIEVEMENT_CATALOG,
+        ACHIEVEMENT_REPOSITORY,
+        ACHIEVEMENT_EVIDENCE,
+        DIFFICULTY_CLEAR_REPOSITORY,
+        MISSION_CATALOG,
+      ],
     },
   ],
 })

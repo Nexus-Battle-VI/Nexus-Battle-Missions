@@ -75,6 +75,8 @@ const REQUEST: SimulationRequest = simulationRequestFor(
   TEMPLO_DEFINITION,
   PROFILE,
 )
+const COMBAT_PAYLOAD = { ...REQUEST }
+Reflect.deleteProperty(COMBAT_PAYLOAD, 'contentSnapshot')
 
 /** Cuerpo del fixture P-01 del contrato de HU-72. */
 const P01_BODY = {
@@ -157,7 +159,7 @@ describe('CombatSimulationClient (HU-72)', () => {
     const [call] = calls
     expect(call?.url).toBe(`http://combat:3004${PATH}`)
     expect(call?.init.method).toBe('POST')
-    expect(call?.init.body).toBe(canonicalBody(REQUEST))
+    expect(call?.init.body).toBe(canonicalBody(COMBAT_PAYLOAD))
     expect(call?.init.signal).toBeInstanceOf(AbortSignal)
     expect(headersOf(call)).toMatchObject({
       'content-type': 'application/json',
@@ -168,7 +170,7 @@ describe('CombatSimulationClient (HU-72)', () => {
         method: 'POST',
         path: PATH,
         timestamp: String(AT.getTime()),
-        body: REQUEST,
+        body: COMBAT_PAYLOAD,
       }),
     })
     expect(failures).toEqual([])
@@ -186,6 +188,21 @@ describe('CombatSimulationClient (HU-72)', () => {
     expect(calls[1]?.init.body).toBe(calls[0]?.init.body)
     expect(headersOf(calls[1])['x-internal-signature']).toBe(
       headersOf(calls[0])['x-internal-signature'],
+    )
+  })
+
+  it('conserva la definicion local sin enviarla a Combat', async () => {
+    const { client, calls } = clientReturning(() => json(200, P01_BODY))
+    await client.simulate({ ...REQUEST, contentSnapshot: EXAMPLE_MISSIONS[0]! })
+    expect(calls[0]?.init.body).toBe(canonicalBody(COMBAT_PAYLOAD))
+    expect(headersOf(calls[0])['x-internal-signature']).toBe(
+      signInternalRequest('secreto', {
+        service: 'missions',
+        method: 'POST',
+        path: PATH,
+        timestamp: String(AT.getTime()),
+        body: COMBAT_PAYLOAD,
+      }),
     )
   })
 
@@ -233,6 +250,20 @@ describe('CombatSimulationClient (HU-72)', () => {
       code: 'INVALID_STRATEGY',
     })
     expect(failures).toEqual([])
+  })
+
+  it('un 401 del guard HMAC se avisa y no se reintenta aunque no traiga code', async () => {
+    const { client, failures } = clientReturning(() =>
+      json(401, { message: 'Peticion interna no autorizada.' }),
+    )
+
+    await expect(client.simulate(REQUEST)).resolves.toEqual({
+      kind: 'REJECTED',
+      code: 'INTERNAL_SIGNATURE_INVALID',
+    })
+    expect(failures).toEqual([
+      { event: 'combat_autorizacion_rechazada', detail: { path: PATH, status: 401 } },
+    ])
   })
 
   it.each([400, 409])(
@@ -314,6 +345,8 @@ describe('ScriptedCombatSimulation (HU-72)', () => {
       bossDefeated: true,
       minHealthPercent: 100,
       master: { appeared: false, defeated: false },
+      // P-J1: el doble solo deja caer el botin de probabilidad 1; el del ejemplo no lo es.
+      loot: [],
     })
     expect(result.summary).toMatchObject({
       simulatedDuration: 'PT12H',
@@ -324,9 +357,24 @@ describe('ScriptedCombatSimulation (HU-72)', () => {
         { enemyRef: 'guardian-eterno', count: 1 },
       ],
     })
-    expect(result.combatLog).toHaveLength(11)
+    // HU-09 (Task HU-09.4): el doble emite ahora la baja de CADA instancia, que es
+    // de donde Missions saca la identidad de cada recompensa de experiencia. Los
+    // 19 enemigos del resumen son 19 eventos `combatantDefeated`, mas los 5
+    // encuentros (inicio y fin) y el cierre: 19 + 10 + 1 = 30.
+    expect(result.combatLog).toHaveLength(30)
+    const bajas = result.combatLog.filter(
+      (entry) => (entry as { type?: string }).type === 'combatantDefeated',
+    )
+    expect(bajas).toHaveLength(19)
+    expect(bajas[0]).toEqual({
+      seq: 2,
+      type: 'combatantDefeated',
+      encounter: 1,
+      turn: 1,
+      combatant: 'sombra-corrompida#1',
+    })
     expect(result.combatLog.at(-1)).toEqual({
-      seq: 11,
+      seq: 30,
       type: 'simulationFinished',
       combatOutcome: 'HERO_VICTORIOUS',
     })
@@ -466,6 +514,8 @@ describe('InMemoryExecutionRepository (HU-72)', () => {
       },
       fact: missionSettledFact(enrollment, settlement, 'sim_op-sim', ENDS),
       masters: [],
+      experience: [],
+      loot: [],
       report: null,
     }
 
@@ -643,9 +693,13 @@ describe('Perfil del heroe para la simulacion (HU-72)', () => {
   })
 
   it('el doble de desarrollo da el heroe con sus habilidades', async () => {
-    await expect(new InMemoryHeroAbilities(['x']).profileOf('sub-1', HERO)).resolves.toEqual({
+    await expect(new InMemoryHeroAbilities(['x']).profileOf('sub-1', HERO)).resolves.toMatchObject({
       kind: 'FOUND',
-      profile: { heroId: HERO, abilities: [{ abilityId: 'x' }] },
+      profile: {
+        heroId: HERO,
+        effectiveStats: { health: 40, attack: 10 },
+        abilities: [{ abilityId: 'x', powerCost: { mode: 'FIXED', amount: 2 } }],
+      },
     })
   })
 })

@@ -15,6 +15,11 @@ Este repositorio contiene código y Pull Requests. No contiene Issues ni Product
 
 ## Estado
 
+La configuración jugable y el editor de misiones se describen en
+[docs/misiones-jugables.md](docs/misiones-jugables.md). La integración real
+requiere desplegar también los cambios correspondientes de Combat y
+Player/Inventory.
+
 Desde el 2026-09-16 corre en producción en el nodo `app` y Caddy le envía `https://nexus.simuladorupbbga.app/api/v1/missions*`. Arranca, verifica identidad, firma y comprueba el contrato interno, expone sus sondas y conecta con su base, que ya existe con usuario propio.
 
 **Primera ruta de negocio: HU-75** (Task HU-75.2, ver [docs/hu-75-mission-difficulty.md](docs/hu-75-mission-difficulty.md)). `mission_difficulty_clears` (migración `001-mission-difficulty-clears`) es la primera tabla. Cualquier otra ruta bajo el prefijo sigue respondiendo `404` desde NestJS hasta que la HU correspondiente la añada. Llega a producción con la siguiente promoción de `develop` a `main`.
@@ -23,11 +28,15 @@ Desde el 2026-09-16 corre en producción en el nodo `app` y Caddy le envía `htt
 
 **Estrategia de rotaciones: HU-71** (Task HU-71.2, ver [docs/hu-71-rotaciones.md](docs/hu-71-rotaciones.md)). `GET` y `PUT /api/v1/missions/{missionId}/strategies/{heroId}` guardan hasta tres rotaciones por jugador, héroe y misión, con versión optimista, y la matrícula congela una copia (migración `003-mission-strategies`). Validar las habilidades también depende de una ruta de Player/Inventory que no existe: hasta entonces, guardar responde `503`.
 
-**Simulación y cierre: HU-72** (Task HU-72.2, ver [docs/hu-72-simulacion.md](docs/hu-72-simulacion.md)). Sin rutas nuevas: un planificador (`MISSION_EXECUTION_ENABLED`, apagado por defecto) pide a Combat la simulación de cada misión iniciada, la cierra al llegar `endsAt` (`COMPLETED` o `FAILED`), registra el _clear_ de HU-75 y libera al héroe (migración `004-mission-executions`). La ruta de simulación de Combat todavía no existe: hasta entonces, cada misión espera y se anula (`VOIDED`) sin penalización al vencer su plazo.
+**Simulación y cierre: HU-72** (Task HU-72.2, ver [docs/hu-72-simulacion.md](docs/hu-72-simulacion.md)). El planificador (`MISSION_EXECUTION_ENABLED`) pide a Combat la simulación real de cada misión iniciada, conserva una copia del contenido y la cierra al llegar `endsAt` (`COMPLETED` o `FAILED`), registra el _clear_ de HU-75 y libera al héroe. La configuración jugable y las dos misiones iniciales se cargan con la migración `010-playable-missions`.
 
-**Reporte e historial: HU-74** (Task HU-74.2, ver [docs/hu-74-reporte.md](docs/hu-74-reporte.md)). `GET /api/v1/missions/me/reports/{enrollmentId}`, `GET /api/v1/missions/me/history` y `GET /api/v1/missions/me/history/summary`. El reporte es una foto inmutable que nace en la transacción del cierre de HU-72 (migración `005-mission-reports`). Como ninguna misión se cierra en producción sin la ruta de Combat, todavía no hay reportes; los créditos, productos y experiencia llegarán con HU-10.
+**Reporte e historial: HU-74** (Task HU-74.2, ver [docs/hu-74-reporte.md](docs/hu-74-reporte.md)). `GET /api/v1/missions/me/reports/{enrollmentId}`, `GET /api/v1/missions/me/history` y `GET /api/v1/missions/me/history/summary`. El reporte es una foto inmutable que nace en la transacción del cierre de HU-72 (migración `005-mission-reports`) e incluye el botín obtenido del jefe; el resumen agrega ese botín por jugador. Como ninguna misión se cierra en producción sin la ruta de Combat, todavía no hay reportes; los créditos y productos de Catalog llegarán con HU-10, y la experiencia, con HU-09.
 
 **Encuentro con el Máster: HU-73** (Task HU-73.2, ver [docs/hu-73-master.md](docs/hu-73-master.md)). Sin rutas nuevas: la solicitud a Combat lleva el bloque `master` con la probabilidad del subtipo del héroe, el cierre guarda la evidencia de cada punto de evaluación (migración `006-mission-master-encounters`) y el planificador pide la épica de cada Máster derrotado a Player/Inventory, una sola vez. Player/Inventory todavía no acepta a `missions` en su ruta de entregas y la épica aún no es un producto de Catalog: hasta entonces, cada entrega queda pendiente y se reintenta.
+
+**Logros y reconocimientos: HU-76** (Task HU-76.2, ver [docs/hu-76-logros.md](docs/hu-76-logros.md)). `GET /api/v1/missions/me/achievements` devuelve los logros del jugador con su progreso y su reconocimiento. Un paso del mismo planificador los evalúa con lo que ya guardan los clears, los reportes y la evidencia del Máster, y los desbloquea una sola vez (migración `009-mission-achievements`); los títulos y las insignias quedan registrados y los cosméticos se piden a Player/Inventory como las épicas. El catálogo aprobado son los siete logros del contrato, aprobados por el PO el 2026-09-24.
+
+**Recompensa de experiencia: HU-09** (Tasks HU-09.4 y HU-09.5, ver [docs/hu-09-experiencia.md](docs/hu-09-experiencia.md)). Sin rutas nuevas: el cierre de HU-72 deja una recompensa `PENDING` por **cada NPC derrotado** (migración `007-experience-rewards`) y la línea `EXPERIENCE` que la refleja en el reporte (migración `008-report-experience`), en su misma transacción y antes de pedir ninguna tirada; un segundo planificador (`EXPERIENCE_REWARD_ENABLED`, apagado por defecto) pide a Combat el lote de tiradas, calcula `10 × 1,2^(1d8)`, acredita cada derrota en Player/Inventory con su propia clave y mueve su línea del reporte en la misma escritura. El reporte publica además un bloque `experience` derivado, con la experiencia acreditada y el nivel del héroe. La bitácora de la simulación todavía no registra las bajas: hasta que la ruta de simulación de Combat exista, el camino se recorre con el doble de desarrollo.
 
 ## Qué posee este contexto
 

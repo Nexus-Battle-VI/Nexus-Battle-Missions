@@ -7,11 +7,15 @@ import {
   type CombatStats,
   type DefeatedEnemy,
   type MissionReport,
+  type ReportExperience,
   type ReportMaster,
   type ReportOutcome,
+  type ReportRewardLine,
+  type ReportStrategy,
   type SkillUse,
 } from '../entities/MissionReport'
 import { isoDurationSeconds } from '../value-objects/iso-duration'
+import { abilitiesUsedBy, type Rotation } from '../value-objects/rotation'
 import { isCount, isRecord, simulationFactsOf } from './SettlementPolicy'
 
 /**
@@ -96,22 +100,50 @@ const combatStatsOf = (summary: Readonly<Record<string, unknown>>): CombatStats 
   damageTaken: amountOrNull(summary.damageTaken),
   criticalEffects: countOrNull(summary.criticalEffects),
   skillsUsed: skillsUsedOf(summary.skillsUsed),
+  // P-J4: solo si Combat ya los informa; un reporte anterior no los tiene.
+  ...(summary.healingDone === undefined ? {} : { healingDone: amountOrNull(summary.healingDone) }),
+  ...(summary.abilityDamage === undefined
+    ? {}
+    : { abilityDamage: amountOrNull(summary.abilityDamage) }),
 })
 
-/** Los enemigos regulares derrotados, con el nombre del contenido. El jefe va aparte. */
+/** Las referencias de los Master del contenido: se informan aparte, en `masters`. */
+const masterRefsOf = (definition: MissionDefinition): ReadonlySet<string> => {
+  const config: unknown = definition.masterEncounter
+  const candidates: readonly unknown[] =
+    isRecord(config) && Array.isArray(config.candidates) ? config.candidates : []
+
+  return new Set(
+    candidates.flatMap((candidate) =>
+      isRecord(candidate) && typeof candidate.masterRef === 'string' ? [candidate.masterRef] : [],
+    ),
+  )
+}
+
+/**
+ * Los enemigos regulares derrotados, con el nombre del contenido. El jefe va
+ * aparte, y el Master tambien: Combat lo cuenta entre los derrotados, pero en el
+ * reporte ya sale en `masters` con su nombre (antes salia repetido con su referencia).
+ */
 const defeatedOf = (value: unknown, definition: MissionDefinition): readonly DefeatedEnemy[] => {
   if (!Array.isArray(value)) {
     return []
   }
 
   const names = new Map(definition.enemies.map((enemy) => [enemy.enemyRef, enemy.name]))
+  const masters = masterRefsOf(definition)
   const defeated: DefeatedEnemy[] = []
 
   for (const entry of value as unknown[]) {
     const enemyRef = isRecord(entry) ? textOrNull(entry.enemyRef) : null
     const count = isRecord(entry) ? countOrNull(entry.count) : null
 
-    if (enemyRef !== null && count !== null && enemyRef !== definition.finalBoss.enemyRef) {
+    if (
+      enemyRef !== null &&
+      count !== null &&
+      enemyRef !== definition.finalBoss.enemyRef &&
+      !masters.has(enemyRef)
+    ) {
       defeated.push({ enemyRef, name: names.get(enemyRef) ?? enemyRef, count })
     }
   }
@@ -119,11 +151,114 @@ const defeatedOf = (value: unknown, definition: MissionDefinition): readonly Def
   return defeated
 }
 
+/** Los nombres de las habilidades congelados en el perfil que se envio a Combat. */
+const abilityNamesOf = (
+  heroProfile: Readonly<Record<string, unknown>> | null,
+): ReadonlyMap<string, string> => {
+  const abilities: readonly unknown[] = Array.isArray(heroProfile?.abilities)
+    ? (heroProfile.abilities as unknown[])
+    : []
+
+  return new Map(
+    abilities.flatMap((ability) => {
+      const abilityId = isRecord(ability) ? textOrNull(ability.abilityId) : null
+      const name = isRecord(ability) ? textOrNull(ability.name) : null
+      return abilityId === null ? [] : [[abilityId, name ?? abilityId] as const]
+    }),
+  )
+}
+
+/**
+ * Que hizo la estrategia (diseno «misiones jugables», P-J5), contado desde la
+ * bitacora de Combat: cada `heroAction` dice que accion se eligio y que rotaciones
+ * se saltaron y por que. El paso saltado se traduce a su habilidad con las
+ * rotaciones congeladas en la matricula. Sin estrategia guardada no hay bloque.
+ */
+export const strategyOf = (input: {
+  readonly rotations: readonly Rotation[]
+  readonly combatLog: readonly unknown[]
+  readonly heroProfile: Readonly<Record<string, unknown>> | null
+}): ReportStrategy | null => {
+  if (input.rotations.length === 0) {
+    return null
+  }
+
+  const names = abilityNamesOf(input.heroProfile)
+  const used = new Map<string, number>()
+  const skipped = new Map<string, Map<string, number>>()
+  let basicAttacks = 0
+  let fallbackAttacks = 0
+  const abilityAt = (priority: unknown, step: unknown): string | null => {
+    const rotation = input.rotations.find((entry) => entry.priority === priority)
+    const action = typeof step === 'number' ? rotation?.steps[step - 1] : undefined
+    return action?.kind === 'ABILITY' ? action.abilityId : null
+  }
+
+  for (const event of input.combatLog) {
+    if (!isRecord(event) || event.type !== 'heroAction') continue
+    const strategy = isRecord(event.strategy) ? event.strategy : null
+
+    if (event.action === 'ABILITY' && typeof event.abilityId === 'string') {
+      used.set(event.abilityId, (used.get(event.abilityId) ?? 0) + 1)
+    } else if (strategy?.fallback === true) {
+      fallbackAttacks += 1
+    } else {
+      basicAttacks += 1
+    }
+
+    const skips: readonly unknown[] = Array.isArray(strategy?.skipped) ? strategy.skipped : []
+    for (const skip of skips) {
+      const abilityId = isRecord(skip) ? abilityAt(skip.rotation, skip.step) : null
+      const reason = isRecord(skip) ? textOrNull(skip.reason) : null
+      if (abilityId === null || reason === null) continue
+      const reasons = skipped.get(abilityId) ?? new Map<string, number>()
+      reasons.set(reason, (reasons.get(reason) ?? 0) + 1)
+      skipped.set(abilityId, reasons)
+    }
+  }
+
+  return {
+    abilities: abilitiesUsedBy(input.rotations).map((abilityId) => ({
+      abilityId,
+      name: names.get(abilityId) ?? abilityId,
+      used: used.get(abilityId) ?? 0,
+      skipped: Object.fromEntries(skipped.get(abilityId) ?? []),
+    })),
+    basicAttacks,
+    fallbackAttacks,
+  }
+}
+
 const simulatedDurationOf = (value: unknown): string | null => {
   const duration = textOrNull(value)
 
   return duration !== null && isoDurationSeconds(duration) !== null ? duration : null
 }
+
+/** El botin que devolvio Combat, leido con tolerancia (lo usa tambien la entrega, P-J1). */
+export const lootOf = (
+  value: unknown,
+): readonly {
+  readonly label: string
+  readonly quantity: number
+  readonly productId: string | null
+}[] =>
+  Array.isArray(value)
+    ? (value as unknown[]).flatMap((item) =>
+        isRecord(item) &&
+        textOrNull(item.label) !== null &&
+        isCount(item.quantity) &&
+        item.quantity > 0
+          ? [
+              {
+                label: item.label as string,
+                quantity: item.quantity,
+                productId: textOrNull(item.productId),
+              },
+            ]
+          : [],
+      )
+    : []
 
 const reportOutcomeOf = (settlement: Settlement): ReportOutcome => {
   if (settlement.outcome === 'VOIDED') {
@@ -142,6 +277,11 @@ export const missionReportOf = (input: ReportInput): MissionReport => {
 
   const summary = result.summary
   const met = new Map(settlement.objectives.map((objective) => [objective.id, objective.met]))
+  const strategy = strategyOf({
+    rotations: enrollment.rotations,
+    combatLog: result.combatLog,
+    heroProfile: input.heroProfile,
+  })
 
   return {
     schemaVersion: REPORT_SCHEMA_VERSION,
@@ -177,6 +317,7 @@ export const missionReportOf = (input: ReportInput): MissionReport => {
       },
       masters: mastersOf(input.masters ?? [], definition),
     },
+    ...(Array.isArray(summary.loot) ? { loot: lootOf(summary.loot) } : {}),
     objectives: definition.objectives.map((objective) => ({
       id: objective.id,
       text: objective.text,
@@ -184,6 +325,70 @@ export const missionReportOf = (input: ReportInput): MissionReport => {
       met: met.get(objective.id) ?? null,
       bonus: null,
     })),
+    ...(strategy === null ? {} : { strategy }),
     generatedAt: input.generatedAt,
+  }
+}
+
+/** Una linea de experiencia la escribio HU-09: es la unica fuente de este bloque. */
+const isExperienceLine = (line: ReportRewardLine): boolean =>
+  line.source === 'HU-09' && line.kind === 'EXPERIENCE'
+
+/**
+ * El resumen de experiencia del reporte (HU-09, Task HU-09.5), derivado de sus
+ * lineas `HU-09`.
+ *
+ * SE DERIVA Y NO SE GUARDA: es lo unico del reporte que cambia con el tiempo, y un
+ * total guardado aparte acabaria diciendo algo distinto que sus propias lineas.
+ *
+ * EL NIVEL ES EL MAXIMO DE LAS LINEAS ACREDITADAS, no el de la ultima ni el de la
+ * de mayor numero. El nivel y la experiencia acumulada SOLO CRECEN (lo garantiza
+ * Player/Inventory), asi que el maximo es el estado final del heroe con
+ * independencia del orden en que el barrido acredito las derrotas -- que no es un
+ * orden que este codigo controle.
+ *
+ * SIN ACREDITACIONES TODAVIA, el nivel es `null` y no un cero: un cero seria un
+ * nivel que el heroe no tiene.
+ *
+ * UN REPORTE ANTERIOR A HU-09 no tiene lineas de este origen y sale con ceros y
+ * con `level: null`, que es la verdad: esa mision no registro derrotas.
+ */
+export const experienceSummaryOf = (rewards: readonly ReportRewardLine[]): ReportExperience => {
+  const lines = rewards.filter(isExperienceLine)
+  const credited = lines.filter((line) => line.status === 'CREDITED')
+
+  let level: number | null = null
+  let currentXp: number | null = null
+  let maxLevel: number | null = null
+  let levelsGained = 0
+  let totalXp = 0
+
+  for (const line of credited) {
+    const progression = line.progression
+
+    totalXp += line.quantity
+
+    if (progression === null) {
+      continue
+    }
+
+    level = level === null ? progression.level : Math.max(level, progression.level)
+    currentXp =
+      currentXp === null ? progression.currentXp : Math.max(currentXp, progression.currentXp)
+    maxLevel = maxLevel === null ? progression.maxLevel : Math.max(maxLevel, progression.maxLevel)
+    levelsGained += progression.levelsGained
+  }
+
+  return {
+    defeats: lines.length,
+    totalXp,
+    credited: credited.length,
+    pending: lines.filter((line) => line.status === 'PENDING').length,
+    failed: lines.filter((line) => line.status === 'FAILED').length,
+    level,
+    currentXp,
+    maxLevel,
+    levelsGained,
+    leveledUp: levelsGained > 0,
   }
 }

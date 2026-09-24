@@ -58,6 +58,20 @@ const masterOf = (request: SimulationRequest): Readonly<Record<string, unknown>>
   }
 }
 
+/**
+ * El botin del jefe sin tirar dados (diseno «misiones jugables», P-J1): cae solo
+ * el de probabilidad 1, una vez por tirada. Como con el Master, sirve para recorrer
+ * el camino de la entrega en desarrollo; no reproduce las probabilidades.
+ */
+const lootOf = (request: SimulationRequest): readonly Readonly<Record<string, unknown>>[] =>
+  request.encounters.some((encounter) => encounter.kind === 'BOSS')
+    ? (request.bossDrops ?? []).flatMap((drop) =>
+        drop.probability >= 1
+          ? [{ label: drop.label, productId: drop.productId ?? null, quantity: drop.rolls }]
+          : [],
+      )
+    : []
+
 export class ScriptedCombatSimulation implements CombatSimulationPort {
   simulate(request: SimulationRequest): Promise<SimulationCallOutcome> {
     const defeated = new Map<string, number>()
@@ -72,6 +86,19 @@ export class ScriptedCombatSimulation implements CombatSimulationPort {
     const events = [
       ...request.encounters.flatMap((encounter) => [
         { type: 'encounterStarted', encounter: encounter.index },
+        // HU-09 (Task HU-09.4): la baja de CADA instancia, con la forma del
+        // contrato (`combatant` = `<enemyRef>#<n>`), que es de donde Missions saca
+        // la identidad de cada recompensa de experiencia. El resumen agregado no
+        // sirve para eso: pierde las derrotas repetidas. Antes este doble no las
+        // emitia, asi que el camino de HU-09 no se podia recorrer en desarrollo.
+        ...encounter.enemies.flatMap((enemy) =>
+          Array.from({ length: enemy.count }, (_unused, index) => ({
+            type: 'combatantDefeated',
+            encounter: encounter.index,
+            turn: 1,
+            combatant: `${enemy.enemyRef}#${String(index + 1)}`,
+          })),
+        ),
         { type: 'encounterFinished', encounter: encounter.index },
       ]),
       { type: 'simulationFinished', combatOutcome: 'HERO_VICTORIOUS' },
@@ -95,6 +122,7 @@ export class ScriptedCombatSimulation implements CombatSimulationPort {
           enemiesDefeated: [...defeated].map(([enemyRef, count]) => ({ enemyRef, count })),
           bossDefeated: request.encounters.some((encounter) => encounter.kind === 'BOSS'),
           master: masterOf(request),
+          loot: lootOf(request),
           simulatedDuration: request.timeBudget,
         },
         combatLog: events.map((event, index) => ({ seq: index + 1, ...event })),

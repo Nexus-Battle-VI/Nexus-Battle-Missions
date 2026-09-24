@@ -125,7 +125,13 @@ describe('Matrículas en PostgreSQL (HU-70)', () => {
     it('lista solo las activas, por nombre', async () => {
       const names = (await catalog.listActive()).map((definition) => definition.name)
 
-      expect(names).toEqual(['El Templo Olvidado', 'La Cámara Sellada'])
+      expect(names).toEqual([
+        'Camino al Templo',
+        'El Templo Olvidado',
+        'La Arena de los Caídos',
+        'La Cámara Sellada',
+        'Travesía por el Bosque Sombrío',
+      ])
     })
 
     it('una retirada no esta activa pero sigue existiendo para el reconciliador', async () => {
@@ -511,7 +517,8 @@ describe('Matrículas en PostgreSQL (HU-70)', () => {
       const board = await request(app.getHttpServer())
         .get('/api/v1/missions')
         .set('Authorization', 'Bearer token-pg')
-      expect(board.body.items[0]).toMatchObject({
+      const cards = board.body.items as { readonly missionId: string }[]
+      expect(cards.find((card) => card.missionId === TEMPLO)).toMatchObject({
         missionId: TEMPLO,
         playerStatus: 'IN_PROGRESS',
         activeEnrollmentId: enrollmentId,

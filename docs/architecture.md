@@ -45,11 +45,11 @@ Todas las llamadas salientes que mueven créditos o productos siguen el patrón 
 - `POST /api/v1/missions/{missionId}/enrollments` — matricular un héroe (HU-70; HU-75 añade `difficulty`).
 - `PUT /api/v1/missions/enrollments/{enrollmentId}/rotations` — rotaciones.
 - `GET /api/v1/missions/me/reports/{enrollmentId}` — reporte.
-- `GET /api/v1/missions/me/achievements` — logros.
+- `GET /api/v1/missions/me/achievements` — logros (HU-76, **implementado**; ver [hu-76-logros.md](hu-76-logros.md)).
 
 ## Temporizadores
 
-Los vencimientos usan un intervalo dentro del proceso, apagado por defecto, con reclamación durable en el almacén (`FOR UPDATE SKIP LOCKED`). El estado vive en la base: un reinicio retrasa un vencimiento, no lo pierde. Mismo patrón que `AccountDeletionProcessingScheduler` en Account.
+Los vencimientos usan un intervalo dentro del proceso, apagado por defecto. El estado vive en la base: un reinicio retrasa un vencimiento, no lo pierde. La reclamación no bloquea filas (`FOR UPDATE SKIP LOCKED`): cada escritura es idempotente o condicional (la versión o los intentos leídos), así que dos procesos no hacen dos veces lo mismo y no queda una transacción abierta durante una llamada HTTP (HU-72, HU-73 y HU-76). Mismo patrón que `AccountDeletionProcessingScheduler` en Account.
 
 ## Decisiones abiertas
 

@@ -54,9 +54,18 @@ export class MissionReportResponseDto {
   @ApiProperty({ type: Object }) summary!: object
   @ApiProperty({ type: Object }) combatStats!: object
   @ApiProperty({ type: Object }) enemies!: object
+  @ApiPropertyOptional({ type: [Object], description: 'Botin obtenido del jefe.' })
+  loot?: readonly object[]
   @ApiProperty({ type: [Object] }) objectives!: readonly object[]
   @ApiProperty({ type: [Object], description: 'Lo único que cambia con el tiempo.' })
   rewards!: readonly object[]
+
+  @ApiProperty({
+    type: Object,
+    description:
+      'Experiencia por derrota agregada (HU-09): derrotas, experiencia acreditada y nivel del héroe.',
+  })
+  experience!: object
 
   @ApiProperty({ example: '2026-10-02T03:00:05.000Z' }) generatedAt!: string
 }
@@ -70,5 +79,12 @@ export class MissionHistorySummaryResponseDto {
   @ApiProperty({ type: [Object] }) byCategory!: readonly object[]
   @ApiProperty({ type: [Object] }) bestTimes!: readonly object[]
   @ApiProperty({ type: [Object] }) epicCollection!: readonly object[]
+  @ApiProperty({
+    type: [Object],
+    description:
+      'Cada epica que se puede ganar, con su Master y su mision, y si ya se tiene (P-J3).',
+  })
+  epicAlbum!: readonly object[]
+  @ApiProperty({ type: [Object] }) lootCollection!: readonly object[]
   @ApiProperty({ type: [Object] }) narrativeProgress!: readonly object[]
 }

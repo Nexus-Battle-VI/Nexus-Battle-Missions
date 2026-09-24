@@ -1,9 +1,17 @@
 import type { ColumnType, Generated } from 'kysely'
 
 import type {
+  AchievementCriterion,
+  AchievementProof,
+  RecognitionKind,
+  RecognitionStatus,
+} from '../../../domain/entities/Achievement'
+import type {
   EpicGrantStatus,
   MasterEncounterStatus,
 } from '../../../domain/entities/MasterEncounterRecord'
+import type { ExperienceRewardStatus } from '../../../domain/entities/ExperienceReward'
+import type { LootGrantStatus } from '../../../domain/entities/LootGrantRecord'
 import type { MissionDefinition } from '../../../domain/entities/MissionDefinition'
 import type {
   EnrollmentRejection,
@@ -47,6 +55,10 @@ export interface Database {
   readonly mission_reports: MissionReportsTable
   readonly mission_report_rewards: MissionReportRewardsTable
   readonly mission_master_encounters: MissionMasterEncountersTable
+  readonly mission_loot_grants: MissionLootGrantsTable
+  readonly mission_experience_rewards: MissionExperienceRewardsTable
+  readonly mission_achievement_unlocks: MissionAchievementUnlocksTable
+  readonly mission_achievement_evaluations: MissionAchievementEvaluationsTable
 }
 
 /**
@@ -68,6 +80,7 @@ export interface MissionDefinitionContent {
   readonly enemies: MissionDefinition['enemies']
   readonly finalBoss: MissionDefinition['finalBoss']
   readonly encounters: MissionDefinition['encounters']
+  readonly combatRules?: MissionDefinition['combatRules']
   readonly masterEncounter: MissionDefinition['masterEncounter']
   readonly rewards: MissionDefinition['rewards']
   readonly highlightedRewards: MissionDefinition['highlightedRewards']
@@ -174,7 +187,11 @@ export interface MissionReportsTable {
   readonly generated_at: ColumnType<Date, Date, never>
 }
 
-/** Lineas de recompensa de cada reporte (HU-74): solo cambian su estado y su fecha. */
+/**
+ * Lineas de recompensa de cada reporte (HU-74): solo cambian su estado, su
+ * importe y su fecha. La progresion del heroe la escribe el avance de la
+ * experiencia (HU-09, migracion `008-report-experience`).
+ */
 export interface MissionReportRewardsTable {
   readonly enrollment_id: ColumnType<string, string, never>
   readonly line_no: ColumnType<number, number, never>
@@ -182,9 +199,19 @@ export interface MissionReportRewardsTable {
   readonly reference: ColumnType<string | null, string | null, never>
   readonly name: ColumnType<string, string, never>
   readonly rarity: ColumnType<string | null, string | null, never>
-  readonly quantity: ColumnType<number, number, never>
+  /**
+   * Unidades entregadas. En una linea de experiencia es el importe ACREDITADO, que
+   * solo se conoce cuando la tirada ocurre: nace en cero y el avance de HU-09 lo
+   * escribe (Task HU-09.5), de ahi que sea actualizable.
+   */
+  readonly quantity: ColumnType<number, number, number>
   readonly status: RewardStatus
   readonly source: ColumnType<RewardSource, RewardSource, never>
+  /** Nivel del heroe al acreditar; `null` mientras no se acredite o no se leyera. */
+  readonly hero_level: number | null
+  readonly hero_current_xp: number | null
+  readonly hero_max_level: number | null
+  readonly levels_gained: number | null
   readonly updated_at: Date
 }
 
@@ -212,7 +239,96 @@ export interface MissionMasterEncountersTable {
   readonly grant_product_id: string | null
 }
 
-/** Hechos internos de Missions (`MissionEnrollmentStarted`); los consume HU-72. */
+/**
+ * Entrega del botin del jefe (diseno «misiones jugables», P-J1, migracion
+ * `011-mission-loot-grants`). La escribe el cierre; despues solo cambia la entrega.
+ */
+export interface MissionLootGrantsTable {
+  readonly enrollment_id: ColumnType<string, string, never>
+  readonly line_no: ColumnType<number, number, never>
+  readonly label: ColumnType<string, string, never>
+  readonly quantity: ColumnType<number, number, never>
+  readonly operation_id: ColumnType<string, string, never>
+  readonly status: LootGrantStatus
+  readonly attempts: ColumnType<number, number | undefined, number>
+  readonly next_attempt_at: Date | null
+  readonly last_error: string | null
+  readonly granted_at: Date | null
+  readonly product_id: string | null
+  readonly created_at: ColumnType<Date, Date | undefined, never>
+}
+
+/**
+ * Recompensa de experiencia de UNA derrota (HU-09, migracion
+ * `007-experience-rewards`). La crea el cierre en su transaccion, `PENDING` y
+ * antes de pedir ninguna tirada; despues solo avanza su estado.
+ */
+export interface MissionExperienceRewardsTable {
+  readonly enrollment_id: ColumnType<string, string, never>
+  readonly encounter_id: ColumnType<string, string, never>
+  readonly enemy_instance_id: ColumnType<string, string, never>
+  readonly player_id: ColumnType<string, string, never>
+  readonly hero_id: ColumnType<string, string, never>
+  readonly simulation_id: ColumnType<string, string, never>
+  readonly rival_ref: ColumnType<string, string, never>
+  readonly status: ExperienceRewardStatus
+  /** Cara del dado de Combat; `null` mientras no se haya pedido la tirada. */
+  readonly roll: number | null
+  /** Experiencia ya calculada y entera; `null` mientras no haya tirada. */
+  readonly amount: number | null
+  readonly attempts: ColumnType<number, number | undefined, number>
+  readonly next_attempt_at: Date | null
+  readonly last_error: string | null
+  readonly credited_at: Date | null
+  /** La linea del reporte que refleja esta derrota (HU-09.5); `null` sin reporte. */
+  readonly reward_line_no: number | null
+  readonly created_at: ColumnType<Date, Date | undefined, never>
+}
+
+/**
+ * Logros desbloqueados (HU-76, migracion `009-mission-achievements`), uno por
+ * jugador y logro. Lo desbloqueado queda congelado; despues solo cambia la
+ * entrega de un cosmetico.
+ */
+export interface MissionAchievementUnlocksTable {
+  readonly player_id: ColumnType<string, string, never>
+  readonly achievement_id: ColumnType<string, string, never>
+  readonly achievement_version: ColumnType<number, number, never>
+  readonly criterion: ColumnType<AchievementCriterion, AchievementCriterion, never>
+  readonly name: ColumnType<string, string, never>
+  readonly progress_current: ColumnType<number, number, never>
+  readonly progress_target: ColumnType<number, number, never>
+  readonly proof: ColumnType<AchievementProof, string, never>
+  readonly unlocked_at: ColumnType<Date, Date, never>
+  readonly recognition_kind: ColumnType<RecognitionKind, RecognitionKind, never>
+  readonly recognition_name: ColumnType<string, string, never>
+  readonly recognition_status: RecognitionStatus
+  readonly grant_operation_id: ColumnType<string | null, string | null, never>
+  readonly grant_attempts: ColumnType<number, number | undefined, number>
+  readonly grant_next_attempt_at: Date | null
+  readonly grant_last_error: string | null
+  readonly grant_product_id: string | null
+  readonly credited_at: Date | null
+}
+
+/** Punto de control de la evaluacion de logros de cada jugador (HU-76, migracion 009). */
+export interface MissionAchievementEvaluationsTable {
+  readonly player_id: ColumnType<string, string, never>
+  readonly settled_seen: number
+  readonly epics_granted_seen: number
+  readonly catalog_fingerprint: string | null
+  readonly evaluated_at: Date | null
+  readonly attempts: ColumnType<number, number | undefined, number>
+  readonly next_attempt_at: Date | null
+  readonly last_error: string | null
+}
+
+/**
+ * Hechos internos de Missions: `MissionEnrollmentStarted` (HU-70), que consume
+ * HU-72, y `MissionSettled` (HU-72). `processed_at` es SOLO de HU-72: cada otro
+ * consumidor lleva su propio registro (HU-76, `mission_achievement_evaluations`)
+ * y no lo marca, para no ocultar el hecho a los demas.
+ */
 export interface MissionFactsTable {
   readonly fact_id: Generated<string>
   readonly type: string

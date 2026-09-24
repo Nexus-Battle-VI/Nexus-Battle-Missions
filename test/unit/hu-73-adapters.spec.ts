@@ -194,6 +194,7 @@ describe('InMemoryMasterEncounterRepository (HU-73)', () => {
         quantity: 1,
         status: 'PENDING',
         source: 'HU-73',
+        progression: null,
         updatedAt: AT,
       },
     ],

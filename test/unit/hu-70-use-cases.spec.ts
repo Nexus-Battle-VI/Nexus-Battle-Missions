@@ -39,10 +39,20 @@ import { UnknownDifficultyError } from '../../src/domain/value-objects/difficult
 const AT = new Date('2026-10-01T15:00:00.000Z')
 const TEMPLO = 'msn_templo_olvidado'
 const CAMARA = 'msn_camara_sellada'
+/** La mision de bienvenida: no tiene Master. */
+const CAMINO = 'msn_camino_templo'
 const HERO = '7f3c2a9e-2d4b-4c1a-9e7f-1b2c3d4e5f60'
 const HERO_2 = '0b1c2d3e-4f50-4617-8a9b-0c1d2e3f4a5b'
 const KEY = '3b9f6c1e-8d2a-4f7b-9c4e-5a6b7c8d9e0f'
 const KEY_2 = '4c0a7d2f-9e3b-4a8c-8d5f-6b7c8d9e0f1a'
+
+/**
+ * Las dos misiones de historia del ejemplo, la segunda bloqueada por la primera:
+ * bastan para probar la mecanica del tablon sin depender del resto del contenido.
+ */
+const TEMPLO_Y_CAMARA = EXAMPLE_MISSIONS.filter((mission) =>
+  [TEMPLO, CAMARA].includes(mission.missionId),
+)
 
 class FixedClock implements ClockPort {
   constructor(public current: Date) {}
@@ -431,7 +441,7 @@ const buildInProgress = async (): Promise<MissionEnrollment> => {
 
 describe('ListMissionBoard (Task HU-70.2)', () => {
   it('deriva el estado de cada mision para el jugador', async () => {
-    const { board } = setup()
+    const { board } = setup(TEMPLO_Y_CAMARA)
     const { items } = await board.execute('sub-1', { category: null, status: null })
 
     expect(items.map((card) => [card.missionId, card.playerStatus, card.canEnroll])).toEqual([
@@ -443,7 +453,7 @@ describe('ListMissionBoard (Task HU-70.2)', () => {
   })
 
   it('una matricula activa deja la mision EN CURSO con su id', async () => {
-    const { board, enroll } = setup()
+    const { board, enroll } = setup(TEMPLO_Y_CAMARA)
     await enroll.execute(command())
 
     const templo = (await board.execute('sub-1', { category: null, status: null })).items[0]
@@ -452,7 +462,7 @@ describe('ListMissionBoard (Task HU-70.2)', () => {
   })
 
   it('el estado es de cada jugador', async () => {
-    const { board, enroll } = setup()
+    const { board, enroll } = setup(TEMPLO_Y_CAMARA)
     await enroll.execute(command())
 
     expect(
@@ -461,7 +471,7 @@ describe('ListMissionBoard (Task HU-70.2)', () => {
   })
 
   it('filtra por categoria y por estado', async () => {
-    const { board } = setup()
+    const { board } = setup(TEMPLO_Y_CAMARA)
 
     expect((await board.execute('sub-1', { category: 'EXPLORATION', status: null })).items).toEqual(
       [],
@@ -474,7 +484,7 @@ describe('ListMissionBoard (Task HU-70.2)', () => {
   })
 
   it('muestra el resultado de la ultima matricula terminada', async () => {
-    const { board, enrollments } = setup()
+    const { board, enrollments } = setup(TEMPLO_Y_CAMARA)
     const base = await buildInProgress()
     await enrollments.insertPending({
       ...base,
@@ -515,7 +525,8 @@ describe('GetMissionDetail (Task HU-70.2)', () => {
       finalBoss: { name: 'El Guardián Eterno', stats: { health: 100 } },
       masterEncounter: {
         probability: 0.15,
-        candidates: [{ name: 'Sombra del Olvido', epic: { name: 'Velo de Sombras' } }],
+        // P-J2: sin producto en Catalog la epica no se promete; el Master aparece igual.
+        candidates: [{ name: 'Sombra del Olvido', epic: null }],
       },
       playerStatus: 'AVAILABLE',
       canEnroll: true,
@@ -529,11 +540,63 @@ describe('GetMissionDetail (Task HU-70.2)', () => {
       description: 'Enemigos básicos con ataque moderado.',
     })
     expect(detail.finalBoss).not.toHaveProperty('enemyRef')
-    expect(detail.rewards.potential.map((reward) => reward.probability)).toEqual([0.6, 0.2, 0.15])
+    // P-J2: solo lo que se entrega. El contenido de ejemplo no enlaza productos, y los
+    // creditos, el cofre y el titulo son texto que nadie entrega todavia (HU-10).
+    expect(detail.rewards).toEqual({
+      experience: true,
+      guaranteed: [],
+      potential: [],
+      objectiveBonuses: [],
+      firstTime: [],
+    })
+  })
+
+  it('P-J2: con productos enlazados promete la epica y el botin, con su probabilidad', async () => {
+    const base = EXAMPLE_MISSIONS[0]!
+    const master = base.masterEncounter!
+    const linked = {
+      ...base,
+      finalBoss: {
+        ...base.finalBoss,
+        drops: (base.finalBoss.drops ?? []).map((drop, index) => ({
+          ...drop,
+          productId: index < 2 ? `1111111${String(index)}-1111-4111-8111-111111111111` : null,
+        })),
+      },
+      masterEncounter: {
+        ...master,
+        candidates: master.candidates.map((candidate) => ({
+          ...candidate,
+          epic: { ...candidate.epic, productId: '22222222-2222-4222-8222-222222222222' },
+        })),
+      },
+    }
+    const detail = await setup([linked]).detail.execute('sub-1', TEMPLO)
+
+    expect(detail.masterEncounter.candidates.map((candidate) => candidate.epic?.name)).toEqual([
+      'Toma y lleva',
+    ])
+    expect(detail.rewards.potential).toEqual([
+      { label: 'Fragmento del Sello Antiguo', probability: 0.6, rolls: 3 },
+      { label: 'Armadura «Piel del Guardián»', probability: 0.2, rolls: 1 },
+    ])
+  })
+
+  it('la probabilidad es la de que aparezca algun Master en la mision: el 15 % del PO', async () => {
+    const context = setup()
+    const chanceOf = async (missionId: string) =>
+      (await context.detail.execute('sub-1', missionId)).masterEncounter
+
+    // Dos candidatos al 7,8 % cada uno: 1 - 0,922 x 0,922.
+    expect(await chanceOf('msn_camara_sellada')).toMatchObject({
+      probability: 0.1499,
+      candidates: [{ name: 'Hechicera del Sello' }, { name: 'Coloso de Obsidiana' }],
+    })
+    expect((await chanceOf('msn_travesia_bosque')).probability).toBe(0.15)
   })
 
   it('una mision sin Master muestra probabilidad 0 y ningun candidato', async () => {
-    expect((await setup().detail.execute('sub-1', CAMARA)).masterEncounter).toEqual({
+    expect((await setup().detail.execute('sub-1', CAMINO)).masterEncounter).toEqual({
       probability: 0,
       candidates: [],
     })

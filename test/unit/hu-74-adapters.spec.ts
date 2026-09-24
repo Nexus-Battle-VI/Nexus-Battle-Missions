@@ -67,6 +67,7 @@ const CREDITS: ReportRewardLine = {
   quantity: 50,
   status: 'PENDING',
   source: 'HU-10',
+  progression: null,
   updatedAt: CLOSED,
 }
 
@@ -115,7 +116,13 @@ describe('InMemoryReportRepository (HU-74)', () => {
 
 describe('La vista del reporte (contrato hu-74-mission-report-v1)', () => {
   it('fechas en ISO-8601, sin el jugador y con las lineas sin su numero interno', () => {
-    const view = reportViewOf({ report: report('enr_1', 'sub-1', ENDS), rewards: [CREDITS] })
+    const view = reportViewOf({
+      report: {
+        ...report('enr_1', 'sub-1', ENDS),
+        loot: [{ label: 'Fragmento', quantity: 2, productId: null }],
+      },
+      rewards: [CREDITS],
+    })
 
     expect(view).not.toHaveProperty('playerId')
     expect(view.summary).toMatchObject({
@@ -123,6 +130,7 @@ describe('La vista del reporte (contrato hu-74-mission-report-v1)', () => {
       finishedAt: ENDS.toISOString(),
     })
     expect(view.generatedAt).toBe(CLOSED.toISOString())
+    expect(view.loot).toEqual([{ label: 'Fragmento', quantity: 2, productId: null }])
     expect(view.rewards).toEqual([
       {
         kind: 'CREDITS',

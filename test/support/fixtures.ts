@@ -44,33 +44,36 @@ export const COURSE_STRATEGY: readonly Rotation[] = [
   },
 ]
 
-/** Semilla de las pruebas con PostgreSQL: el catalogo es de solo lectura y aun no hay contenido. */
+/** Fixture de pruebas: puede sustituir el contenido jugable sembrado por la migracion. */
 export const insertDefinition = async (
   db: Kysely<Database>,
   definition: MissionDefinition,
 ): Promise<void> => {
+  const values = {
+    mission_id: definition.missionId,
+    name: definition.name,
+    category: definition.category,
+    summary: definition.summary,
+    narrative: definition.narrative,
+    image_ref: definition.imageRef,
+    estimated_duration_minutes: definition.estimatedDurationMinutes,
+    recommended_power: definition.recommendedPower,
+    prerequisites: [...definition.prerequisites],
+    content: JSON.stringify({
+      objectives: definition.objectives,
+      enemies: definition.enemies,
+      finalBoss: definition.finalBoss,
+      encounters: definition.encounters,
+      combatRules: definition.combatRules,
+      masterEncounter: definition.masterEncounter,
+      rewards: definition.rewards,
+      highlightedRewards: definition.highlightedRewards,
+    }),
+    active: definition.active,
+  }
   await db
     .insertInto('mission_definitions')
-    .values({
-      mission_id: definition.missionId,
-      name: definition.name,
-      category: definition.category,
-      summary: definition.summary,
-      narrative: definition.narrative,
-      image_ref: definition.imageRef,
-      estimated_duration_minutes: definition.estimatedDurationMinutes,
-      recommended_power: definition.recommendedPower,
-      prerequisites: [...definition.prerequisites],
-      content: JSON.stringify({
-        objectives: definition.objectives,
-        enemies: definition.enemies,
-        finalBoss: definition.finalBoss,
-        encounters: definition.encounters,
-        masterEncounter: definition.masterEncounter,
-        rewards: definition.rewards,
-        highlightedRewards: definition.highlightedRewards,
-      }),
-      active: definition.active,
-    })
+    .values(values)
+    .onConflict((conflict) => conflict.column('mission_id').doUpdateSet(values))
     .execute()
 }
