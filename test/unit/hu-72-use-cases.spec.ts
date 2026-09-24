@@ -323,6 +323,27 @@ describe('RunMissionExecutions: simulacion (Task HU-72.2, CU-72.1)', () => {
     expect(request?.encounters[0]?.enemies[0]?.profile).toBeNull()
   })
 
+  it('envia a Combat perfiles de enemigos y jefe cuando el contenido los define', async () => {
+    const { enroll, runner, combat } = setup()
+    const example = EXAMPLE_MISSIONS[0]!
+    const regularProfile = { subtype: 'GUERRERO_ARMAS', maxHealth: 24, attack: 8, defense: 3 }
+    const bossProfile = { subtype: 'GUERRERO_TANQUE', maxHealth: 100, attack: 13, defense: 9 }
+    const content: MissionDefinition = {
+      ...example,
+      enemies: example.enemies.map((enemy) =>
+        enemy.enemyRef === 'sombra-corrompida' ? { ...enemy, profile: regularProfile } : enemy,
+      ),
+      finalBoss: { ...example.finalBoss, profile: bossProfile },
+    }
+    await enroll.execute(command())
+    await runner(new InMemoryMissionCatalog([content])).run()
+
+    expect(combat.requests[0]?.encounters[0]?.enemies[0]?.profile).toEqual(regularProfile)
+    expect(combat.requests[0]?.encounters[4]?.enemies[0]?.profile).toEqual(bossProfile)
+    // Los ejemplos sin estadisticas aprobadas conservan null; no se crean valores.
+    expect(combat.requests[0]?.encounters[2]?.enemies[0]?.profile).toBeNull()
+  })
+
   it('T-01: sin respuesta de Combat reintenta con el mismo operationId a los 5 s y a los 30 s (P-S3)', async () => {
     const { enroll, executor, executions, combat, profiles, clock } = setup()
     combat.outcomes.push(

@@ -46,6 +46,8 @@ export interface MissionEnemy {
   readonly name: string
   readonly count: number
   readonly description: string | null
+  /** Perfil de Combat: contenido pendiente; ausente o null en los ejemplos. */
+  readonly profile?: Readonly<Record<string, unknown>> | null
 }
 
 export interface MissionBoss {
@@ -54,6 +56,8 @@ export interface MissionBoss {
   readonly heroType: string | null
   readonly description: string | null
   readonly stats: Readonly<Record<string, number>>
+  /** Perfil completo cuando el contenido aprobado lo publique. */
+  readonly profile?: Readonly<Record<string, unknown>> | null
 }
 
 export interface MasterEpic {

@@ -68,14 +68,15 @@ export interface ExecutionOptions {
 const MINUTE_MS = 60_000
 
 /** El jefe con lo que da el contenido; lo que el curso no da queda en `null`. */
-const bossProfileOf = (boss: MissionBoss): Readonly<Record<string, unknown>> => ({
-  subtype: boss.heroType,
-  maxHealth: boss.stats.health ?? null,
-  attack: boss.stats.attack ?? null,
-  defense: boss.stats.defense ?? null,
-  damage: boss.stats.damage ?? null,
-  abilities: null,
-})
+const bossProfileOf = (boss: MissionBoss): Readonly<Record<string, unknown>> =>
+  boss.profile ?? {
+    subtype: boss.heroType,
+    maxHealth: boss.stats.health ?? null,
+    attack: boss.stats.attack ?? null,
+    defense: boss.stats.defense ?? null,
+    damage: boss.stats.damage ?? null,
+    abilities: null,
+  }
 
 /**
  * Solicitud a Combat con lo que Missions tiene congelado (P-S4): la duracion y
@@ -93,7 +94,7 @@ export const simulationRequestFor = (
     throw new Error(`La matricula ${enrollment.enrollmentId} no tiene inicio y fin.`)
   }
 
-  const names = new Map(definition.enemies.map((enemy) => [enemy.enemyRef, enemy.name]))
+  const enemiesByRef = new Map(definition.enemies.map((enemy) => [enemy.enemyRef, enemy]))
   const boss = definition.finalBoss
 
   return {
@@ -119,7 +120,12 @@ export const simulationRequestFor = (
       enemies: encounter.enemies.map(({ enemyRef, count }) =>
         enemyRef === boss.enemyRef
           ? { enemyRef, name: boss.name, count, profile: bossProfileOf(boss) }
-          : { enemyRef, name: names.get(enemyRef) ?? enemyRef, count, profile: null },
+          : {
+              enemyRef,
+              name: enemiesByRef.get(enemyRef)?.name ?? enemyRef,
+              count,
+              profile: enemiesByRef.get(enemyRef)?.profile ?? null,
+            },
       ),
     })),
     master:

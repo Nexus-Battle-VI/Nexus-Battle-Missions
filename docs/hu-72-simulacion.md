@@ -116,6 +116,13 @@ Deshacer la migración falla si ya hay matrículas `VOIDED`: el CHECK anterior n
 
 El perfil del héroe usa `HERO_ABILITIES_DRIVER` y `PLAYER_INVENTORY_BASE_URL`, y la firma, `INTERNAL_SERVICE_AUTH_SECRET`.
 
+El contenido de `mission_definitions` puede incluir `enemies[].profile` y
+`finalBoss.profile`; la solicitud congelada los envía a Combat sin interpretarlos
+ni mostrarlos en el detalle público. Si el contenido no los define, los enemigos
+regulares viajan con `profile: null` y el jefe conserva solo las estadísticas
+parciales documentadas. Los ejemplos de desarrollo siguen sin perfiles
+aprobados, por lo que no acreditan una simulación real.
+
 ## Lo que queda pendiente, y de qué depende
 
 | Pendiente                                                                  | Depende de                                                               |

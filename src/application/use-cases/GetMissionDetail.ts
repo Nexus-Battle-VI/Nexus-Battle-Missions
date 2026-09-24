@@ -28,7 +28,7 @@ export interface MissionDetailView {
   readonly recommendedPower: number | null
   readonly prerequisites: readonly string[]
   /** Sin `enemyRef`: es la referencia interna que HU-72 envia a Combat. */
-  readonly enemies: readonly Omit<MissionEnemy, 'enemyRef'>[]
+  readonly enemies: readonly Omit<MissionEnemy, 'enemyRef' | 'profile'>[]
   readonly finalBoss: {
     readonly name: string
     readonly heroType: string | null
