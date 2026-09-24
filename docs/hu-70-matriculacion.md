@@ -2,7 +2,7 @@
 
 - **Task:** HU-70.2 ([Management #366](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/366)).
 - **Historia:** [HU-70 #55](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/55) · EPIC-08 · RF-70.
-- **Contrato del que parte:** [hu-70-mission-enrollment-v1](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/blob/develop/docs/contracts/hu-70-mission-enrollment-v1.md) y el [diseño](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/blob/develop/docs/architecture/hu-70-matriculacion-mision.md) de la Task HU-70.1 ([#365](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/365)), en revisión en [Infrastructure #131](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/pull/131). Con dos extensiones: `difficulty` de HU-75 ([Infrastructure #125](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/pull/125)) y `strategyVersion` de HU-71 ([Infrastructure #133](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/pull/133)).
+- **Diseño de partida:** [Infrastructure #131](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/pull/131) documentó HU-70.1 y fue cerrada sin merge; sus archivos aún no están en `develop`. Esta rama implementa la matrícula y añade `difficulty` de HU-75 (contrato actualizado en [Infrastructure #154](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/pull/154), en revisión) y `strategyVersion` de HU-71 ([Infrastructure #133](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/pull/133), apilada sobre el diseño de HU-70).
 - **Fuente funcional:** HU-70 y la sección 7.8 del documento del curso. El ejemplo es la misión de 7.8.14.
 
 ## Qué implementa esta entrega

@@ -2,7 +2,7 @@
 
 - **Task:** HU-75.2 ([Management #384](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/384)).
 - **Historia:** [HU-75 #60](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/60) · EPIC-08 · RF-75.
-- **Contrato del que parte:** [hu-75-mission-difficulty-v1](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/blob/develop/docs/contracts/hu-75-mission-difficulty-v1.md) y el [diseño](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/blob/develop/docs/architecture/hu-75-dificultad-escalonada.md) de la Task HU-75.1, en revisión en [Infrastructure #125](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/pull/125).
+- **Contrato del que parte:** el contrato y el diseño HU-75.1 están en revisión en [Infrastructure #154](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/pull/154); el GET de esta entrega está en `develop` de Missions y la matrícula con `difficulty` sigue en la PR #15.
 - **Fuente funcional:** HU-75 y la sección 7.8.11 del documento del curso.
 
 ## Qué implementa esta entrega
