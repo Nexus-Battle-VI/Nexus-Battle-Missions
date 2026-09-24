@@ -21,13 +21,56 @@ export interface DifficultyScaling {
    */
   readonly enemyStatMultiplier: number | null
   readonly rewardTier: RewardTier
+  /**
+   * Diseno «misiones jugables», P-J8: cada nivel cambia tambien QUE se enfrenta y
+   * QUE se gana, no solo las estadisticas. Enemigos de mas en cada encuentro
+   * regular (mas experiencia), ataque de mas del jefe enfurecido, y mas
+   * probabilidad de botin y de Master (con tope en el 100 %). Propuesta del equipo,
+   * pendiente del PO: el curso solo fija el porcentaje de estadisticas (7.8.11).
+   */
+  readonly extraEnemiesPerEncounter: number
+  readonly bossEnrageBonus: number
+  readonly lootProbabilityMultiplier: number
+  readonly masterProbabilityMultiplier: number
 }
 
 const SCALING: Readonly<Record<DifficultyLevel, DifficultyScaling>> = {
-  NORMAL: { difficulty: 'NORMAL', enemyStatMultiplier: 1, rewardTier: 'STANDARD' },
-  HEROIC: { difficulty: 'HEROIC', enemyStatMultiplier: 1.5, rewardTier: 'IMPROVED' },
-  LEGENDARY: { difficulty: 'LEGENDARY', enemyStatMultiplier: 2, rewardTier: 'PREMIUM' },
-  MYTHIC: { difficulty: 'MYTHIC', enemyStatMultiplier: 2.5, rewardTier: 'EXCLUSIVE' },
+  NORMAL: {
+    difficulty: 'NORMAL',
+    enemyStatMultiplier: 1,
+    rewardTier: 'STANDARD',
+    extraEnemiesPerEncounter: 0,
+    bossEnrageBonus: 0,
+    lootProbabilityMultiplier: 1,
+    masterProbabilityMultiplier: 1,
+  },
+  HEROIC: {
+    difficulty: 'HEROIC',
+    enemyStatMultiplier: 1.5,
+    rewardTier: 'IMPROVED',
+    extraEnemiesPerEncounter: 1,
+    bossEnrageBonus: 0,
+    lootProbabilityMultiplier: 1.25,
+    masterProbabilityMultiplier: 1.25,
+  },
+  LEGENDARY: {
+    difficulty: 'LEGENDARY',
+    enemyStatMultiplier: 2,
+    rewardTier: 'PREMIUM',
+    extraEnemiesPerEncounter: 1,
+    bossEnrageBonus: 2,
+    lootProbabilityMultiplier: 1.5,
+    masterProbabilityMultiplier: 1.5,
+  },
+  MYTHIC: {
+    difficulty: 'MYTHIC',
+    enemyStatMultiplier: 2.5,
+    rewardTier: 'EXCLUSIVE',
+    extraEnemiesPerEncounter: 2,
+    bossEnrageBonus: 4,
+    lootProbabilityMultiplier: 2,
+    masterProbabilityMultiplier: 2,
+  },
 }
 
 export const scalingOf = (level: DifficultyLevel): DifficultyScaling => SCALING[level]

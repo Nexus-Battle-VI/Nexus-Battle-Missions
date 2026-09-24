@@ -39,6 +39,10 @@ describe('ListMissionDifficulties (Task HU-75.2)', () => {
           lockReason: null,
           enemyStatMultiplier: 1,
           rewardTier: 'STANDARD',
+          extraEnemiesPerEncounter: 0,
+          bossEnrageBonus: 0,
+          lootBonusPercent: 0,
+          masterBonusPercent: 0,
         },
         {
           difficulty: 'HEROIC',
@@ -46,6 +50,10 @@ describe('ListMissionDifficulties (Task HU-75.2)', () => {
           lockReason: 'Debes completar esta misión en Normal al menos una vez.',
           enemyStatMultiplier: 1.5,
           rewardTier: 'IMPROVED',
+          extraEnemiesPerEncounter: 1,
+          bossEnrageBonus: 0,
+          lootBonusPercent: 25,
+          masterBonusPercent: 25,
         },
         {
           difficulty: 'LEGENDARY',
@@ -53,6 +61,10 @@ describe('ListMissionDifficulties (Task HU-75.2)', () => {
           lockReason: 'Debes completar esta misión en Heroico al menos una vez.',
           enemyStatMultiplier: 2,
           rewardTier: 'PREMIUM',
+          extraEnemiesPerEncounter: 1,
+          bossEnrageBonus: 2,
+          lootBonusPercent: 50,
+          masterBonusPercent: 50,
         },
         {
           difficulty: 'MYTHIC',
@@ -60,6 +72,10 @@ describe('ListMissionDifficulties (Task HU-75.2)', () => {
           lockReason: 'Debes completar esta misión en Legendario al menos una vez.',
           enemyStatMultiplier: 2.5,
           rewardTier: 'EXCLUSIVE',
+          extraEnemiesPerEncounter: 2,
+          bossEnrageBonus: 4,
+          lootBonusPercent: 100,
+          masterBonusPercent: 100,
         },
       ],
     })
