@@ -4,6 +4,7 @@ import type {
   EpicGrantStatus,
   MasterEncounterStatus,
 } from '../../../domain/entities/MasterEncounterRecord'
+import type { ExperienceRewardStatus } from '../../../domain/entities/ExperienceReward'
 import type { MissionDefinition } from '../../../domain/entities/MissionDefinition'
 import type {
   EnrollmentRejection,
@@ -47,6 +48,7 @@ export interface Database {
   readonly mission_reports: MissionReportsTable
   readonly mission_report_rewards: MissionReportRewardsTable
   readonly mission_master_encounters: MissionMasterEncountersTable
+  readonly mission_experience_rewards: MissionExperienceRewardsTable
 }
 
 /**
@@ -174,7 +176,11 @@ export interface MissionReportsTable {
   readonly generated_at: ColumnType<Date, Date, never>
 }
 
-/** Lineas de recompensa de cada reporte (HU-74): solo cambian su estado y su fecha. */
+/**
+ * Lineas de recompensa de cada reporte (HU-74): solo cambian su estado, su
+ * importe y su fecha. La progresion del heroe la escribe el avance de la
+ * experiencia (HU-09, migracion `008-report-experience`).
+ */
 export interface MissionReportRewardsTable {
   readonly enrollment_id: ColumnType<string, string, never>
   readonly line_no: ColumnType<number, number, never>
@@ -182,9 +188,19 @@ export interface MissionReportRewardsTable {
   readonly reference: ColumnType<string | null, string | null, never>
   readonly name: ColumnType<string, string, never>
   readonly rarity: ColumnType<string | null, string | null, never>
-  readonly quantity: ColumnType<number, number, never>
+  /**
+   * Unidades entregadas. En una linea de experiencia es el importe ACREDITADO, que
+   * solo se conoce cuando la tirada ocurre: nace en cero y el avance de HU-09 lo
+   * escribe (Task HU-09.5), de ahi que sea actualizable.
+   */
+  readonly quantity: ColumnType<number, number, number>
   readonly status: RewardStatus
   readonly source: ColumnType<RewardSource, RewardSource, never>
+  /** Nivel del heroe al acreditar; `null` mientras no se acredite o no se leyera. */
+  readonly hero_level: number | null
+  readonly hero_current_xp: number | null
+  readonly hero_max_level: number | null
+  readonly levels_gained: number | null
   readonly updated_at: Date
 }
 
@@ -210,6 +226,33 @@ export interface MissionMasterEncountersTable {
   readonly granted_at: Date | null
   readonly reward_line_no: ColumnType<number | null, number | null, never>
   readonly grant_product_id: string | null
+}
+
+/**
+ * Recompensa de experiencia de UNA derrota (HU-09, migracion
+ * `007-experience-rewards`). La crea el cierre en su transaccion, `PENDING` y
+ * antes de pedir ninguna tirada; despues solo avanza su estado.
+ */
+export interface MissionExperienceRewardsTable {
+  readonly enrollment_id: ColumnType<string, string, never>
+  readonly encounter_id: ColumnType<string, string, never>
+  readonly enemy_instance_id: ColumnType<string, string, never>
+  readonly player_id: ColumnType<string, string, never>
+  readonly hero_id: ColumnType<string, string, never>
+  readonly simulation_id: ColumnType<string, string, never>
+  readonly rival_ref: ColumnType<string, string, never>
+  readonly status: ExperienceRewardStatus
+  /** Cara del dado de Combat; `null` mientras no se haya pedido la tirada. */
+  readonly roll: number | null
+  /** Experiencia ya calculada y entera; `null` mientras no haya tirada. */
+  readonly amount: number | null
+  readonly attempts: ColumnType<number, number | undefined, number>
+  readonly next_attempt_at: Date | null
+  readonly last_error: string | null
+  readonly credited_at: Date | null
+  /** La linea del reporte que refleja esta derrota (HU-09.5); `null` sin reporte. */
+  readonly reward_line_no: number | null
+  readonly created_at: ColumnType<Date, Date | undefined, never>
 }
 
 /** Hechos internos de Missions (`MissionEnrollmentStarted`); los consume HU-72. */

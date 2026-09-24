@@ -456,6 +456,7 @@ describe('Proyecciones del historial (HU-74, CA-05)', () => {
       quantity: 1,
       status: 'CREDITED',
       source: 'HU-73',
+      progression: null,
       updatedAt: CLOSED,
       ...overrides,
     })

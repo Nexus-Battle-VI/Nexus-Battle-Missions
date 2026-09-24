@@ -8,6 +8,7 @@ import {
   type ReportRewardLine,
   type RewardStatus,
 } from '../../../domain/entities/MissionReport'
+import type { HeroProgressionSnapshot } from '../../../domain/value-objects/hero-progression'
 import type { Database, MissionReportRewardsTable, MissionReportsTable } from './schema'
 
 /**
@@ -64,6 +65,28 @@ const reportOf = (row: Selectable<MissionReportsTable>): MissionReport => {
   }
 }
 
+/**
+ * La progresion de una linea, tal como la dejo Player/Inventory (HU-09, Task
+ * HU-09.5). Las cuatro columnas van juntas o ninguna -- lo garantiza un `check` de
+ * la migracion 008 --, asi que una lectura parcial no existe.
+ */
+const progressionOf = (
+  row: Selectable<MissionReportRewardsTable>,
+): HeroProgressionSnapshot | null => {
+  const {
+    hero_level: level,
+    hero_current_xp: currentXp,
+    hero_max_level: maxLevel,
+    levels_gained: levelsGained,
+  } = row
+
+  if (level === null || currentXp === null || maxLevel === null || levelsGained === null) {
+    return null
+  }
+
+  return { level, currentXp, maxLevel, levelsGained }
+}
+
 const lineOf = (row: Selectable<MissionReportRewardsTable>): ReportRewardLine => ({
   lineNo: row.line_no,
   kind: row.kind,
@@ -73,6 +96,7 @@ const lineOf = (row: Selectable<MissionReportRewardsTable>): ReportRewardLine =>
   quantity: row.quantity,
   status: row.status,
   source: row.source,
+  progression: progressionOf(row),
   updatedAt: row.updated_at,
 })
 
@@ -117,6 +141,12 @@ export const insertReport = async (
           quantity: line.quantity,
           status: line.status,
           source: line.source,
+          // Nacen nulas: la progresion del heroe solo se conoce cuando la entrega
+          // se acredita (HU-09, Task HU-09.5).
+          hero_level: line.progression?.level ?? null,
+          hero_current_xp: line.progression?.currentXp ?? null,
+          hero_max_level: line.progression?.maxLevel ?? null,
+          levels_gained: line.progression?.levelsGained ?? null,
           updated_at: line.updatedAt,
         })),
       )

@@ -526,6 +526,7 @@ describe('Epica ganada y su linea en el reporte (HU-73, CA-01 y CA-03)', () => {
         quantity: 1,
         status: 'PENDING',
         source: 'HU-73',
+        progression: null,
         updatedAt: ENDS,
       },
     ])

@@ -74,6 +74,28 @@ import { ENROLL_IN_MISSION, EnrollInMission } from '../../application/use-cases/
 import { GET_MISSION_DETAIL, GetMissionDetail } from '../../application/use-cases/GetMissionDetail'
 import { GRANT_MASTER_EPICS, GrantMasterEpics } from '../../application/use-cases/GrantMasterEpics'
 import {
+  COORDINATE_EXPERIENCE_REWARD,
+  CoordinateExperienceReward,
+} from '../../application/use-cases/CoordinateExperienceReward'
+import {
+  EXPERIENCE_ROLLS,
+  type ExperienceRollPort,
+} from '../../application/ports/ExperienceRollPort'
+import {
+  EXPERIENCE_CREDITS,
+  type ExperienceCreditPort,
+} from '../../application/ports/ExperienceCreditPort'
+import {
+  EXPERIENCE_REWARD_REPOSITORY,
+  type ExperienceRewardRepositoryPort,
+} from '../../application/ports/ExperienceRewardRepositoryPort'
+import { CombatExperienceRollClient } from '../../adapters/outbound/combat/CombatExperienceRollClient'
+import { InMemoryExperienceRolls } from '../../adapters/outbound/combat/InMemoryExperienceRolls'
+import { InMemoryExperienceCredits } from '../../adapters/outbound/inventory/InMemoryExperienceCredits'
+import { PlayerInventoryExperienceClient } from '../../adapters/outbound/inventory/PlayerInventoryExperienceClient'
+import { InMemoryExperienceRewardRepository } from '../../adapters/outbound/persistence/InMemoryExperienceRewardRepository'
+import { PostgresExperienceRewardRepository } from '../../adapters/outbound/persistence/PostgresExperienceRewardRepository'
+import {
   GET_MISSION_HISTORY_SUMMARY,
   GetMissionHistorySummary,
 } from '../../application/use-cases/GetMissionHistorySummary'
@@ -101,6 +123,7 @@ import {
 } from '../../application/use-cases/SaveMissionStrategy'
 import { EnrollmentReconcilerScheduler } from '../scheduling/EnrollmentReconcilerScheduler'
 import { MissionExecutionScheduler } from '../scheduling/MissionExecutionScheduler'
+import { ExperienceRewardScheduler } from '../scheduling/ExperienceRewardScheduler'
 import { READINESS_CHECKS, VERSION_REPORT } from '../../adapters/inbound/http/tokens.health'
 import { AnonymousIdentityGuard } from '../../adapters/inbound/http/auth/anonymous.guard'
 import { InternalServiceGuard } from '../../adapters/inbound/http/auth/internal-service.guard'
@@ -139,6 +162,7 @@ export const DATABASE = Symbol('Database')
 export const DATABASE_LIFECYCLE = Symbol('DatabaseLifecycle')
 export const ENROLLMENT_RECONCILER = Symbol('EnrollmentReconcilerScheduler')
 export const MISSION_EXECUTION_SCHEDULER = Symbol('MissionExecutionScheduler')
+export const EXPERIENCE_REWARD_SCHEDULER = Symbol('ExperienceRewardScheduler')
 
 const usesPostgres = (config: AppConfig, db: Kysely<Database> | null): db is Kysely<Database> =>
   config.persistenceDriver === PersistenceDriver.Postgres && db !== null
@@ -170,6 +194,16 @@ const unconfiguredSimulations: CombatSimulationPort = {
 /** Igual para las epicas de HU-73: sin configuracion, la entrega queda pendiente. */
 const unconfiguredEpicGrants: EpicGrantPort = {
   grant: () => Promise.resolve({ kind: 'UNKNOWN', reason: 'NOT_CONFIGURED' }),
+}
+
+/** HU-09: sin configuracion no se tira, y la recompensa queda esperando. */
+const unconfiguredRolls: ExperienceRollPort = {
+  rollDefeats: () => Promise.resolve({ kind: 'UNKNOWN', reason: 'NOT_CONFIGURED' }),
+}
+
+/** Ni se acredita: la recompensa queda en su estado no terminal y se reintenta. */
+const unconfiguredCredits: ExperienceCreditPort = {
+  credit: () => Promise.resolve({ kind: 'UNKNOWN', reason: 'NOT_CONFIGURED' }),
 }
 
 /**
@@ -538,6 +572,7 @@ export const INTERNAL_CALLERS: readonly string[] = []
         clears: DifficultyClearRepositoryPort,
         reports: ReportRepositoryPort,
         masters: MasterEncounterRepositoryPort,
+        experience: ExperienceRewardRepositoryPort,
       ): ExecutionRepositoryPort => {
         if (usesPostgres(config, db)) {
           return new PostgresExecutionRepository(db)
@@ -560,6 +595,12 @@ export const INTERNAL_CALLERS: readonly string[] = []
           masters instanceof InMemoryMasterEncounterRepository
             ? masters
             : new InMemoryMasterEncounterRepository(reportsInMemory),
+          // HU-09 (Task HU-09.5): el cierre inserta aqui las recompensas PENDING, y
+          // el barrido que las tira y las acredita lee de ESTE mismo doble. Con uno
+          // distinto, en memoria se cerraban misiones cuyas recompensas nadie veia.
+          experience instanceof InMemoryExperienceRewardRepository
+            ? experience
+            : new InMemoryExperienceRewardRepository(reportsInMemory),
         )
       },
       inject: [
@@ -569,6 +610,7 @@ export const INTERNAL_CALLERS: readonly string[] = []
         DIFFICULTY_CLEAR_REPOSITORY,
         REPORT_REPOSITORY,
         MASTER_ENCOUNTER_REPOSITORY,
+        EXPERIENCE_REWARD_REPOSITORY,
       ],
     },
     // El perfil del heroe sale de la misma consulta a Player/Inventory que sus habilidades.
@@ -739,6 +781,128 @@ export const INTERNAL_CALLERS: readonly string[] = []
         CLOCK,
         LOGGER,
       ],
+    },
+    // --- HU-09 (Task HU-09.4): recompensa de experiencia por derrota ---
+    {
+      provide: EXPERIENCE_REWARD_REPOSITORY,
+      useFactory: (
+        config: AppConfig,
+        db: Kysely<Database> | null,
+        reports: ReportRepositoryPort,
+      ): ExperienceRewardRepositoryPort =>
+        usesPostgres(config, db)
+          ? new PostgresExperienceRewardRepository(db)
+          : // En memoria, el avance de una recompensa mueve ademas su linea del
+            // reporte (Task HU-09.5), asi que los dos dobles comparten estado.
+            new InMemoryExperienceRewardRepository(
+              reports instanceof InMemoryReportRepository ? reports : undefined,
+            ),
+      inject: [APP_CONFIG, DATABASE, REPORT_REPOSITORY],
+    },
+    {
+      provide: EXPERIENCE_ROLLS,
+      useFactory: (config: AppConfig, clock: ClockPort, logger: Logger): ExperienceRollPort => {
+        if (config.experienceRewardsDriver === IntegrationDriver.Memory) {
+          logger.warn('experience_rolls_in_memory', {
+            detail:
+              'EXPERIENCE_REWARDS_DRIVER=memory: las tiradas no las hace Combat; se reparten caras fijas.',
+          })
+
+          return new InMemoryExperienceRolls()
+        }
+
+        if (config.combatBaseUrl === null || config.internalServiceAuthSecret === null) {
+          logger.warn('experience_rolls_not_configured', {
+            detail: 'Falta COMBAT_BASE_URL o INTERNAL_SERVICE_AUTH_SECRET: no se pediran tiradas.',
+          })
+
+          return unconfiguredRolls
+        }
+
+        return new CombatExperienceRollClient({
+          baseUrl: config.combatBaseUrl,
+          secret: config.internalServiceAuthSecret,
+          clock,
+          timeoutMs: config.internalHttpTimeoutMs,
+          onFailure: (event, detail) => {
+            logger.warn(event, detail)
+          },
+        })
+      },
+      inject: [APP_CONFIG, CLOCK, LOGGER],
+    },
+    {
+      provide: EXPERIENCE_CREDITS,
+      useFactory: (config: AppConfig, clock: ClockPort, logger: Logger): ExperienceCreditPort => {
+        if (config.experienceRewardsDriver === IntegrationDriver.Memory) {
+          logger.warn('experience_credits_in_memory', {
+            detail:
+              'EXPERIENCE_REWARDS_DRIVER=memory: la experiencia no llega al heroe de Player/Inventory.',
+          })
+
+          return new InMemoryExperienceCredits()
+        }
+
+        if (config.playerInventoryBaseUrl === null || config.internalServiceAuthSecret === null) {
+          logger.warn('experience_credits_not_configured', {
+            detail:
+              'Falta PLAYER_INVENTORY_BASE_URL o INTERNAL_SERVICE_AUTH_SECRET: no se acreditara.',
+          })
+
+          return unconfiguredCredits
+        }
+
+        return new PlayerInventoryExperienceClient({
+          baseUrl: config.playerInventoryBaseUrl,
+          secret: config.internalServiceAuthSecret,
+          clock,
+          timeoutMs: config.internalHttpTimeoutMs,
+          onFailure: (event, detail) => {
+            logger.warn(event, detail)
+          },
+        })
+      },
+      inject: [APP_CONFIG, CLOCK, LOGGER],
+    },
+    {
+      provide: COORDINATE_EXPERIENCE_REWARD,
+      useFactory: (
+        rewards: ExperienceRewardRepositoryPort,
+        enrollments: EnrollmentRepositoryPort,
+        rolls: ExperienceRollPort,
+        credits: ExperienceCreditPort,
+        clock: ClockPort,
+        logger: Logger,
+      ): CoordinateExperienceReward =>
+        new CoordinateExperienceReward(rewards, enrollments, rolls, credits, clock, {
+          batchSize: 50,
+          onError: (enrollmentId, error) => {
+            logger.warn('experience_reward_error', { enrollmentId, detail: describeError(error) })
+          },
+        }),
+      inject: [
+        EXPERIENCE_REWARD_REPOSITORY,
+        ENROLLMENT_REPOSITORY,
+        EXPERIENCE_ROLLS,
+        EXPERIENCE_CREDITS,
+        CLOCK,
+        LOGGER,
+      ],
+    },
+    {
+      provide: EXPERIENCE_REWARD_SCHEDULER,
+      useFactory: (
+        config: AppConfig,
+        rewards: CoordinateExperienceReward,
+        logger: Logger,
+      ): ExperienceRewardScheduler =>
+        new ExperienceRewardScheduler(
+          rewards,
+          logger,
+          config.experienceRewardIntervalMs,
+          config.experienceRewardEnabled,
+        ),
+      inject: [APP_CONFIG, COORDINATE_EXPERIENCE_REWARD, LOGGER],
     },
     // --- HU-74: reporte e historial ---
     {

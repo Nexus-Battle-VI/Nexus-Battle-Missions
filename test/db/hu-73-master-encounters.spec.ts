@@ -246,6 +246,7 @@ describe('Evidencia del Master en PostgreSQL (HU-73)', () => {
         epics.records,
       ),
       masters: epics.records,
+      experience: [],
       report: {
         report: missionReportOf({
           enrollment,
@@ -579,7 +580,7 @@ describe('Evidencia del Master en PostgreSQL (HU-73)', () => {
     beforeAll(async () => {
       // El ciclo recorre toda la tabla: se empieza sin lo que dejaron las pruebas
       // anteriores, y PostgreSQL exige truncar a la vez lo que referencia a las matriculas.
-      await sql`truncate mission_master_encounters, mission_report_rewards, mission_reports,
+      await sql`truncate mission_experience_rewards, mission_master_encounters, mission_report_rewards, mission_reports,
         mission_executions, mission_facts, mission_enrollments, mission_difficulty_clears`.execute(
         db,
       )
@@ -652,8 +653,16 @@ describe('Evidencia del Master en PostgreSQL (HU-73)', () => {
       expect(report.status).toBe(200)
       expect(report.body).toMatchObject({
         enemies: { masters: [{ masterRef: MASTER, status: 'APPEARED_DEFEATED' }] },
-        rewards: [{ kind: 'EPIC', reference: EPIC, status: 'CREDITED', source: 'HU-73' }],
       })
+      // HU-09 (Task HU-09.5): la epica es la PRIMERA linea; detras van las de la
+      // experiencia de cada derrota, que este escenario no acredita.
+      const rewards = (report.body.rewards as { kind: string; source: string }[]).filter(
+        (line) => line.kind === 'EPIC',
+      )
+
+      expect(rewards).toEqual([
+        expect.objectContaining({ reference: EPIC, status: 'CREDITED', source: 'HU-73' }),
+      ])
     })
   })
 })

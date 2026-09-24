@@ -30,18 +30,19 @@ El jugador sale siempre del testimonio, nunca de la ruta ni de la consulta: nadi
 
 ## Qué trae el reporte, y de dónde sale
 
-| Bloque                              | Sale de                                                                                                                                                               |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `summary.outcome`, `outcomeReason`  | El cierre de HU-72                                                                                                                                                    |
-| `summary.hero` (`name`, `subtype`)  | El perfil del héroe que HU-72 congela; el doble de desarrollo no los trae                                                                                             |
-| `summary.startedAt` y `finishedAt`  | La matrícula: `finishedAt` es su `endsAt`, cuando la misión termina para el jugador                                                                                   |
-| `summary.simulatedDuration`         | El resumen de Combat, si es una duración ISO-8601 válida                                                                                                              |
-| `combatStats`                       | El resumen de Combat; un dato que falta o no cumple queda en `null`                                                                                                   |
-| `enemies.defeated` y `enemies.boss` | El resumen de Combat, con los nombres del contenido                                                                                                                   |
-| `enemies.masters`                   | La evidencia de HU-73: los Máster que aparecieron, con su nombre y estado                                                                                             |
-| `objectives`                        | Los objetivos evaluados en el cierre; `bonus` en `null` hasta HU-10                                                                                                   |
-| `rewards`                           | La línea `EPIC` de cada Máster derrotado (HU-73), `PENDING` hasta que Player/Inventory confirme la entrega; créditos, productos y experiencia, **vacíos hasta HU-10** |
-| `generatedAt`                       | El momento del cierre                                                                                                                                                 |
+| Bloque                              | Sale de                                                                                                                                                                                                        |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `summary.outcome`, `outcomeReason`  | El cierre de HU-72                                                                                                                                                                                             |
+| `summary.hero` (`name`, `subtype`)  | El perfil del héroe que HU-72 congela; el doble de desarrollo no los trae                                                                                                                                      |
+| `summary.startedAt` y `finishedAt`  | La matrícula: `finishedAt` es su `endsAt`, cuando la misión termina para el jugador                                                                                                                            |
+| `summary.simulatedDuration`         | El resumen de Combat, si es una duración ISO-8601 válida                                                                                                                                                       |
+| `combatStats`                       | El resumen de Combat; un dato que falta o no cumple queda en `null`                                                                                                                                            |
+| `enemies.defeated` y `enemies.boss` | El resumen de Combat, con los nombres del contenido                                                                                                                                                            |
+| `enemies.masters`                   | La evidencia de HU-73: los Máster que aparecieron, con su nombre y estado                                                                                                                                      |
+| `objectives`                        | Los objetivos evaluados en el cierre; `bonus` en `null` hasta HU-10                                                                                                                                            |
+| `rewards`                           | La línea `EPIC` de cada Máster derrotado (HU-73) y la línea `EXPERIENCE` de cada NPC derrotado (HU-09), `PENDING` hasta que Player/Inventory confirme la entrega; créditos y productos, **vacíos hasta HU-10** |
+| `experience`                        | Derivado de las líneas `HU-09`: derrotas, experiencia acreditada y nivel del héroe (HU-09.5). No se guarda: se calcula al leer                                                                                 |
+| `generatedAt`                       | El momento del cierre                                                                                                                                                                                          |
 
 La bitácora completa no va en el reporte (decisión 7 del diseño): sigue guardada en `mission_executions`.
 
