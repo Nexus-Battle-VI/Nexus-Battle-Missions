@@ -12,6 +12,13 @@ name: Cadena HU-09
 # CONSECUENCIA, DICHA: se prueba contra `develop` de los dos repos hermanos, asi
 # que un rojo puede venir de uno de ellos. Los pasos estan separados por
 # repositorio para que el registro diga cual fallo.
+#
+# Y POR ESO EL REF SE PUEDE ELEGIR. La cadena comprueba tambien que la guarda de
+# no-duplicacion de Combat sabe fallar, y esa guarda vive en su repositorio: hasta
+# que su control negativo no este en `develop`, el conjunto que se prueba esta
+# incompleto y el caso `S-11` se pone rojo -- con razon. Para verificar el conjunto
+# ANTES de mergear los tres PRs, se lanza este workflow a mano indicando el ref de
+# cada hermano; por defecto, `develop`.
 on:
   pull_request:
     paths:
@@ -32,6 +39,15 @@ on:
   push:
     branches: [develop]
   workflow_dispatch:
+    inputs:
+      combat_ref:
+        description: 'Ref de Combat que se clona (rama, etiqueta o commit). Vacio: develop.'
+        required: false
+        default: ''
+      inventory_ref:
+        description: 'Ref de Player/Inventory que se clona (rama, etiqueta o commit). Vacio: develop.'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -64,7 +80,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Nexus-Battle-VI/Nexus-Battle-Combat
-          ref: develop
+          # `inputs` esta vacio en `pull_request` y en `push`, y ahi manda `develop`.
+          ref: ${{ inputs.combat_ref || 'develop' }}
           path: ${{ env.COMBAT_DIR }}
           persist-credentials: false
 
@@ -72,7 +89,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Nexus-Battle-VI/Nexus-Battle-Player-Inventory
-          ref: develop
+          ref: ${{ inputs.inventory_ref || 'develop' }}
           path: ${{ env.INVENTORY_DIR }}
           persist-credentials: false
 
@@ -107,6 +124,9 @@ jobs:
         env:
           HU09_E2E_COMBAT_DIR: ${{ github.workspace }}/${{ env.COMBAT_DIR }}
           HU09_E2E_PLAYER_INVENTORY_DIR: ${{ github.workspace }}/${{ env.INVENTORY_DIR }}
+          # Queda en el reporte: con que ref de cada hermano se ejecuto la cadena.
+          HU09_E2E_COMBAT_REF: ${{ inputs.combat_ref || 'develop' }}
+          HU09_E2E_INVENTORY_REF: ${{ inputs.inventory_ref || 'develop' }}
 
       - name: Publicar el reporte de ejecucion
         if: always()

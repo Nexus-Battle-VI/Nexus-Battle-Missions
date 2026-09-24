@@ -377,6 +377,13 @@ describe('Cadena de experiencia de HU-09 (Task HU-09.6)', () => {
         mongo: 'mongo:8.0 (Testcontainers, replica)',
         combatSeed: '3000000',
         internalSecret: 'secreto del escenario, no un secreto real',
+        // Con que ref de cada repositorio hermano se ejecuto la cadena. En CI los
+        // pone el workflow; en local son el arbol de trabajo de quien ejecuta, y el
+        // commit exacto ya viaja en `repositories`.
+        siblingRefs: {
+          combat: process.env.HU09_E2E_COMBAT_REF ?? 'arbol local',
+          playerInventory: process.env.HU09_E2E_INVENTORY_REF ?? 'arbol local',
+        },
       },
     })
 
@@ -1093,20 +1100,37 @@ describe('Cadena de experiencia de HU-09 (Task HU-09.6)', () => {
     // Una sola suite por guarda: si el filtro dejara de aplicarse se veria aqui, y
     // si no seleccionara nada, Jest saldria con error antes de llegar.
     const singleSuite = /Test Suites:\s+1 passed/
+    const guards = [
+      { name: 'Missions (hu-09-reward-policy)', result: missionsGuard },
+      { name: 'Combat (hu-09-no-alternative-randomness)', result: combatGuard },
+    ]
+    const withoutSingleSuite = guards
+      .filter(({ result }) => !singleSuite.test(result.output))
+      .map(({ name }) => name)
 
-    expect({
-      missions: singleSuite.test(missionsGuard.output),
-      combat: singleSuite.test(combatGuard.output),
-    }).toEqual({ missions: true, combat: true })
+    expect(withoutSingleSuite).toEqual([])
 
     // Y el control negativo -- el que demuestra que la guarda sabe fallar -- se
     // ejecuto de verdad en las dos.
+    //
+    // SI ESTE ASERTO ES EL QUE FALLA, casi siempre es lo mismo y conviene decirlo:
+    // la guarda de Combat vive en OTRO repositorio y la cadena clona su `develop`
+    // por defecto. Hasta que el control negativo no este en ese `develop`, el
+    // conjunto que se esta probando no esta completo -- y eso es un rojo honesto,
+    // no un fallo de la cadena. Para probar el conjunto antes de mergear, se lanza
+    // el workflow a mano con `combat_ref` (o `inventory_ref`) apuntando a la rama.
     const negativeControl = 'no es un colador'
+    const withoutNegativeControl = guards
+      .filter(({ result }) => !result.output.includes(negativeControl))
+      .map(({ name }) => name)
 
-    expect({
-      missions: missionsGuard.output.includes(negativeControl),
-      combat: combatGuard.output.includes(negativeControl),
-    }).toEqual({ missions: true, combat: true })
+    if (withoutNegativeControl.length > 0) {
+      throw new Error(
+        `La guarda de ${withoutNegativeControl.join(' y ')} no ejecuto su control negativo ` +
+          `("${negativeControl}"): el ref del repositorio hermano que la cadena clona todavia no lo trae. ` +
+          'El workflow clona `develop` salvo que se indique otro ref con `workflow_dispatch`.',
+      )
+    }
 
     recordCase({
       id: 'S-11',
