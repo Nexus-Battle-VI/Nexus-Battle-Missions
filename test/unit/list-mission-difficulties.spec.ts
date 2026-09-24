@@ -58,7 +58,7 @@ describe('ListMissionDifficulties (Task HU-75.2)', () => {
           difficulty: 'MYTHIC',
           unlocked: false,
           lockReason: 'Debes completar esta misión en Legendario al menos una vez.',
-          enemyStatMultiplier: null,
+          enemyStatMultiplier: 2.5,
           rewardTier: 'EXCLUSIVE',
         },
       ],

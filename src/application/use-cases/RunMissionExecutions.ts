@@ -103,7 +103,9 @@ export const simulationRequestFor = (
     enrollmentId: enrollment.enrollmentId,
     missionId: enrollment.missionId,
     difficulty: enrollment.difficulty,
-    enemyStatMultiplier: scalingOf(enrollment.difficulty).enemyStatMultiplier,
+    enemyStatMultiplier:
+      definition.combatRules?.difficultyMultipliers?.[enrollment.difficulty] ??
+      scalingOf(enrollment.difficulty).enemyStatMultiplier,
     timeBudget: toIsoDuration(
       (enrollment.endsAt.getTime() - enrollment.startedAt.getTime()) / MINUTE_MS,
     ),
@@ -128,6 +130,9 @@ export const simulationRequestFor = (
             },
       ),
     })),
+    ...(definition.combatRules === undefined ? {} : { rules: definition.combatRules }),
+    ...(definition.finalBoss.drops === undefined ? {} : { bossDrops: definition.finalBoss.drops }),
+    contentSnapshot: definition,
     master:
       definition.masterEncounter === null
         ? null
@@ -334,7 +339,8 @@ export class RunMissionExecutions {
   /** CU-72.2: se evaluan los objetivos y se cierra todo en una transaccion. */
   private async close(execution: MissionExecution, tally: Tally): Promise<void> {
     const enrollment = await this.requireEnrollment(execution.enrollmentId)
-    const definition = await this.catalog.findById(enrollment.missionId)
+    const definition =
+      execution.request?.contentSnapshot ?? (await this.catalog.findById(enrollment.missionId))
     const result = execution.result
     const facts = simulationFactsOf(result?.summary)
 

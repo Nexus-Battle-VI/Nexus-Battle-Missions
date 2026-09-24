@@ -81,7 +81,7 @@ const sent = (
       subtype: 'PICARO_VENENO',
       probability,
       levelOffset: 2,
-      profile: null,
+      profile: TEMPLO.masterEncounter?.candidates[0]?.profile ?? null,
       epicRef: EPIC,
     },
   ],

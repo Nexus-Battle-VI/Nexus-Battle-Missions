@@ -18,6 +18,12 @@ export interface HistorySummaryView {
   readonly epicCollection: readonly (Omit<EpicCollectionEntry, 'obtainedAt'> & {
     readonly obtainedAt: string
   })[]
+  /** Objetos obtenidos al derrotar jefes; se conserva aunque no haya producto de Catalog. */
+  readonly lootCollection: readonly {
+    readonly label: string
+    readonly productId: string | null
+    readonly quantity: number
+  }[]
   readonly narrativeProgress: readonly NarrativeProgress[]
 }
 
@@ -43,6 +49,13 @@ export class GetMissionHistorySummary {
         .filter((report) => report.summary.outcome === 'COMPLETED')
         .map((report) => report.mission.missionId),
     )
+    const loot = new Map<string, { label: string; productId: string | null; quantity: number }>()
+    for (const report of reports) {
+      for (const drop of report.loot ?? []) {
+        const key = `${drop.productId ?? ''}\u0000${drop.label}`
+        loot.set(key, { ...drop, quantity: (loot.get(key)?.quantity ?? 0) + drop.quantity })
+      }
+    }
 
     return {
       byCategory: categoryStatsOf(reports),
@@ -51,6 +64,7 @@ export class GetMissionHistorySummary {
         ...entry,
         obtainedAt: entry.obtainedAt.toISOString(),
       })),
+      lootCollection: [...loot.values()].sort((a, b) => a.label.localeCompare(b.label, 'es')),
       narrativeProgress: narrativeProgressOf(narrativeChainsOf(definitions), completed),
     }
   }

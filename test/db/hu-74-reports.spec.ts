@@ -94,6 +94,7 @@ const P01_RESULT: SimulationResult = {
       { enemyRef: 'sombra-corrompida', count: 10 },
       { enemyRef: 'guardian-eterno', count: 1 },
     ],
+    loot: [{ label: 'Fragmento del Sello Antiguo', quantity: 2, productId: null }],
   },
   combatLog: [{ seq: 1, type: 'simulationFinished', combatOutcome: 'HERO_VICTORIOUS' }],
 }

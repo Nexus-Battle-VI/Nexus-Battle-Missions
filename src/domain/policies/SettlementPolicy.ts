@@ -58,6 +58,15 @@ export const simulationFactsOf = (summary: unknown): SimulationFacts | null => {
     bossDefeated,
     minHealthPercent,
     master: { appeared: master.appeared, defeated: master.defeated },
+    ...(Array.isArray(summary.loot)
+      ? {
+          loot: (summary.loot as unknown[]).flatMap((item) =>
+            isRecord(item) && typeof item.label === 'string' && isCount(item.quantity)
+              ? [{ label: item.label, quantity: item.quantity }]
+              : [],
+          ),
+        }
+      : {}),
   }
 }
 
@@ -72,6 +81,12 @@ const isMet = (rule: ObjectiveRule, facts: SimulationFacts): boolean | null => {
     case 'DEFEAT_MASTER':
       // Si el Master no aparecio, el objetivo no aplica.
       return facts.master.appeared ? facts.master.defeated : null
+    case 'COLLECT_LOOT':
+      return facts.loot === undefined
+        ? null
+        : facts.loot
+            .filter((item) => item.label === rule.label)
+            .reduce((total, item) => total + item.quantity, 0) >= rule.count
   }
 }
 

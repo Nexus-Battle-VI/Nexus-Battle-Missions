@@ -38,6 +38,17 @@ describe('Persistencia PostgreSQL', () => {
     const outcome = await migrateToLatest(db)
 
     expect(outcome.error).toBeUndefined()
+    const definitions = await db
+      .selectFrom('mission_definitions')
+      .select(['mission_id', 'content'])
+      .orderBy('mission_id')
+      .execute()
+    expect(definitions).toHaveLength(2)
+    expect(
+      definitions.every(
+        (item) => item.content.combatRules !== undefined && item.content.finalBoss.profile !== null,
+      ),
+    ).toBe(true)
   })
 
   it('registra las migraciones aplicadas y no las repite', async () => {

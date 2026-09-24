@@ -131,7 +131,7 @@ Con `MISSIONS_EXAMPLE_CATALOG=true` y el doble de Combat (`COMBAT_SIMULATION_DRI
 - «Sin un rasguño» se desbloquea en la primera misión, porque el doble siempre da `damageTaken: 0`.
 - El tiempo récord no se evalúa: no hay umbral.
 
-En producción, hoy, el catálogo aprobado está vacío: el evaluador no consulta nada, la entrega hace una consulta vacía y la ruta responde `200 { items: [] }`. Además, `mission_definitions` está vacía, la ruta de simulación de Combat no existe y el planificador está apagado.
+El catálogo aprobado de logros sigue vacío y la ruta responde `200 { items: [] }` hasta que se publiquen sus definiciones. Las dos definiciones de misión jugables y la simulación de Combat están preparadas en las PR de Missions y Combat; el planificador debe habilitarse en el despliegue.
 
 ## Criterios de aceptación
 

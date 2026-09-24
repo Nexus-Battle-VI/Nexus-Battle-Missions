@@ -5,6 +5,7 @@ import type { Kysely } from 'kysely'
 import { HealthController } from '../../adapters/inbound/http/health.controller'
 import { MissionAchievementController } from '../../adapters/inbound/http/mission-achievement.controller'
 import { MissionBoardController } from '../../adapters/inbound/http/mission-board.controller'
+import { MissionContentController } from '../../adapters/inbound/http/mission-content.controller'
 import { MissionDifficultyController } from '../../adapters/inbound/http/mission-difficulty.controller'
 import { MissionEnrollmentController } from '../../adapters/inbound/http/mission-enrollment.controller'
 import { MissionReportController } from '../../adapters/inbound/http/mission-report.controller'
@@ -98,6 +99,7 @@ import {
   MISSION_CATALOG,
   type MissionCatalogPort,
 } from '../../application/ports/MissionCatalogPort'
+import { MISSION_CONTENT } from '../../application/ports/MissionContentPort'
 import {
   REPORT_REPOSITORY,
   type ReportRepositoryPort,
@@ -230,6 +232,7 @@ export const INTERNAL_CALLERS: readonly string[] = []
     HealthController,
     MissionDifficultyController,
     MissionBoardController,
+    MissionContentController,
     MissionEnrollmentController,
     MissionStrategyController,
     MissionReportController,
@@ -381,9 +384,11 @@ export const INTERNAL_CALLERS: readonly string[] = []
     },
     {
       provide: LIST_MISSION_DIFFICULTIES,
-      useFactory: (clears: DifficultyClearRepositoryPort): ListMissionDifficulties =>
-        new ListMissionDifficulties(clears),
-      inject: [DIFFICULTY_CLEAR_REPOSITORY],
+      useFactory: (
+        clears: DifficultyClearRepositoryPort,
+        catalog: MissionCatalogPort,
+      ): ListMissionDifficulties => new ListMissionDifficulties(clears, catalog),
+      inject: [DIFFICULTY_CLEAR_REPOSITORY, MISSION_CATALOG],
     },
     // --- HU-70: tablon, detalle y matricula ---
     {
@@ -394,6 +399,7 @@ export const INTERNAL_CALLERS: readonly string[] = []
           : new InMemoryMissionCatalog(config.exampleCatalog ? EXAMPLE_MISSIONS : []),
       inject: [APP_CONFIG, DATABASE],
     },
+    { provide: MISSION_CONTENT, useExisting: MISSION_CATALOG },
     {
       provide: ENROLLMENT_REPOSITORY,
       useFactory: (config: AppConfig, db: Kysely<Database> | null): EnrollmentRepositoryPort =>

@@ -54,6 +54,8 @@ export class MissionReportResponseDto {
   @ApiProperty({ type: Object }) summary!: object
   @ApiProperty({ type: Object }) combatStats!: object
   @ApiProperty({ type: Object }) enemies!: object
+  @ApiPropertyOptional({ type: [Object], description: 'Botin obtenido del jefe.' })
+  loot?: readonly object[]
   @ApiProperty({ type: [Object] }) objectives!: readonly object[]
   @ApiProperty({ type: [Object], description: 'Lo único que cambia con el tiempo.' })
   rewards!: readonly object[]
@@ -70,5 +72,6 @@ export class MissionHistorySummaryResponseDto {
   @ApiProperty({ type: [Object] }) byCategory!: readonly object[]
   @ApiProperty({ type: [Object] }) bestTimes!: readonly object[]
   @ApiProperty({ type: [Object] }) epicCollection!: readonly object[]
+  @ApiProperty({ type: [Object] }) lootCollection!: readonly object[]
   @ApiProperty({ type: [Object] }) narrativeProgress!: readonly object[]
 }

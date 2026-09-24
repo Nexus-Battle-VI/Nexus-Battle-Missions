@@ -76,6 +76,7 @@ export interface MissionDefinitionContent {
   readonly enemies: MissionDefinition['enemies']
   readonly finalBoss: MissionDefinition['finalBoss']
   readonly encounters: MissionDefinition['encounters']
+  readonly combatRules?: MissionDefinition['combatRules']
   readonly masterEncounter: MissionDefinition['masterEncounter']
   readonly rewards: MissionDefinition['rewards']
   readonly highlightedRewards: MissionDefinition['highlightedRewards']

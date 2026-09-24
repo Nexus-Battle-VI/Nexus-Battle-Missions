@@ -81,13 +81,15 @@ export class CombatSimulationClient implements CombatSimulationPort {
   }
 
   async simulate(request: SimulationRequest): Promise<SimulationCallOutcome> {
+    const combatRequest = { ...request }
+    Reflect.deleteProperty(combatRequest, 'contentSnapshot')
     const timestamp = String(this.options.clock.now().getTime())
     const signature = signInternalRequest(this.options.secret, {
       service: SERVICE,
       method: 'POST',
       path: PATH,
       timestamp,
-      body: request,
+      body: combatRequest,
     })
     let response: Response
 
@@ -100,7 +102,7 @@ export class CombatSimulationClient implements CombatSimulationPort {
           [INTERNAL_TIMESTAMP_HEADER]: timestamp,
           [INTERNAL_SIGNATURE_HEADER]: signature,
         },
-        body: canonicalBody(request),
+        body: canonicalBody(combatRequest),
         signal: AbortSignal.timeout(this.options.timeoutMs),
       })
     } catch (error: unknown) {

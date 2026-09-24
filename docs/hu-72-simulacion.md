@@ -69,7 +69,7 @@ La simulación es de Combat (ADR-019 y ADR-021): la IA de las rotaciones y de lo
 
 ## Dependencias de Team Alfa
 
-**Ninguna de estas rutas existe todavía.** Son las propuestas de los contratos:
+Las rutas internas de Combat y Player/Inventory se implementaron en los repositorios de Alfa; el despliegue debe incluir sus cambios:
 
 - **Simulación en Combat:** `POST /api/internal/v1/combat/simulations`, firmado con HMAC. `CombatSimulationClient` envía el cuerpo en JSON canónico, así que la solicitud congelada que vuelve de `jsonb` con otro orden de claves se envía y se firma igual.
   - `200` con el cuerpo del contrato: resultado. Uno con otro `operationId`, sin resumen, sin bitácora o con un `combatOutcome` desconocido no se da por bueno.
@@ -78,7 +78,7 @@ La simulación es de Combat (ADR-019 y ADR-021): la IA de las rotaciones y de lo
 - **Perfil del héroe:** sale de la misma ruta propuesta a Player/Inventory para las habilidades de HU-71 (`GET /api/internal/v1/players/{playerId}/heroes/{heroId}`). Missions congela el cuerpo en la solicitud sin interpretarlo (decisión 10 del diseño): hasta que Team Alfa fije el esquema del perfil, se guarda y se reenvía a Combat el cuerpo entero de esa respuesta. Sin respuesta, la ejecución espera; si el héroe ya no es del jugador, la misión se anula (`HERO_NOT_OWNED`).
 - **Liberación del héroe:** la de HU-70, `POST /api/internal/v1/inventory/commitments/{operationId}/release`.
 
-Con `COMBAT_SIMULATION_DRIVER=http`, que es el valor de producción, cada misión espera a Combat y se anula al vencer su plazo, sin penalización. Es el resultado honesto: ADR-019 prefiere una misión que espera a una simulada con otras reglas.
+Con `COMBAT_SIMULATION_DRIVER=http`, que es el valor de producción, Combat resuelve los encuentros reales. Si la dependencia no responde, se conserva el reintento y se anula al vencer el plazo.
 
 `COMBAT_SIMULATION_DRIVER=memory` usa `ScriptedCombatSimulation`, un doble de desarrollo con un resultado **fijo**: el héroe vence todos los encuentros sin recibir daño. Sirve para recorrer el flujo, pero **no acredita CA-02 ni CA-03**. Con `NODE_ENV=production` el servicio no arranca en ese modo.
 

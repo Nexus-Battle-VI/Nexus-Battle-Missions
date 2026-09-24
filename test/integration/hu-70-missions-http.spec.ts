@@ -156,7 +156,7 @@ describe('Tablón, detalle y matrícula por HTTP (Task HU-70.2)', () => {
             imageRef: null,
             estimatedDuration: 'PT6H',
             recommendedPower: null,
-            highlightedRewards: [],
+            highlightedRewards: [{ label: '30 créditos' }, { label: 'Núcleo del Sello' }],
             playerStatus: 'LOCKED',
             canEnroll: false,
             lockReason: 'Completa primero «El Templo Olvidado».',

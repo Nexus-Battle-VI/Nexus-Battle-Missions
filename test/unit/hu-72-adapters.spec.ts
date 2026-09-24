@@ -75,6 +75,8 @@ const REQUEST: SimulationRequest = simulationRequestFor(
   TEMPLO_DEFINITION,
   PROFILE,
 )
+const COMBAT_PAYLOAD = { ...REQUEST }
+Reflect.deleteProperty(COMBAT_PAYLOAD, 'contentSnapshot')
 
 /** Cuerpo del fixture P-01 del contrato de HU-72. */
 const P01_BODY = {
@@ -157,7 +159,7 @@ describe('CombatSimulationClient (HU-72)', () => {
     const [call] = calls
     expect(call?.url).toBe(`http://combat:3004${PATH}`)
     expect(call?.init.method).toBe('POST')
-    expect(call?.init.body).toBe(canonicalBody(REQUEST))
+    expect(call?.init.body).toBe(canonicalBody(COMBAT_PAYLOAD))
     expect(call?.init.signal).toBeInstanceOf(AbortSignal)
     expect(headersOf(call)).toMatchObject({
       'content-type': 'application/json',
@@ -168,7 +170,7 @@ describe('CombatSimulationClient (HU-72)', () => {
         method: 'POST',
         path: PATH,
         timestamp: String(AT.getTime()),
-        body: REQUEST,
+        body: COMBAT_PAYLOAD,
       }),
     })
     expect(failures).toEqual([])
@@ -186,6 +188,21 @@ describe('CombatSimulationClient (HU-72)', () => {
     expect(calls[1]?.init.body).toBe(calls[0]?.init.body)
     expect(headersOf(calls[1])['x-internal-signature']).toBe(
       headersOf(calls[0])['x-internal-signature'],
+    )
+  })
+
+  it('conserva la definicion local sin enviarla a Combat', async () => {
+    const { client, calls } = clientReturning(() => json(200, P01_BODY))
+    await client.simulate({ ...REQUEST, contentSnapshot: EXAMPLE_MISSIONS[0]! })
+    expect(calls[0]?.init.body).toBe(canonicalBody(COMBAT_PAYLOAD))
+    expect(headersOf(calls[0])['x-internal-signature']).toBe(
+      signInternalRequest('secreto', {
+        service: 'missions',
+        method: 'POST',
+        path: PATH,
+        timestamp: String(AT.getTime()),
+        body: COMBAT_PAYLOAD,
+      }),
     )
   })
 
@@ -657,9 +674,13 @@ describe('Perfil del heroe para la simulacion (HU-72)', () => {
   })
 
   it('el doble de desarrollo da el heroe con sus habilidades', async () => {
-    await expect(new InMemoryHeroAbilities(['x']).profileOf('sub-1', HERO)).resolves.toEqual({
+    await expect(new InMemoryHeroAbilities(['x']).profileOf('sub-1', HERO)).resolves.toMatchObject({
       kind: 'FOUND',
-      profile: { heroId: HERO, abilities: [{ abilityId: 'x' }] },
+      profile: {
+        heroId: HERO,
+        effectiveStats: { health: 40, attack: 10 },
+        abilities: [{ abilityId: 'x', powerCost: { mode: 'FIXED', amount: 2 } }],
+      },
     })
   })
 })

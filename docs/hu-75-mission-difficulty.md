@@ -22,10 +22,10 @@ Missions pasa de andamiaje a tener su primera ruta y su primera tabla de negocio
 | Normal siempre disponible                                                                         | Propuesta P-D2 del diseño, pendiente de confirmación del PO | `DifficultyPolicy.ts`                        |
 | Repetir un nivel ya completado está permitido                                                     | Propuesta P-D3                                              | `DifficultyPolicy.ts`                        |
 | Heroico `1.5` y Legendario `2` sobre las estadísticas enemigas                                    | Requisito explícito (50 % y 100 % más)                      | `domain/value-objects/difficulty-scaling.ts` |
-| Mítico sin multiplicador (`null`)                                                                 | Pendiente del PO: ni la HU ni el curso dan un número        | `difficulty-scaling.ts`                      |
+| Mítico con multiplicador `2.5`, editable por misión                                               | Decisión del equipo para completar la regla no definida     | `difficulty-scaling.ts` y `combatRules`      |
 | `rewardTier`: `STANDARD`, `IMPROVED`, `PREMIUM` y `EXCLUSIVE`                                     | Propuesta P-D7, sujeta a acuerdo con HU-10                  | `difficulty-scaling.ts`                      |
 
-Missions no escala ninguna estadística: HU-72 envía el multiplicador a Combat en cada solicitud de simulación, y Combat lo aplicará cuando publique esa ruta.
+Missions envía a Combat el multiplicador del contenido editable de la misión, o el factor general si no existe. Combat escala las estadísticas enemigas en la simulación.
 
 ## Modelo de datos
 
@@ -39,6 +39,11 @@ La clave primaria empieza por `player_id, mission_id`, que es la consulta de des
 El registro es idempotente con `on conflict do nothing`: repetir el mismo hecho, incluso en paralelo, deja una fila, conserva la fecha del primero y devuelve `true` una sola vez.
 
 ## Lo que queda pendiente, y de qué depende
+
+El listado siguiente describe las dependencias al escribir HU-75. La migración
+`008-playable-missions` y el motor de Combat resuelven el contenido inicial,
+el escalado y el registro de niveles al cerrar misiones completadas. La
+conversión de `rewardTier` en entregas sigue en HU-10.
 
 | Pendiente                                                                                    | Depende de                                                                                                                                                                |
 | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

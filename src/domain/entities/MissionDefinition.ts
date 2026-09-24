@@ -1,14 +1,11 @@
 import type { MissionCategory } from '../value-objects/mission-category'
+import type { DifficultyLevel } from '../value-objects/difficulty-level'
 
 /**
  * Definicion de una mision del tablon (HU-70, contrato hu-70-mission-enrollment-v1).
  *
- * Es CONTENIDO: HU-70 la lee, no la crea ni la edita. Como se cargan las
- * definiciones es una decision pendiente del diseno (decision 7): el curso pide
- * dos misiones completas por equipo y todavia no hay issue para ellas.
- *
- * Donde el curso no da un valor, el contenido lo deja en `null`; no se inventan
- * estadisticas.
+ * Es contenido administrable: se guarda en jsonb y el editor permite ajustar
+ * perfiles, reglas, jefes y botin sin cambiar el motor.
  */
 /**
  * Como se evalua un objetivo con el resumen de Combat (HU-72, propuestas P-S5 y
@@ -20,12 +17,13 @@ export type ObjectiveRule =
   | { readonly type: 'CLEAR_ENCOUNTERS'; readonly count: number }
   | { readonly type: 'MIN_HEALTH_PERCENT'; readonly percent: number }
   | { readonly type: 'DEFEAT_MASTER' }
+  | { readonly type: 'COLLECT_LOOT'; readonly label: string; readonly count: number }
 
 export interface MissionObjective {
   readonly id: string
   readonly text: string
   readonly primary: boolean
-  /** `null`: no evaluable en esta version (p. ej., el botin, que depende de HU-10). */
+  /** `null`: un objetivo narrativo sin evidencia de combate. */
   readonly rule: ObjectiveRule | null
 }
 
@@ -58,6 +56,8 @@ export interface MissionBoss {
   readonly stats: Readonly<Record<string, number>>
   /** Perfil completo cuando el contenido aprobado lo publique. */
   readonly profile?: Readonly<Record<string, unknown>> | null
+  /** Tiradas de botin que solo ocurren al derrotarlo. */
+  readonly drops?: readonly PotentialReward[]
 }
 
 export interface MasterEpic {
@@ -106,6 +106,8 @@ export interface PotentialReward {
   readonly label: string
   readonly probability: number
   readonly rolls: number
+  /** Producto real de Catalog para entregar al inventario; editable al crearlo. */
+  readonly productId?: string | null
 }
 
 export interface MissionRewards {
@@ -113,6 +115,21 @@ export interface MissionRewards {
   readonly potential: readonly PotentialReward[]
   readonly objectiveBonuses: readonly RewardLabel[]
   readonly firstTime: readonly RewardLabel[]
+}
+
+/** Reglas versionadas de la simulacion. Cada definicion puede ajustarlas sin desplegar Combat. */
+export interface MissionCombatRules {
+  readonly turnDurationSeconds: number
+  readonly maxTurnsPerEncounter: number
+  readonly recoveryPercent: number
+  readonly criticalChance: number
+  readonly criticalMultiplier: number
+  /** Cada misión puede ajustar el escalado; si falta se usan los factores generales. */
+  readonly difficultyMultipliers?: Readonly<Record<DifficultyLevel, number>>
+  /** Accion autonoma de un sanador sin ataque en Player/Inventory. */
+  readonly supportAttack?: number
+  readonly supportDamage?: number
+  readonly supportRegen?: number
 }
 
 export interface MissionDefinition {
@@ -132,6 +149,8 @@ export interface MissionDefinition {
   readonly finalBoss: MissionBoss
   /** Encuentros que recorre la simulacion; el ultimo es el del jefe. */
   readonly encounters: readonly MissionEncounter[]
+  /** Ausente en contenido historico: Combat aplica los valores v1 documentados. */
+  readonly combatRules?: MissionCombatRules
   readonly masterEncounter: MasterEncounter | null
   readonly rewards: MissionRewards
   readonly highlightedRewards: readonly RewardLabel[]

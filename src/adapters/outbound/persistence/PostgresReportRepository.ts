@@ -33,6 +33,7 @@ const snapshotOf = (report: MissionReport): ReportSnapshot => ({
   },
   combatStats: report.combatStats,
   enemies: report.enemies,
+  ...(report.loot === undefined ? {} : { loot: report.loot }),
   objectives: report.objectives,
   generatedAt: report.generatedAt.toISOString(),
 })

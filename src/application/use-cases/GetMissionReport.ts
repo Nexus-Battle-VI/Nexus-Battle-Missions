@@ -24,6 +24,7 @@ export interface MissionReportView {
   }
   readonly combatStats: CombatStats
   readonly enemies: ReportEnemies
+  readonly loot?: MissionReport['loot']
   readonly objectives: readonly ReportObjective[]
   /** Lo unico que cambia con el tiempo: el estado de cada entrega (P-T2). */
   readonly rewards: readonly RewardLineView[]
@@ -42,6 +43,7 @@ export const reportViewOf = ({ report, rewards }: ReportRecord): MissionReportVi
   },
   combatStats: report.combatStats,
   enemies: report.enemies,
+  ...(report.loot === undefined ? {} : { loot: report.loot }),
   objectives: report.objectives,
   rewards: rewards.map(({ kind, reference, name, rarity, quantity, status, source }) => ({
     kind,
