@@ -110,7 +110,7 @@ La entrega del cosmético repite el patrón de la épica de HU-73. El `operation
 
 ## Modelo de datos
 
-La migración `007-mission-achievements` crea dos tablas, sin claves foráneas (`player_id` es el `sub` del proveedor de identidad), así que los `truncate` de las pruebas de HU-72, HU-73 y HU-74 no cambian:
+La migración `009-mission-achievements` crea dos tablas, sin claves foráneas (`player_id` es el `sub` del proveedor de identidad), así que los `truncate` de las pruebas de HU-72, HU-73 y HU-74 no cambian:
 
 - `mission_achievement_unlocks`: un desbloqueo por jugador y logro (clave primaria `player_id`, `achievement_id`), con la versión y el criterio, el nombre, el progreso congelado, la prueba en `jsonb`, el reconocimiento y, en un cosmético, su entrega. `grant_operation_id` es único y un índice parcial sirve las entregas pendientes. Los CHECK imponen que el progreso esté completo con un objetivo de verdad, que los vocabularios sean los del contrato, que solo un cosmético tenga entrega y estados de entrega, que un pendiente tenga próximo intento, y que uno acreditado tenga fecha y producto.
 - `mission_achievement_evaluations`: el punto de control técnico de cada jugador (conteos vistos, huella, fecha y reintento). Borrarlo no cambia ningún resultado: solo hace que se vuelva a evaluar.
@@ -167,7 +167,7 @@ El catálogo aprobado de logros sigue vacío y la ruta responde `200 { items: []
 - **PO:** el catálogo aprobado se carga con un PR que rellena `APPROVED_ACHIEVEMENTS`. Al desplegarlo cambia la huella y se evalúa a todos los jugadores, de 50 en 50.
 - **HU-10 y el aviso de fin de misión:** `mission_facts.processed_at` sigue siendo de HU-72; los `MissionSettled` no se marcan. Cada consumidor lleva su propio registro.
 - **Una fuente nueva de evidencia** debe añadir su contador a `playersToEvaluate` (y al doble en memoria): el detector supone que las fuentes solo crecen y, sin contador, sus cambios no se evaluarán. Para corregir una regla, se sube `ACHIEVEMENT_POLICY_VERSION`.
-- **Migraciones:** esta es la `007`. La siguiente historia usa la `008`.
+- **Migraciones:** esta es la `009` (la `007` y la `008` son de HU-09). La siguiente historia usa la `011`.
 
 ## Pruebas
 
@@ -177,7 +177,7 @@ El catálogo aprobado de logros sigue vacío y la ruta responde `200 { items: []
 | `test/unit/hu-76-use-cases.spec.ts`                | P-01 a P-05 sobre el cierre real de HU-72 y las épicas de HU-73: L-1, L-4 a L-9, la épica que llega tarde, la misión sin reporte, la anulada, el catálogo vacío y la retroactividad, los fallos aplazados y cada camino del cosmético                                                                                                                          |
 | `test/unit/hu-76-adapters.spec.ts`                 | Los dobles en memoria (selección, orden, límite, escrituras condicionales y evidencia), el catálogo estático y el planificador con sus cuatro pasos aislados                                                                                                                                                                                                   |
 | `test/integration/hu-76-achievements-http.spec.ts` | La aplicación completa: dos misiones por HTTP y el ciclo del planificador, la respuesta y el orden del contrato, el cosmético entregado una vez, el aislamiento entre jugadores, `401` y `403`, el catálogo vacío y el de ejemplo                                                                                                                              |
-| `test/db/hu-76-achievements.spec.ts`               | PostgreSQL real: cada CHECK de la `007`, la detección con SQL, la lectura tolerante de los reportes, la transacción, dos evaluadores a la vez, L-9, `processed_at` intacto y el servicio completo                                                                                                                                                              |
+| `test/db/hu-76-achievements.spec.ts`               | PostgreSQL real: cada CHECK de la `009`, la detección con SQL, la lectura tolerante de los reportes, la transacción, dos evaluadores a la vez, L-9, `processed_at` intacto y el servicio completo                                                                                                                                                              |
 
 La CI corre `test:db` con PostgreSQL 17 en Testcontainers; en local se verificó con PostgreSQL 16.
 

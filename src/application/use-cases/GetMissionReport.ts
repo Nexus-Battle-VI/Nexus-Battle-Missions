@@ -3,16 +3,18 @@ import type {
   CombatStats,
   MissionReport,
   ReportEnemies,
+  ReportExperience,
   ReportObjective,
   ReportRecord,
   ReportRewardLine,
   ReportSummary,
 } from '../../domain/entities/MissionReport'
 import { ReportNotAvailableError, ReportNotFoundError } from '../../domain/errors/report-errors'
+import { experienceSummaryOf } from '../../domain/policies/ReportPolicy'
 import type { EnrollmentRepositoryPort } from '../ports/EnrollmentRepositoryPort'
 import type { ReportRepositoryPort } from '../ports/ReportRepositoryPort'
 
-export type RewardLineView = Omit<ReportRewardLine, 'lineNo' | 'updatedAt'>
+export type RewardLineView = Omit<ReportRewardLine, 'lineNo' | 'updatedAt' | 'progression'>
 
 export interface MissionReportView {
   readonly schemaVersion: number
@@ -28,6 +30,11 @@ export interface MissionReportView {
   readonly objectives: readonly ReportObjective[]
   /** Lo unico que cambia con el tiempo: el estado de cada entrega (P-T2). */
   readonly rewards: readonly RewardLineView[]
+  /**
+   * HU-09 (Task HU-09.5): la experiencia por derrota, agregada. Se DERIVA de las
+   * lineas de arriba al leer, asi que no puede contradecirlas.
+   */
+  readonly experience: ReportExperience
   readonly generatedAt: string
 }
 
@@ -54,6 +61,10 @@ export const reportViewOf = ({ report, rewards }: ReportRecord): MissionReportVi
     status,
     source,
   })),
+  // El nivel del heroe y el desglose por derrota salen de las lineas `HU-09`: la
+  // progresion de CADA una no se publica suelta, que seria repetir el mismo nivel
+  // ocho veces, sino agregada aqui.
+  experience: experienceSummaryOf(rewards),
   generatedAt: report.generatedAt.toISOString(),
 })
 

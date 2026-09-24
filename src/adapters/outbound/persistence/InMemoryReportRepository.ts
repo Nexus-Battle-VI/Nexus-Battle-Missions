@@ -1,5 +1,9 @@
 import type { ReportRepositoryPort } from '../../../application/ports/ReportRepositoryPort'
-import type { ReportRecord, RewardStatus } from '../../../domain/entities/MissionReport'
+import type {
+  ReportLineUpdate,
+  ReportRecord,
+  RewardStatus,
+} from '../../../domain/entities/MissionReport'
 
 const compareText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
 
@@ -66,6 +70,40 @@ export class InMemoryReportRepository implements ReportRepositoryPort {
       report: record.report,
       rewards: record.rewards.map((line) =>
         line.lineNo === lineNo ? { ...line, status, updatedAt: at } : line,
+      ),
+    })
+
+    return true
+  }
+
+  /**
+   * Sincrona, para la acreditacion de experiencia de HU-09 (Task HU-09.5): el
+   * avance de la recompensa y su linea se escriben a la vez, que aqui es
+   * simplemente hacerlo sin esperas, como el cierre.
+   *
+   * Ademas del estado escribe el IMPORTE y la PROGRESION del heroe: en una linea de
+   * experiencia la cantidad es la experiencia acreditada, que no se conoce hasta
+   * que la tirada ocurre.
+   */
+  applyCreditNow(enrollmentId: string, lineNo: number, update: ReportLineUpdate): boolean {
+    const record = this.records.get(enrollmentId)
+
+    if (!record?.rewards.some((line) => line.lineNo === lineNo)) {
+      return false
+    }
+
+    this.records.set(enrollmentId, {
+      report: record.report,
+      rewards: record.rewards.map((line) =>
+        line.lineNo === lineNo
+          ? {
+              ...line,
+              status: update.status,
+              quantity: update.quantity,
+              progression: update.progression,
+              updatedAt: update.at,
+            }
+          : line,
       ),
     })
 

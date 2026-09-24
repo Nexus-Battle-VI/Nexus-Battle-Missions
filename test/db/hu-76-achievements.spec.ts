@@ -69,7 +69,7 @@ import { insertDefinition } from '../support/fixtures'
 
 /**
  * PostgreSQL REAL (Task HU-76.2). Lo que los dobles en memoria no pueden probar:
- * que la migracion 007 impone sus reglas en el motor (CA-03 incluido), que la
+ * que la migracion 009 impone sus reglas en el motor (CA-03 incluido), que la
  * deteccion de a quien evaluar y la lectura tolerante de los reportes funcionan
  * con SQL de verdad, que las escrituras son idempotentes y condicionales con dos
  * procesos a la vez, que `mission_facts.processed_at` sigue siendo solo de HU-72
@@ -179,7 +179,7 @@ describe('Logros de misiones en PostgreSQL (HU-76)', () => {
 
   /** Cada prueba empieza sin datos: la deteccion recorre toda la tabla. */
   const reset = async (): Promise<void> => {
-    await sql`truncate mission_achievement_unlocks, mission_achievement_evaluations,
+    await sql`truncate mission_experience_rewards, mission_achievement_unlocks, mission_achievement_evaluations,
       mission_master_encounters, mission_report_rewards, mission_reports, mission_executions,
       mission_facts, mission_enrollments, mission_difficulty_clears`.execute(db)
   }
@@ -332,7 +332,7 @@ describe('Logros de misiones en PostgreSQL (HU-76)', () => {
   }
 
   // Controles de motor: con SQL crudo, saltandose el repositorio.
-  describe('restricciones de la migracion 007', () => {
+  describe('restricciones de la migracion 009', () => {
     const insertInto = (table: string, row: Record<string, unknown>) => {
       const columns = Object.keys(row).map((column) => sql.ref(column))
 

@@ -1,4 +1,5 @@
 import type { MasterEncounterRecord } from '../../domain/entities/MasterEncounterRecord'
+import type { ExperienceReward } from '../../domain/entities/ExperienceReward'
 import type { MissionDifficultyClear } from '../../domain/entities/MissionDifficultyClear'
 import type { MissionEnrollment, MissionFact } from '../../domain/entities/MissionEnrollment'
 import type { MissionExecution } from '../../domain/entities/MissionExecution'
@@ -13,8 +14,9 @@ export interface StartedMission {
 /**
  * Cierre de una mision en UNA transaccion (CU-72.2 y CU-72.3): cambian la
  * matricula y la ejecucion, se registra el clear de HU-75 si hubo exito, el
- * hecho `MissionSettled`, la evidencia del Master de HU-73 y el reporte de HU-74.
- * Las dos transiciones exigen la version leida.
+ * hecho `MissionSettled`, la evidencia del Master de HU-73, la recompensa de
+ * experiencia de HU-09 y el reporte de HU-74. Las dos transiciones exigen la
+ * version leida.
  */
 export interface MissionClosure {
   readonly enrollment: MissionEnrollment
@@ -28,6 +30,14 @@ export interface MissionClosure {
    * ganada. Vacia si la mision no tiene Master o se anulo.
    */
   readonly masters: readonly MasterEncounterRecord[]
+  /**
+   * HU-09 (Task HU-09.4, contrato §9.1): una recompensa `PENDING` por cada NPC
+   * derrotado, escrita ANTES de pedir ninguna tirada. Vacia si la mision se anulo
+   * o no derroto a nadie. Nace aqui -- y no en el ciclo que tira -- porque esta es
+   * la unica transaccion en la que la derrota y su recompensa son el mismo hecho:
+   * si se escribiera despues, una caida dejaria tiradas sin dueno.
+   */
+  readonly experience: readonly ExperienceReward[]
   /** HU-74 (P-T1): la foto nace con el cierre. Una anulacion no tiene reporte (P-T3). */
   readonly report: ReportRecord | null
 }

@@ -179,7 +179,6 @@ describe('Reporte e historial por HTTP (Task HU-74.2)', () => {
         boss: { enemyRef: 'guardian-eterno', name: 'El Guardián Eterno', defeated: true },
         masters: [],
       },
-      rewards: [],
       generatedAt: normal.endsAt,
     })
     expect(
@@ -195,6 +194,36 @@ describe('Reporte e historial por HTTP (Task HU-74.2)', () => {
       ['obj_fragmentos', null],
     ])
     expect(response.body).not.toHaveProperty('playerId')
+  })
+
+  it('R-6: la experiencia de cada derrota llega al reporte, aun sin acreditar (HU-09.5)', async () => {
+    const response = await get(`${REPORTS}/${normal.enrollmentId}`)
+    const rewards = response.body.rewards as Record<string, unknown>[]
+
+    // Una linea por NPC derrotado -- 10 + 5 + 3 regulares y el jefe -- y ninguna con
+    // importe todavia: la tirada la pide el barrido de HU-09, que aqui no corre.
+    expect(rewards).toHaveLength(19)
+    expect(rewards[0]).toEqual({
+      kind: 'EXPERIENCE',
+      reference: 'sombra-corrompida#1',
+      name: 'Sombras Corrompidas',
+      rarity: null,
+      quantity: 0,
+      status: 'PENDING',
+      source: 'HU-09',
+    })
+    expect(response.body.experience).toEqual({
+      defeats: 19,
+      totalXp: 0,
+      credited: 0,
+      pending: 19,
+      failed: 0,
+      level: null,
+      currentXp: null,
+      maxLevel: null,
+      levelsGained: 0,
+      leveledUp: false,
+    })
   })
 
   it('el historial lista las terminadas y pagina con el cursor opaco', async () => {

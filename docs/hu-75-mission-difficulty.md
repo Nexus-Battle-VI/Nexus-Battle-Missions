@@ -41,7 +41,7 @@ El registro es idempotente con `on conflict do nothing`: repetir el mismo hecho,
 ## Lo que queda pendiente, y de qué depende
 
 El listado siguiente describe las dependencias al escribir HU-75. La migración
-`008-playable-missions` y el motor de Combat resuelven el contenido inicial,
+`010-playable-missions` y el motor de Combat resuelven el contenido inicial,
 el escalado y el registro de niveles al cerrar misiones completadas. La
 conversión de `rewardTier` en entregas sigue en HU-10.
 

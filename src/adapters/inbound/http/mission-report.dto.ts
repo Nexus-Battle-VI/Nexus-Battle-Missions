@@ -60,6 +60,13 @@ export class MissionReportResponseDto {
   @ApiProperty({ type: [Object], description: 'Lo único que cambia con el tiempo.' })
   rewards!: readonly object[]
 
+  @ApiProperty({
+    type: Object,
+    description:
+      'Experiencia por derrota agregada (HU-09): derrotas, experiencia acreditada y nivel del héroe.',
+  })
+  experience!: object
+
   @ApiProperty({ example: '2026-10-02T03:00:05.000Z' }) generatedAt!: string
 }
 

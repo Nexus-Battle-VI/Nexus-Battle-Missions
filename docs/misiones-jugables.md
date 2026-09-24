@@ -1,6 +1,6 @@
 # Contenido jugable y editable de misiones
 
-La migración `008-playable-missions` carga El Templo Olvidado y La Cámara Sellada
+La migración `010-playable-missions` carga El Templo Olvidado y La Cámara Sellada
 en PostgreSQL. `GET /api/v1/admin/missions` y
 `PUT /api/v1/admin/missions/{missionId}` permiten al rol `ADMINISTRATOR` leer y guardar
 la definición completa. El formulario de Web está en `/admin/missions`. El mismo

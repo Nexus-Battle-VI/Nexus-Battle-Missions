@@ -506,6 +506,8 @@ export const epicRewardsOf = (
       quantity: 1,
       status: 'PENDING',
       source: 'HU-73',
+      // La progresion del heroe es de las lineas de experiencia (HU-09).
+      progression: null,
       updatedAt: now,
     })
 
