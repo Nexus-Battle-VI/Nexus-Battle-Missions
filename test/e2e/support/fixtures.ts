@@ -107,13 +107,30 @@ export const enroll = async (
  * Player/Inventory aceptan un sello de ±30 s. La ventana sigue siendo una ventana
  * valida (`started_at < ends_at`, `ends_at + SIMULATION_GRACE_MS` en el futuro) y
  * el presupuesto de tiempo que viaja a Combat sigue teniendo sentido.
+ *
+ * LAS FECHAS LAS CALCULA ESTE PROCESO, no el motor: el cierre compara `ends_at`
+ * con el reloj de la aplicacion, asi que `now()` de PostgreSQL ataria el dato al
+ * reloj del contenedor, que en un portatil con WSL2 deriva respecto al del
+ * anfitrion. Un segundo en el pasado quita esa dependencia.
+ *
+ * Y LA VENTANA MIDE MINUTOS ENTEROS, que no es un detalle estetico: el presupuesto
+ * de tiempo que viaja a Combat es `ends_at - started_at` en minutos, y
+ * `toIsoDuration` rechaza cualquier cosa que no sea un entero positivo. Con las
+ * dos fechas tomadas de `now()` por separado, la resta da 59,9 minutos y el cierre
+ * falla con «La duracion de una mision debe ser un numero entero positivo de
+ * minutos»: la mision no se cierra, no hay informe y no se devenga nada. Por eso
+ * las dos salen de UNA sola lectura del reloj, separadas por una hora exacta.
  */
 export const shiftEnrollmentWindow = async (
   db: Kysely<Database>,
   enrollmentId: string,
 ): Promise<void> => {
+  const now = Date.now()
+  const endsAt = new Date(now - 1_000)
+  const startedAt = new Date(endsAt.getTime() - 3_600_000)
+
   await sql`update mission_enrollments
-    set started_at = now() - interval '1 hour', ends_at = now()
+    set started_at = ${startedAt}, ends_at = ${endsAt}
     where enrollment_id = ${enrollmentId}`.execute(db)
 }
 
@@ -243,6 +260,10 @@ export const readGrants = async (
     .sort({ _id: 1 })
     .toArray()
 
+/** Cuantos asientos hay en total: distingue "no se acredito" de "se acredito a otro". */
+export const countGrants = async (databases: ChainDatabases): Promise<number> =>
+  databases.playerInventory.collection('experience_grants').countDocuments({})
+
 export interface ProgressionDocument {
   readonly _id: string
   readonly ownerId: string
@@ -292,9 +313,13 @@ export const seedProgression = async (
  * 5 s (el segundo, de 30). Esperarlos de verdad alargaria el escenario, y adelantar
  * el reloj romperia los sellos HMAC de las dos fronteras: se vence el DATO, que es
  * lo mismo que el tiempo habria hecho, sin el tiempo.
+ *
+ * La fecha la calcula ESTE PROCESO y va un minuto en el pasado: el barrido compara
+ * contra el reloj de la aplicacion, no contra el del motor.
  */
 export const makeRewardsDue = async (db: Kysely<Database>, enrollmentId: string): Promise<void> => {
-  await sql`update mission_experience_rewards set next_attempt_at = now()
+  await sql`update mission_experience_rewards
+    set next_attempt_at = ${new Date(Date.now() - 60_000)}
     where enrollment_id = ${enrollmentId} and status in ('PENDING', 'ROLLED')`.execute(db)
 }
 

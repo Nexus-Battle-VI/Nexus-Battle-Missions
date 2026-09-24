@@ -51,7 +51,8 @@ export const LIMITATIONS: readonly string[] = [
   'El testimonio del jugador se sustituye: no hay Cognito en la cadena.',
   'En el escenario de los ocho valores de 1d8 se sustituye el puerto de tirada por caras 1..8; la acreditacion sigue siendo la real de Player/Inventory.',
   'Combat corre con sus planificadores reales encendidos: no hacen nada porque su base de batallas esta vacia.',
-  'La ventana de la matricula se desplaza al pasado para cerrar la mision sin esperar su duracion real; el reloj solo se mueve unos segundos, porque los sellos HMAC caducan a los 30.',
+  'La ventana de la matricula se desplaza al pasado para cerrar la mision sin esperar su duracion real: mide UNA HORA EXACTA y termina un segundo antes del cierre, porque la duracion viaja a Combat en minutos enteros y el reloj no se puede mover (los sellos internos caducan a los 30 s).',
+  'Las guardas de no-duplicacion se ejecutan en un proceso hijo por repositorio, con `--testPathPatterns`: aqui se comprueba que estan en verde y que su control negativo corre, no se repite su matriz.',
 ]
 
 export const writeRunReport = (input: {
