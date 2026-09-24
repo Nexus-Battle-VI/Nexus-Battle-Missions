@@ -466,7 +466,7 @@ describe('InMemoryExecutionRepository (HU-72)', () => {
       },
       fact: missionSettledFact(enrollment, settlement, 'sim_op-sim', ENDS),
       masters: [],
-     experience: [],
+      experience: [],
       report: null,
     }
 

@@ -215,7 +215,7 @@ describe('Ejecuciones de mision en PostgreSQL (HU-72)', () => {
       },
       fact: missionSettledFact(enrollment, settlement, P01_RESULT.simulationId, ENDS),
       masters: [],
-     experience: [],
+      experience: [],
       report: null,
     }
   }
@@ -379,7 +379,7 @@ describe('Ejecuciones de mision en PostgreSQL (HU-72)', () => {
           clear: null,
           fact: missionSettledFact(enrollment, voidedSettlement('INVALID_STRATEGY'), null, AT),
           masters: [],
-         experience: [],
+          experience: [],
           report: null,
         }),
       ).resolves.toBe(true)
@@ -414,7 +414,7 @@ describe('Ejecuciones de mision en PostgreSQL (HU-72)', () => {
             ENDS,
           ),
           masters: [],
-         experience: [],
+          experience: [],
           report: null,
         }),
       ).resolves.toBe(true)

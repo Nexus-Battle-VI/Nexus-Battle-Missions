@@ -246,7 +246,7 @@ describe('Evidencia del Master en PostgreSQL (HU-73)', () => {
         epics.records,
       ),
       masters: epics.records,
-     experience: [],
+      experience: [],
       report: {
         report: missionReportOf({
           enrollment,
