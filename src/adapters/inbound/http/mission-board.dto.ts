@@ -85,7 +85,14 @@ export class MissionDetailResponseDto {
   @ApiProperty({ type: [Object] }) objectives!: readonly object[]
   @ApiProperty({ example: 'PT12H' }) estimatedDuration!: string
   @ApiProperty({ type: Number, nullable: true }) recommendedPower!: number | null
+  @ApiProperty({ type: String, nullable: true, example: 'mision-templo-olvidado' })
+  imageRef!: string | null
   @ApiProperty({ type: [String] }) prerequisites!: readonly string[]
+  @ApiProperty({
+    type: [Object],
+    description: 'Los requisitos con su nombre: `{ missionId, name }` (P-J10).',
+  })
+  prerequisiteMissions!: readonly object[]
   @ApiProperty({ type: [Object] }) enemies!: readonly object[]
   @ApiProperty({ type: Object }) finalBoss!: object
   @ApiProperty({ type: Object }) masterEncounter!: object

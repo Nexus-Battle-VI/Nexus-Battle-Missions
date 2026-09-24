@@ -1,11 +1,13 @@
 import {
   bestTimesOf,
   categoryStatsOf,
+  epicAlbumOf,
   epicCollectionOf,
   narrativeChainsOf,
   narrativeProgressOf,
   type BestTime,
   type CategoryStats,
+  type EpicAlbumEntry,
   type EpicCollectionEntry,
   type NarrativeProgress,
 } from '../../domain/policies/HistoryPolicy'
@@ -14,17 +16,23 @@ import type { ReportRepositoryPort } from '../ports/ReportRepositoryPort'
 
 export interface HistorySummaryView {
   readonly byCategory: readonly CategoryStats[]
-  readonly bestTimes: readonly BestTime[]
+  /** Con el nombre de la mision, para no mostrar su identificador (P-J10). */
+  readonly bestTimes: readonly (BestTime & { readonly missionName: string })[]
   readonly epicCollection: readonly (Omit<EpicCollectionEntry, 'obtainedAt'> & {
     readonly obtainedAt: string
   })[]
+  /** Cada epica que se puede ganar y si ya se tiene: la meta a largo plazo (P-J3). */
+  readonly epicAlbum: readonly EpicAlbumEntry[]
   /** Objetos obtenidos al derrotar jefes; se conserva aunque no haya producto de Catalog. */
   readonly lootCollection: readonly {
     readonly label: string
     readonly productId: string | null
     readonly quantity: number
   }[]
-  readonly narrativeProgress: readonly NarrativeProgress[]
+  /** `missionNames` va en el mismo orden que `missions` (P-J10). */
+  readonly narrativeProgress: readonly (NarrativeProgress & {
+    readonly missionNames: readonly string[]
+  })[]
 }
 
 /**
@@ -56,16 +64,27 @@ export class GetMissionHistorySummary {
         loot.set(key, { ...drop, quantity: (loot.get(key)?.quantity ?? 0) + drop.quantity })
       }
     }
+    // El nombre vigente del catalogo; si la mision se retiro, el que tenia al cerrarse.
+    const names = new Map(reports.map((report) => [report.mission.missionId, report.mission.name]))
+    for (const definition of definitions) names.set(definition.missionId, definition.name)
+    const nameOf = (missionId: string): string => names.get(missionId) ?? missionId
+    const collection = epicCollectionOf(records)
 
     return {
       byCategory: categoryStatsOf(reports),
-      bestTimes: bestTimesOf(reports),
-      epicCollection: epicCollectionOf(records).map((entry) => ({
+      bestTimes: bestTimesOf(reports).map((best) => ({
+        ...best,
+        missionName: nameOf(best.missionId),
+      })),
+      epicCollection: collection.map((entry) => ({
         ...entry,
         obtainedAt: entry.obtainedAt.toISOString(),
       })),
+      epicAlbum: epicAlbumOf(definitions, collection),
       lootCollection: [...loot.values()].sort((a, b) => a.label.localeCompare(b.label, 'es')),
-      narrativeProgress: narrativeProgressOf(narrativeChainsOf(definitions), completed),
+      narrativeProgress: narrativeProgressOf(narrativeChainsOf(definitions), completed).map(
+        (progress) => ({ ...progress, missionNames: progress.missions.map(nameOf) }),
+      ),
     }
   }
 }

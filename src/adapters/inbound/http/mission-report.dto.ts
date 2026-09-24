@@ -79,6 +79,12 @@ export class MissionHistorySummaryResponseDto {
   @ApiProperty({ type: [Object] }) byCategory!: readonly object[]
   @ApiProperty({ type: [Object] }) bestTimes!: readonly object[]
   @ApiProperty({ type: [Object] }) epicCollection!: readonly object[]
+  @ApiProperty({
+    type: [Object],
+    description:
+      'Cada epica que se puede ganar, con su Master y su mision, y si ya se tiene (P-J3).',
+  })
+  epicAlbum!: readonly object[]
   @ApiProperty({ type: [Object] }) lootCollection!: readonly object[]
   @ApiProperty({ type: [Object] }) narrativeProgress!: readonly object[]
 }

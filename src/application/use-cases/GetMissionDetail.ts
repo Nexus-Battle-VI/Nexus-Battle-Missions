@@ -26,11 +26,15 @@ export interface MissionDetailView {
   readonly name: string
   readonly category: MissionCategory
   readonly narrative: string
+  /** La ilustracion de la mision (P-J11); `null` usa la de su categoria. */
+  readonly imageRef: string | null
   /** Sin `rule`: como se evalua es interno del cierre de HU-72. */
   readonly objectives: readonly Omit<MissionObjective, 'rule'>[]
   readonly estimatedDuration: string
   readonly recommendedPower: number | null
   readonly prerequisites: readonly string[]
+  /** Las mismas, con su nombre: la interfaz no muestra identificadores (P-J10). */
+  readonly prerequisiteMissions: readonly { readonly missionId: string; readonly name: string }[]
   /** Sin `enemyRef`: es la referencia interna que HU-72 envia a Combat. */
   readonly enemies: readonly Omit<MissionEnemy, 'enemyRef' | 'profile'>[]
   readonly finalBoss: {
@@ -105,9 +109,10 @@ export class GetMissionDetail {
       this.enrollments.listByPlayer(playerId),
       this.clears.completedMissions(playerId),
     ])
+    const names = namesOf(definitions)
     const view = derivePlayerMissionStatus(
       definition,
-      playerContextFor(missionId, enrollments, completed, namesOf(definitions)),
+      playerContextFor(missionId, enrollments, completed, names),
     )
     const master = definition.masterEncounter
 
@@ -116,10 +121,15 @@ export class GetMissionDetail {
       name: definition.name,
       category: definition.category,
       narrative: definition.narrative,
+      imageRef: definition.imageRef,
       objectives: definition.objectives.map(({ id, text, primary }) => ({ id, text, primary })),
       estimatedDuration: toIsoDuration(definition.estimatedDurationMinutes),
       recommendedPower: definition.recommendedPower,
       prerequisites: definition.prerequisites,
+      prerequisiteMissions: definition.prerequisites.map((prerequisite) => ({
+        missionId: prerequisite,
+        name: names.get(prerequisite) ?? prerequisite,
+      })),
       enemies: definition.enemies.map(({ name, count, description }) => ({
         name,
         count,

@@ -6,6 +6,7 @@ import type {
   RewardStatus,
 } from '../entities/MissionReport'
 import { DIFFICULTY_LEVELS, type DifficultyLevel } from '../value-objects/difficulty-level'
+import { deliverableEpicOf } from './DeliverableRewardsPolicy'
 import { isoDurationSeconds } from '../value-objects/iso-duration'
 import { MISSION_CATEGORIES, type MissionCategory } from '../value-objects/mission-category'
 
@@ -103,6 +104,8 @@ export interface EpicCollectionEntry {
   readonly name: string
   /** El Master que la dio, segun la evidencia de HU-73; `null` si no consta. */
   readonly masterRef: string | null
+  /** Su nombre, para no mostrar la referencia interna (P-J10). */
+  readonly masterName: string | null
   readonly obtainedAt: Date
   readonly status: RewardStatus
 }
@@ -131,6 +134,7 @@ export const epicCollectionOf = (
           epicRef: line.reference,
           name: line.name,
           masterRef: defeated[index]?.masterRef ?? null,
+          masterName: defeated[index]?.name ?? null,
           obtainedAt: report.generatedAt,
           status: line.status,
         }))
@@ -139,6 +143,59 @@ export const epicCollectionOf = (
       (a, b) =>
         a.obtainedAt.getTime() - b.obtainedAt.getTime() || compareText(a.epicRef, b.epicRef),
     )
+
+/** Una epica del album: donde se gana y si el jugador ya la tiene (P-J3). */
+export interface EpicAlbumEntry {
+  readonly epicRef: string
+  readonly name: string
+  readonly generalEffect: string | null
+  readonly epicEffect: string | null
+  /** El tipo de heroe del Master: la epica potencia a ese tipo. */
+  readonly heroType: string
+  readonly masterName: string
+  readonly missionId: string
+  readonly missionName: string
+  readonly obtained: boolean
+}
+
+/**
+ * El album de epicas (diseno «misiones jugables», P-J3): cada epica que entrega
+ * algun Master de las misiones activas, una vez, con la mision donde aparece y si
+ * el jugador ya la gano (entregada o en camino). Es la meta a largo plazo del
+ * modulo: completar la coleccion. Solo cuentan las epicas que ya son un producto
+ * que se puede entregar, como en el detalle (P-J2).
+ */
+export const epicAlbumOf = (
+  definitions: readonly MissionDefinition[],
+  collection: readonly EpicCollectionEntry[],
+): readonly EpicAlbumEntry[] => {
+  const obtained = new Set(
+    collection.filter((entry) => entry.status !== 'FAILED').map((entry) => entry.epicRef),
+  )
+  const seen = new Set<string>()
+  const album: EpicAlbumEntry[] = []
+
+  for (const definition of definitions) {
+    for (const candidate of definition.masterEncounter?.candidates ?? []) {
+      const epic = deliverableEpicOf(candidate)
+      if (epic === null || seen.has(epic.epicRef)) continue
+      seen.add(epic.epicRef)
+      album.push({
+        epicRef: epic.epicRef,
+        name: epic.name,
+        generalEffect: epic.generalEffect,
+        epicEffect: epic.epicEffect,
+        heroType: candidate.subtype,
+        masterName: candidate.name,
+        missionId: definition.missionId,
+        missionName: definition.name,
+        obtained: obtained.has(epic.epicRef),
+      })
+    }
+  }
+
+  return album
+}
 
 export interface NarrativeChain {
   /** La primera mision de la cadena. */
