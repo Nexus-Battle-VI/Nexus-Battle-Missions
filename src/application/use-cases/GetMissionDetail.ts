@@ -10,6 +10,7 @@ import {
 } from '../../domain/policies/DeliverableRewardsPolicy'
 import { MissionNotFoundError } from '../../domain/errors/mission-errors'
 import { derivePlayerMissionStatus } from '../../domain/policies/EnrollmentPolicy'
+import { masterAppearanceChanceOf } from '../../domain/policies/MasterPolicy'
 import { isRecord } from '../../domain/policies/SettlementPolicy'
 import {
   toIsoDuration,
@@ -45,8 +46,9 @@ export interface MissionDetailView {
   }
   readonly masterEncounter: {
     /**
-     * La mayor probabilidad configurada. La que aplica depende del subtipo del
-     * heroe que se matricule (HU-73, P-X2): el detalle aun no lo conoce.
+     * La probabilidad de que aparezca un Master en la mision: el 15 % que fijo el
+     * PO. Depende del subtipo del heroe que se matricule (HU-73, P-X2) y el detalle
+     * aun no lo conoce, asi que es la mayor.
      */
     readonly probability: number
     readonly candidates: readonly {
@@ -142,12 +144,7 @@ export class GetMissionDetail {
         stats: definition.finalBoss.stats,
       },
       masterEncounter: {
-        probability: Math.max(
-          0,
-          ...(master?.candidates ?? []).flatMap((candidate) =>
-            Object.values(probabilitiesOf(candidate)),
-          ),
-        ),
+        probability: masterAppearanceChanceOf(master),
         candidates: (master?.candidates ?? []).map((candidate) => {
           const epic = deliverableEpicOf(candidate)
           return {

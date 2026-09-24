@@ -161,6 +161,38 @@ export const probabilityFor = (
   (heroSubtype === null ? null : own(candidate.probabilityByHeroType, heroSubtype)) ??
   own(candidate.probabilityByHeroType, '*')
 
+/**
+ * La probabilidad de que aparezca algun Master en la mision, redondeada a cuatro
+ * decimales. El PO fijo un 15 % por mision (decision del 2026-09-24). En cada
+ * punto, Combat prueba a los candidatos en orden y saca como mucho uno (P-X3):
+ * un punto no saca ninguno con (1 - p1)(1 - p2)... Como depende del subtipo del
+ * heroe (P-X2) y el detalle aun no lo conoce, se da la mayor. El contenido llega
+ * de `jsonb`: una tabla que no es un objeto cuenta como 0.
+ */
+export const masterAppearanceChanceOf = (config: MasterEncounter | null): number => {
+  const candidates: readonly MasterCandidate[] = Array.isArray(config?.candidates)
+    ? config.candidates
+    : []
+  const points = Array.isArray(config?.evaluationPoints) ? config.evaluationPoints.length : 0
+  const tableOf = (candidate: MasterCandidate): Readonly<Record<string, unknown>> =>
+    isRecord(candidate.probabilityByHeroType) ? candidate.probabilityByHeroType : {}
+  const subtypes = new Set(
+    candidates.flatMap((candidate) => Object.keys(tableOf(candidate)).filter((key) => key !== '*')),
+  )
+  const chanceFor = (subtype: string | null): number => {
+    const noneAtAPoint = candidates.reduce((product, candidate) => {
+      const probability = isRecord(candidate.probabilityByHeroType)
+        ? probabilityFor(candidate, subtype)
+        : null
+      return product * (1 - (isProbability(probability) ? (probability ?? 0) : 0))
+    }, 1)
+    return 1 - noneAtAPoint ** points
+  }
+  const highest = Math.max(0, ...[null, ...subtypes].map(chanceFor))
+
+  return Math.round(highest * 10_000) / 10_000
+}
+
 /** El subtipo del perfil congelado del heroe; Missions no lee nada mas de el. */
 export const heroSubtypeOf = (profile: Readonly<Record<string, unknown>> | null): string | null =>
   isText(profile?.subtype) ? profile.subtype : null

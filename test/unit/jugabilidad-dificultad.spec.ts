@@ -78,12 +78,17 @@ describe('La dificultad cambia la composicion y las recompensas (P-J8)', () => {
     expect(bossOf('MYTHIC').enrageAttackBonus).toBe(base + 4)
   })
 
-  it('el botin y el Master son mas probables, con tope en el 100 %', () => {
+  it('el botin es mas probable, con tope en el 100 %; el Master no cambia con el nivel', () => {
     expect(requestAt('HEROIC').bossDrops?.map((drop) => drop.probability)).toEqual([
       0.75, 0.25, 0.1875, 1,
     ])
     expect(requestAt('MYTHIC').bossDrops?.map((drop) => drop.probability)).toEqual([1, 0.4, 0.3, 1])
-    expect(requestAt('LEGENDARY').master?.candidates[0]?.probability).toBeCloseTo(0.225)
-    expect(requestAt('MYTHIC').master?.candidates[0]?.probability).toBeCloseTo(0.3)
+    // Decision del PO (2026-09-24): el Master aparece en el 15 % de las misiones.
+    for (const level of ['HEROIC', 'LEGENDARY', 'MYTHIC'] as const) {
+      expect(requestAt(level).master).toEqual(requestAt('NORMAL').master)
+    }
+    expect(
+      requestAt('MYTHIC').master?.candidates.map((candidate) => candidate.probability),
+    ).toEqual([0.15])
   })
 })

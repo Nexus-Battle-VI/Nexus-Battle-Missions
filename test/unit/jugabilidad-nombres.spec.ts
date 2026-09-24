@@ -40,9 +40,10 @@ const obtained = (epicRef: string, status: EpicCollectionEntry['status']): EpicC
   status,
 })
 
-describe('Album de epicas (P-J5)', () => {
-  const templo = linked(byId('msn_templo_olvidado'), ['toma-y-lleva', 'golpe-de-defensa'])
-  const camara = byId('msn_camara_sellada')
+describe('Album de epicas (P-J3)', () => {
+  const templo = linked(byId('msn_templo_olvidado'), ['toma-y-lleva'])
+  // La Hechicera queda sin producto: su epica no se promete.
+  const camara = linked(byId('msn_camara_sellada'), ['golpe-de-defensa'])
 
   it('lista cada epica entregable con su Master y su mision, y marca las que ya se tienen', () => {
     const album = epicAlbumOf(
@@ -66,6 +67,7 @@ describe('Album de epicas (P-J5)', () => {
       expect.objectContaining({
         epicRef: 'golpe-de-defensa',
         masterName: 'Coloso de Obsidiana',
+        missionId: 'msn_camara_sellada',
         // Una entrega fallida no cuenta como obtenida.
         obtained: false,
       }),
@@ -73,13 +75,13 @@ describe('Album de epicas (P-J5)', () => {
   })
 
   it('una epica en camino ya cuenta, y la misma epica en dos misiones sale una vez', () => {
-    const otra: MissionDefinition = { ...templo, missionId: 'msn_otra', name: 'Otra' }
+    const otra: MissionDefinition = { ...camara, missionId: 'msn_otra', name: 'Otra' }
 
-    const album = epicAlbumOf([templo, otra], [obtained('golpe-de-defensa', 'PENDING')])
+    const album = epicAlbumOf([templo, camara, otra], [obtained('golpe-de-defensa', 'PENDING')])
 
     expect(album.map((entry) => [entry.epicRef, entry.missionId, entry.obtained])).toEqual([
       ['toma-y-lleva', 'msn_templo_olvidado', false],
-      ['golpe-de-defensa', 'msn_templo_olvidado', true],
+      ['golpe-de-defensa', 'msn_camara_sellada', true],
     ])
   })
 

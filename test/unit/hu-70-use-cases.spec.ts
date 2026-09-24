@@ -526,10 +526,7 @@ describe('GetMissionDetail (Task HU-70.2)', () => {
       masterEncounter: {
         probability: 0.15,
         // P-J2: sin producto en Catalog la epica no se promete; el Master aparece igual.
-        candidates: [
-          { name: 'Sombra del Olvido', epic: null },
-          { name: 'Coloso de Obsidiana', epic: null },
-        ],
+        candidates: [{ name: 'Sombra del Olvido', epic: null }],
       },
       playerStatus: 'AVAILABLE',
       canEnroll: true,
@@ -578,12 +575,24 @@ describe('GetMissionDetail (Task HU-70.2)', () => {
 
     expect(detail.masterEncounter.candidates.map((candidate) => candidate.epic?.name)).toEqual([
       'Toma y lleva',
-      'Golpe de defensa',
     ])
     expect(detail.rewards.potential).toEqual([
       { label: 'Fragmento del Sello Antiguo', probability: 0.6, rolls: 3 },
       { label: 'Armadura «Piel del Guardián»', probability: 0.2, rolls: 1 },
     ])
+  })
+
+  it('la probabilidad es la de que aparezca algun Master en la mision: el 15 % del PO', async () => {
+    const context = setup()
+    const chanceOf = async (missionId: string) =>
+      (await context.detail.execute('sub-1', missionId)).masterEncounter
+
+    // Dos candidatos al 7,8 % cada uno: 1 - 0,922 x 0,922.
+    expect(await chanceOf('msn_camara_sellada')).toMatchObject({
+      probability: 0.1499,
+      candidates: [{ name: 'Hechicera del Sello' }, { name: 'Coloso de Obsidiana' }],
+    })
+    expect((await chanceOf('msn_travesia_bosque')).probability).toBe(0.15)
   })
 
   it('una mision sin Master muestra probabilidad 0 y ningun candidato', async () => {

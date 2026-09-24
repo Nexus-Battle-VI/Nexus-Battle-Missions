@@ -130,7 +130,6 @@ describe('GET /api/v1/missions/:missionId/difficulties (Task HU-75.2)', () => {
         extraEnemiesPerEncounter: 0,
         bossEnrageBonus: 0,
         lootBonusPercent: 0,
-        masterBonusPercent: 0,
       },
       {
         difficulty: 'HEROIC',
@@ -141,7 +140,6 @@ describe('GET /api/v1/missions/:missionId/difficulties (Task HU-75.2)', () => {
         extraEnemiesPerEncounter: 1,
         bossEnrageBonus: 0,
         lootBonusPercent: 25,
-        masterBonusPercent: 25,
       },
       {
         difficulty: 'LEGENDARY',
@@ -152,7 +150,6 @@ describe('GET /api/v1/missions/:missionId/difficulties (Task HU-75.2)', () => {
         extraEnemiesPerEncounter: 1,
         bossEnrageBonus: 2,
         lootBonusPercent: 50,
-        masterBonusPercent: 50,
       },
       {
         difficulty: 'MYTHIC',
@@ -163,7 +160,6 @@ describe('GET /api/v1/missions/:missionId/difficulties (Task HU-75.2)', () => {
         extraEnemiesPerEncounter: 2,
         bossEnrageBonus: 4,
         lootBonusPercent: 100,
-        masterBonusPercent: 100,
       },
     ])
   })

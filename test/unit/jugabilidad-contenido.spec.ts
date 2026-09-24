@@ -4,7 +4,12 @@ import {
   type StoredMission,
 } from '../../src/adapters/outbound/persistence/content-upgrade-v2'
 import { EXAMPLE_MISSIONS } from '../../src/adapters/outbound/persistence/example-missions'
-import type { MissionDefinition } from '../../src/domain/entities/MissionDefinition'
+import type {
+  MasterCandidate,
+  MasterEncounter,
+  MissionDefinition,
+} from '../../src/domain/entities/MissionDefinition'
+import { masterAppearanceChanceOf } from '../../src/domain/policies/MasterPolicy'
 import { missionDefinitionOf } from '../../src/domain/policies/MissionContentPolicy'
 import { EXAMPLE_MISSIONS_V1 } from '../support/example-missions-v1'
 
@@ -111,10 +116,8 @@ describe('Contenido v2 sobre lo sembrado en v1 (P-J9)', () => {
       '7c935118-290e-4419-b215-475efe206a4d',
       '7c935118-290e-4419-b215-475efe206a4d',
     ])
-    expect(candidates.map((candidate) => candidate.masterRef)).toEqual([
-      'sombra-del-olvido',
-      'coloso-de-obsidiana',
-    ])
+    // El Templo solo trae a la Sombra: el Coloso vive en la Camara (15 % por mision).
+    expect(candidates.map((candidate) => candidate.masterRef)).toEqual(['sombra-del-olvido'])
     expect(record(candidates[0]?.epic).productId).toBe(PRODUCT)
     expect(record(candidates[0]?.profile).attack).toBe(8)
   })
@@ -180,7 +183,7 @@ describe('Contenido v2 sobre lo sembrado en v1 (P-J9)', () => {
   })
 })
 
-describe('Contenido v2 (P-J5)', () => {
+describe('Contenido v2 (P-J3 y P-J9)', () => {
   it('cada epica oficial de la Tabla 20 la entrega exactamente un Master', () => {
     const epics = EXAMPLE_MISSIONS.flatMap(
       (mission) => mission.masterEncounter?.candidates.map((candidate) => candidate.epic) ?? [],
@@ -198,7 +201,7 @@ describe('Contenido v2 (P-J5)', () => {
     ])
   })
 
-  it('cada Master es del tipo de heroe de su epica y aparece mas para ese tipo', () => {
+  it('cada Master es del tipo de heroe de su epica', () => {
     const SUBTYPE_OF_EPIC: Readonly<Record<string, string>> = {
       'golpe-de-defensa': 'GUERRERO_TANQUE',
       'segundo-impulso': 'GUERRERO_ARMAS',
@@ -213,10 +216,31 @@ describe('Contenido v2 (P-J5)', () => {
     for (const mission of EXAMPLE_MISSIONS) {
       for (const candidate of mission.masterEncounter?.candidates ?? []) {
         expect(candidate.subtype).toBe(SUBTYPE_OF_EPIC[candidate.epic.epicRef])
-        const own = candidate.probabilityByHeroType[candidate.subtype]
-        const others = candidate.probabilityByHeroType['*'] ?? 0
-        expect(own ?? others).toBeGreaterThanOrEqual(others)
       }
+    }
+  })
+
+  it('decision del PO (2026-09-24): un Master aparece en el 15 % de las misiones', () => {
+    expect(
+      EXAMPLE_MISSIONS.map((mission) => [
+        mission.missionId,
+        masterAppearanceChanceOf(mission.masterEncounter),
+      ]),
+    ).toEqual([
+      ['msn_templo_olvidado', 0.15],
+      ['msn_camara_sellada', 0.1499],
+      ['msn_camino_templo', 0],
+      ['msn_arena_caidos', 0.1499],
+      ['msn_travesia_bosque', 0.15],
+    ])
+    // Igual para cualquier heroe, en un solo punto y con una sola aparicion: la
+    // probabilidad que ve el jugador en cada Master es la de verdad.
+    for (const mission of EXAMPLE_MISSIONS) {
+      for (const candidate of mission.masterEncounter?.candidates ?? []) {
+        expect(Object.keys(candidate.probabilityByHeroType)).toEqual(['*'])
+      }
+      expect(mission.masterEncounter?.evaluationPoints.length ?? 1).toBe(1)
+      expect(mission.masterEncounter?.maxAppearances ?? 1).toBe(1)
     }
   })
 
@@ -240,5 +264,51 @@ describe('Contenido v2 (P-J5)', () => {
       'mision-arena-caidos',
       'mision-travesia-bosque',
     ])
+  })
+})
+
+describe('Probabilidad de que aparezca un Master en la mision', () => {
+  const sombra = byId(EXAMPLE_MISSIONS, 'msn_templo_olvidado').masterEncounter!.candidates[0]!
+  const candidate = (
+    masterRef: string,
+    probabilityByHeroType: Readonly<Record<string, number>>,
+  ): MasterCandidate => ({ ...sombra, masterRef, probabilityByHeroType })
+  const encounterOf = (
+    candidates: readonly MasterCandidate[],
+    points: readonly number[] = [1],
+  ): MasterEncounter => ({
+    evaluationPoints: points.map((afterEncounter) => ({ afterEncounter })),
+    maxAppearances: 1,
+    candidates,
+  })
+
+  it('con tablas por tipo de heroe da la del tipo mas favorecido', () => {
+    const config = encounterOf([
+      candidate('uno', { '*': 0.1 }),
+      candidate('dos', { '*': 0.05, MAGO_HIELO: 0.3 }),
+    ])
+
+    // Mago Hielo: 1 - 0,9 x 0,7. Cualquier otro: 1 - 0,9 x 0,95.
+    expect(masterAppearanceChanceOf(config)).toBe(0.37)
+  })
+
+  it('cada punto de evaluacion es otra oportunidad', () => {
+    expect(masterAppearanceChanceOf(encounterOf([candidate('uno', { '*': 0.1 })], [1, 2]))).toBe(
+      0.19,
+    )
+  })
+
+  it('sin Master, sin puntos o con contenido roto es 0', () => {
+    expect(masterAppearanceChanceOf(null)).toBe(0)
+    expect(masterAppearanceChanceOf(encounterOf([candidate('uno', { '*': 0.1 })], []))).toBe(0)
+    expect(masterAppearanceChanceOf({ ...encounterOf([]), candidates: 'roto' as never })).toBe(0)
+    expect(
+      masterAppearanceChanceOf(
+        encounterOf([
+          { ...sombra, probabilityByHeroType: 'roto' as never },
+          candidate('fuera-de-rango', { '*': 2 }),
+        ]),
+      ),
+    ).toBe(0)
   })
 })

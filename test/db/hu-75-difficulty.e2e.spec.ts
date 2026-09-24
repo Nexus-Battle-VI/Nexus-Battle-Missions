@@ -62,13 +62,13 @@ const LOCK_REASON: Readonly<Record<DifficultyLevel, string | null>> = {
 
 /**
  * Por nivel: factor, tabla y lo que P-J8 cambia (enemigos de mas por encuentro,
- * ataque de mas del jefe, y la mejora del botin y del Master en porcentaje).
+ * ataque de mas del jefe y la mejora del botin en porcentaje).
  */
 const SCALING = [
-  ['NORMAL', 1, 'STANDARD', 0, 0, 0, 0],
-  ['HEROIC', 1.5, 'IMPROVED', 1, 0, 25, 25],
-  ['LEGENDARY', 2, 'PREMIUM', 1, 2, 50, 50],
-  ['MYTHIC', 2.5, 'EXCLUSIVE', 2, 4, 100, 100],
+  ['NORMAL', 1, 'STANDARD', 0, 0, 0],
+  ['HEROIC', 1.5, 'IMPROVED', 1, 0, 25],
+  ['LEGENDARY', 2, 'PREMIUM', 1, 2, 50],
+  ['MYTHIC', 2.5, 'EXCLUSIVE', 2, 4, 100],
 ] as const
 
 /** Cuerpo esperado cuando estan libres EXACTAMENTE los niveles indicados. */
@@ -82,7 +82,6 @@ const expectedBody = (missionId: string, unlocked: readonly DifficultyLevel[]) =
       extraEnemiesPerEncounter,
       bossEnrageBonus,
       lootBonusPercent,
-      masterBonusPercent,
     ]) => {
       const free = unlocked.includes(difficulty)
 
@@ -95,7 +94,6 @@ const expectedBody = (missionId: string, unlocked: readonly DifficultyLevel[]) =
         extraEnemiesPerEncounter,
         bossEnrageBonus,
         lootBonusPercent,
-        masterBonusPercent,
       }
     },
   ),

@@ -224,8 +224,9 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
       },
     ],
     // Contrato de HU-73: el curso da 0.15 para la Sombra del Olvido y no fija el
-    // punto; se evalua tras el tercer encuentro. P-J3: cada Master entrega la epica
-    // oficial de su tipo de heroe, y el Coloso aparece mas para un Guerrero Tanque.
+    // punto; se evalua tras el tercer encuentro. Es tambien la decision del PO
+    // (2026-09-24): un Master aparece en el 15 % de las misiones. P-J3: entrega la
+    // epica oficial de su tipo de heroe.
     masterEncounter: {
       evaluationPoints: [{ afterEncounter: 3 }],
       maxAppearances: 1,
@@ -244,21 +245,6 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
           },
           probabilityByHeroType: { '*': 0.15 },
           epic: EPICS.TOMA_Y_LLEVA,
-        },
-        {
-          masterRef: 'coloso-de-obsidiana',
-          name: 'Coloso de Obsidiana',
-          subtype: 'GUERRERO_TANQUE',
-          levelOffset: 2,
-          profile: {
-            maxHealth: 50,
-            attack: 6,
-            defense: 8,
-            damage: { mode: 'DICE', count: 1, sides: 6 },
-            ai: 'GUARDED',
-          },
-          probabilityByHeroType: { '*': 0.05, GUERRERO_TANQUE: 0.15 },
-          epic: EPICS.GOLPE_DE_DEFENSA,
         },
       ],
     },
@@ -302,7 +288,7 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
       },
       {
         id: 'obj_master',
-        text: 'Derrotar a la Hechicera del Sello si aparece.',
+        text: 'Derrotar al Máster si aparece.',
         primary: false,
         rule: { type: 'DEFEAT_MASTER' },
       },
@@ -360,6 +346,9 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
         enemies: [{ enemyRef: 'custodio-del-sello', count: 1 }],
       },
     ],
+    // Decision del PO (2026-09-24): un Master aparece en el 15 % de las misiones.
+    // Combat prueba a los candidatos en orden y saca como mucho uno por punto, asi
+    // que 7,8 % cada uno da el 15 % entre los dos.
     masterEncounter: {
       evaluationPoints: [{ afterEncounter: 2 }],
       maxAppearances: 1,
@@ -376,8 +365,23 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
             damage: { mode: 'DICE', count: 1, sides: 6 },
             ai: 'AGGRESSIVE',
           },
-          probabilityByHeroType: { '*': 0.1, MAGO_HIELO: 0.2 },
+          probabilityByHeroType: { '*': 0.078 },
           epic: EPICS.FRIO_CONCENTRADO,
+        },
+        {
+          masterRef: 'coloso-de-obsidiana',
+          name: 'Coloso de Obsidiana',
+          subtype: 'GUERRERO_TANQUE',
+          levelOffset: 2,
+          profile: {
+            maxHealth: 50,
+            attack: 6,
+            defense: 8,
+            damage: { mode: 'DICE', count: 1, sides: 6 },
+            ai: 'GUARDED',
+          },
+          probabilityByHeroType: { '*': 0.078 },
+          epic: EPICS.GOLPE_DE_DEFENSA,
         },
       ],
     },
@@ -607,8 +611,10 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
         enemies: [{ enemyRef: 'varkas-el-invicto', count: 1 }],
       },
     ],
+    // Un solo punto, tras la segunda oleada: 7,8 % cada uno da el 15 % por mision
+    // que fijo el PO (2026-09-24).
     masterEncounter: {
-      evaluationPoints: [{ afterEncounter: 2 }, { afterEncounter: 3 }],
+      evaluationPoints: [{ afterEncounter: 2 }],
       maxAppearances: 1,
       candidates: [
         {
@@ -623,7 +629,7 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
             damage: { mode: 'DICE', count: 1, sides: 6 },
             ai: 'AGGRESSIVE',
           },
-          probabilityByHeroType: { '*': 0.05, GUERRERO_ARMAS: 0.12 },
+          probabilityByHeroType: { '*': 0.078 },
           epic: EPICS.SEGUNDO_IMPULSO,
         },
         {
@@ -638,7 +644,7 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
             damage: { mode: 'DICE', count: 1, sides: 6 },
             ai: 'AGGRESSIVE',
           },
-          probabilityByHeroType: { '*': 0.05, PICARO_MACHETE: 0.12 },
+          probabilityByHeroType: { '*': 0.078 },
           epic: EPICS.INTIMIDACION_SANGRIENTA,
         },
       ],
@@ -801,10 +807,11 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
         enemies: [{ enemyRef: 'bruja-del-pantano', count: 1 }],
       },
     ],
-    // 7.8.4: en misiones largas pueden aparecer varios Master.
+    // Tres Master posibles (7.8.4) en un solo punto, a mitad del bosque: 5,3 % cada
+    // uno da el 15 % por mision que fijo el PO (2026-09-24).
     masterEncounter: {
-      evaluationPoints: [{ afterEncounter: 2 }, { afterEncounter: 4 }, { afterEncounter: 6 }],
-      maxAppearances: 2,
+      evaluationPoints: [{ afterEncounter: 4 }],
+      maxAppearances: 1,
       candidates: [
         {
           masterRef: 'llama-salvaje',
@@ -818,7 +825,7 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
             damage: { mode: 'DICE', count: 1, sides: 8 },
             ai: 'AGGRESSIVE',
           },
-          probabilityByHeroType: { '*': 0.03, MAGO_FUEGO: 0.12 },
+          probabilityByHeroType: { '*': 0.05275 },
           epic: EPICS.LUZ_CEGADORA,
         },
         {
@@ -833,7 +840,7 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
             damage: { mode: 'DICE', count: 1, sides: 6 },
             ai: 'GUARDED',
           },
-          probabilityByHeroType: { '*': 0.03, CHAMAN: 0.12 },
+          probabilityByHeroType: { '*': 0.05275 },
           epic: EPICS.TE_CHANGUA,
         },
         {
@@ -848,7 +855,7 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
             damage: { mode: 'DICE', count: 1, sides: 6 },
             ai: 'GUARDED',
           },
-          probabilityByHeroType: { '*': 0.03, MEDICO: 0.12 },
+          probabilityByHeroType: { '*': 0.05275 },
           epic: EPICS.REANIMADOR_3000,
         },
       ],

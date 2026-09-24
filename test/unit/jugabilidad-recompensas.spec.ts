@@ -65,11 +65,10 @@ describe('Recompensas que ve el jugador (P-J2)', () => {
     expect(deliverableHighlightsOf(TEMPLO)).toEqual([
       { label: 'Experiencia por cada enemigo derrotado' },
     ])
-    // El Templo tiene dos Master posibles: la Sombra del Olvido y el Coloso de Obsidiana.
+    // El Templo tiene un Master posible, la Sombra del Olvido, como el ejemplo del curso.
     expect(deliverableHighlightsOf(linked())).toEqual([
       { label: 'Experiencia por cada enemigo derrotado' },
       { label: 'Épica posible: Toma y lleva' },
-      { label: 'Épica posible: Golpe de defensa' },
       { label: 'Fragmento del Sello Antiguo' },
       { label: 'Armadura «Piel del Guardián»' },
     ])

@@ -711,7 +711,8 @@ describe('Logros de misiones (Task HU-76.2)', () => {
           ),
           active: false,
         },
-        // Valida, con el Master del ejemplo: la Hechicera del Sello y su epica.
+        // Valida, con los Master del contenido: la Hechicera del Sello y el Coloso de
+        // Obsidiana, cada uno con su epica.
         { ...CAMARA, category: 'CHALLENGE' },
       ])
 
@@ -721,8 +722,8 @@ describe('Logros de misiones (Task HU-76.2)', () => {
           CHALLENGE: [CAMARA_ID],
           EXPLORATION: [],
         },
-        availableMasters: ['gemelo', 'hechicera-del-sello', SOMBRA],
-        masterEpics: ['frio-concentrado', VELO],
+        availableMasters: ['coloso-de-obsidiana', 'gemelo', 'hechicera-del-sello', SOMBRA],
+        masterEpics: ['frio-concentrado', 'golpe-de-defensa', VELO],
       })
     })
 

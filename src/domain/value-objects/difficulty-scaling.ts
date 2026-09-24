@@ -25,13 +25,13 @@ export interface DifficultyScaling {
    * Diseno «misiones jugables», P-J8: cada nivel cambia tambien QUE se enfrenta y
    * QUE se gana, no solo las estadisticas. Enemigos de mas en cada encuentro
    * regular (mas experiencia), ataque de mas del jefe enfurecido, y mas
-   * probabilidad de botin y de Master (con tope en el 100 %). Propuesta del equipo,
-   * pendiente del PO: el curso solo fija el porcentaje de estadisticas (7.8.11).
+   * probabilidad de botin (con tope en el 100 %). Propuesta del equipo: el curso
+   * solo fija el porcentaje de estadisticas (7.8.11). El Master no cambia con el
+   * nivel: el PO fijo un 15 % por mision (decision del 2026-09-24).
    */
   readonly extraEnemiesPerEncounter: number
   readonly bossEnrageBonus: number
   readonly lootProbabilityMultiplier: number
-  readonly masterProbabilityMultiplier: number
 }
 
 const SCALING: Readonly<Record<DifficultyLevel, DifficultyScaling>> = {
@@ -42,7 +42,6 @@ const SCALING: Readonly<Record<DifficultyLevel, DifficultyScaling>> = {
     extraEnemiesPerEncounter: 0,
     bossEnrageBonus: 0,
     lootProbabilityMultiplier: 1,
-    masterProbabilityMultiplier: 1,
   },
   HEROIC: {
     difficulty: 'HEROIC',
@@ -51,7 +50,6 @@ const SCALING: Readonly<Record<DifficultyLevel, DifficultyScaling>> = {
     extraEnemiesPerEncounter: 1,
     bossEnrageBonus: 0,
     lootProbabilityMultiplier: 1.25,
-    masterProbabilityMultiplier: 1.25,
   },
   LEGENDARY: {
     difficulty: 'LEGENDARY',
@@ -60,7 +58,6 @@ const SCALING: Readonly<Record<DifficultyLevel, DifficultyScaling>> = {
     extraEnemiesPerEncounter: 1,
     bossEnrageBonus: 2,
     lootProbabilityMultiplier: 1.5,
-    masterProbabilityMultiplier: 1.5,
   },
   MYTHIC: {
     difficulty: 'MYTHIC',
@@ -69,7 +66,6 @@ const SCALING: Readonly<Record<DifficultyLevel, DifficultyScaling>> = {
     extraEnemiesPerEncounter: 2,
     bossEnrageBonus: 4,
     lootProbabilityMultiplier: 2,
-    masterProbabilityMultiplier: 2,
   },
 }
 

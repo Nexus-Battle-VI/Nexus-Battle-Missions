@@ -123,15 +123,13 @@ describe('Contenido v2 en PostgreSQL (migracion 012, P-J9)', () => {
         candidate.masterRef,
         candidate.epic.productId,
       ]),
-    ).toEqual([
-      ['sombra-del-olvido', TOMA_Y_LLEVA],
-      ['coloso-de-obsidiana', null],
-    ])
+    ).toEqual([['sombra-del-olvido', TOMA_Y_LLEVA]])
 
     const upgraded = missions.find((mission) => mission.missionId === 'msn_camara_sellada')
     expect(upgraded?.summary).toBe('Resumen del administrador.')
     expect(upgraded?.masterEncounter?.candidates.map((candidate) => candidate.masterRef)).toEqual([
       'hechicera-del-sello',
+      'coloso-de-obsidiana',
     ])
     expect(upgraded?.objectives.map((objective) => objective.id)).toEqual([
       'obj_sello',

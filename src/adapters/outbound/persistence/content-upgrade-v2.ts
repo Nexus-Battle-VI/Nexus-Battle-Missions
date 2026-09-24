@@ -57,9 +57,9 @@ export const UPGRADED_IN_V2: readonly string[] = ['msn_templo_olvidado', 'msn_ca
 
 /**
  * El Master del Templo en v2: la Sombra del Olvido con perfil de verdadero rival y
- * el Coloso de Obsidiana. Solo si el Templo conserva la Sombra sembrada en v1. Si
- * su epica ya se enlazo a un producto (el runbook la cambia por «Toma y lleva»),
- * se conserva tal cual.
+ * su epica oficial. Solo si el Templo conserva la Sombra sembrada en v1. Si su
+ * epica ya se enlazo a un producto (el runbook la cambia por «Toma y lleva»), se
+ * conserva tal cual.
  */
 const upgradedTempleMaster = (current: unknown, target: MissionDefinition): Json | null => {
   if (!isRecord(current) || !Array.isArray(current.candidates) || target.masterEncounter === null) {

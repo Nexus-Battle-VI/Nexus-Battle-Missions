@@ -61,12 +61,6 @@ export class MissionDifficultyItemDto {
     description: 'P-J8: cuanto sube la probabilidad del botin del jefe, en porcentaje.',
   })
   lootBonusPercent!: number
-
-  @ApiProperty({
-    example: 25,
-    description: 'P-J8: cuanto sube la probabilidad de que aparezca un Master, en porcentaje.',
-  })
-  masterBonusPercent!: number
 }
 
 /** Web -> Missions, `GET /api/v1/missions/{missionId}/difficulties` (hu-75-mission-difficulty-v1). */

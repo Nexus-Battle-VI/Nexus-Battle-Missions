@@ -30,14 +30,13 @@ describe('Descriptor de escalado (HU-75, CA-02 y CA-04)', () => {
           scaling.extraEnemiesPerEncounter,
           scaling.bossEnrageBonus,
           scaling.lootProbabilityMultiplier,
-          scaling.masterProbabilityMultiplier,
         ]
       }),
     ).toEqual([
-      [0, 0, 1, 1],
-      [1, 0, 1.25, 1.25],
-      [1, 2, 1.5, 1.5],
-      [2, 4, 2, 2],
+      [0, 0, 1],
+      [1, 0, 1.25],
+      [1, 2, 1.5],
+      [2, 4, 2],
     ])
   })
 

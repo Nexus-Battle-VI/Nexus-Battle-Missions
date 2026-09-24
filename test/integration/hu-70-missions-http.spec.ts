@@ -255,10 +255,7 @@ describe('Tablón, detalle y matrícula por HTTP (Task HU-70.2)', () => {
         masterEncounter: {
           probability: 0.15,
           // P-J2: sin producto, la epica no se promete.
-          candidates: [
-            { name: 'Sombra del Olvido', heroType: 'PICARO_VENENO', epic: null },
-            { name: 'Coloso de Obsidiana', heroType: 'GUERRERO_TANQUE', epic: null },
-          ],
+          candidates: [{ name: 'Sombra del Olvido', heroType: 'PICARO_VENENO', epic: null }],
         },
         // P-J2: solo lo que se entrega; los creditos, el cofre y el titulo esperan a HU-10.
         rewards: {

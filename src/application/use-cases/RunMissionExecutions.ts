@@ -127,18 +127,14 @@ const boosted = (probability: number, multiplier: number): number =>
  * Tambien la usa la estimacion de exito (P-J7), que no tiene matricula: por eso
  * recibe lo que necesita y no la matricula entera. El nivel de dificultad cambia
  * la composicion y las recompensas (P-J8): enemigos de mas en cada encuentro
- * regular, ataque de mas del jefe enfurecido y mas probabilidad de botin y de
- * Master.
+ * regular, ataque de mas del jefe enfurecido y mas probabilidad de botin. La del
+ * Master no cambia: el PO la fijo por mision.
  */
 export const buildSimulationRequest = (input: SimulationRequestInput): SimulationRequest => {
   const { definition } = input
   const enemiesByRef = new Map(definition.enemies.map((enemy) => [enemy.enemyRef, enemy]))
   const boss = definition.finalBoss
   const scaling = scalingOf(input.difficulty)
-  const master =
-    definition.masterEncounter === null
-      ? null
-      : simulationMasterOf(definition.masterEncounter, heroSubtypeOf(input.heroProfile))
 
   return {
     schemaVersion: 1,
@@ -197,15 +193,9 @@ export const buildSimulationRequest = (input: SimulationRequestInput): Simulatio
         }),
     contentSnapshot: definition,
     master:
-      master === null
+      definition.masterEncounter === null
         ? null
-        : {
-            ...master,
-            candidates: master.candidates.map((candidate) => ({
-              ...candidate,
-              probability: boosted(candidate.probability, scaling.masterProbabilityMultiplier),
-            })),
-          },
+        : simulationMasterOf(definition.masterEncounter, heroSubtypeOf(input.heroProfile)),
   }
 }
 

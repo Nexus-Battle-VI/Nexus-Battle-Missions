@@ -16,8 +16,6 @@ export interface MissionDifficultyView {
   readonly bossEnrageBonus: number
   /** P-J8: cuanto sube la probabilidad del botin, en porcentaje (25 = +25 %). */
   readonly lootBonusPercent: number
-  /** P-J8: cuanto sube la probabilidad de que aparezca un Master, en porcentaje. */
-  readonly masterBonusPercent: number
 }
 
 /** Un multiplicador como porcentaje de mejora: 1.25 es +25 %. */
@@ -67,7 +65,6 @@ export class ListMissionDifficulties {
           extraEnemiesPerEncounter: scaling.extraEnemiesPerEncounter,
           bossEnrageBonus: scaling.bossEnrageBonus,
           lootBonusPercent: bonusPercent(scaling.lootProbabilityMultiplier),
-          masterBonusPercent: bonusPercent(scaling.masterProbabilityMultiplier),
         }
       }),
     }
