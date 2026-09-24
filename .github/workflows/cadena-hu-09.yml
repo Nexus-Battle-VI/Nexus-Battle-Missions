@@ -1,0 +1,117 @@
+name: Cadena HU-09
+
+# Cadena de experiencia de HU-09 de extremo a extremo (Task HU-09.6).
+#
+# POR QUE ES UN WORKFLOW APARTE Y NO UN JOB DE `ci.yml`. Esta comprobacion
+# necesita los TRES repositorios clonados juntos: Missions (este) y Combat y
+# Player/Inventory corriendo como procesos reales con su propio MongoDB. Eso no
+# cabe en la puerta de calidad de un repositorio, que solo se clona a si mismo, y
+# meterlo en `ci.yml` la volveria lenta y fragil para cualquier cambio. Aqui solo
+# se ejecuta cuando se toca la cadena, al integrar en `develop` y a mano.
+#
+# CONSECUENCIA, DICHA: se prueba contra `develop` de los dos repos hermanos, asi
+# que un rojo puede venir de uno de ellos. Los pasos estan separados por
+# repositorio para que el registro diga cual fallo.
+on:
+  pull_request:
+    paths:
+      - 'test/e2e/**'
+      - 'jest.e2e.config.ts'
+      - 'src/domain/policies/ExperienceRewardPolicy.ts'
+      - 'src/domain/entities/ExperienceReward.ts'
+      - 'src/domain/entities/MissionReport.ts'
+      - 'src/domain/policies/CombatLogPolicy.ts'
+      - 'src/domain/policies/ReportPolicy.ts'
+      - 'src/application/use-cases/CoordinateExperienceReward.ts'
+      - 'src/application/use-cases/RunMissionExecutions.ts'
+      - 'src/adapters/outbound/combat/**'
+      - 'src/adapters/outbound/inventory/**'
+      - 'src/adapters/outbound/persistence/**'
+      - 'src/infrastructure/**'
+      - '.github/workflows/cadena-hu-09.yml'
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24.19.0'
+  # Los dos servicios que la cadena ejerce de verdad. Se clonan DENTRO del espacio
+  # de trabajo de Missions (una ruta fuera de el no esta garantizada) y la suite
+  # los busca por estas variables.
+  COMBAT_DIR: combat-sibling
+  INVENTORY_DIR: inventory-sibling
+
+jobs:
+  cadena:
+    name: Cadena Missions + Combat + Player/Inventory
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout de Missions
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Checkout de Combat
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Nexus-Battle-VI/Nexus-Battle-Combat
+          ref: develop
+          path: ${{ env.COMBAT_DIR }}
+          persist-credentials: false
+
+      - name: Checkout de Player/Inventory
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Nexus-Battle-VI/Nexus-Battle-Player-Inventory
+          ref: develop
+          path: ${{ env.INVENTORY_DIR }}
+          persist-credentials: false
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Dependencias de Missions
+        run: npm ci
+
+      - name: Dependencias de Combat
+        run: npm ci
+        working-directory: ${{ env.COMBAT_DIR }}
+
+      - name: Dependencias de Player/Inventory
+        run: npm ci
+        working-directory: ${{ env.INVENTORY_DIR }}
+
+      # La suite compila a los hermanos si no encuentran su `dist`, pero hacerlo
+      # aqui deja el fallo (si lo hay) en su propio paso y con su propio nombre.
+      - name: Compilar Combat
+        run: npm run build
+        working-directory: ${{ env.COMBAT_DIR }}
+
+      - name: Compilar Player/Inventory
+        run: npm run build
+        working-directory: ${{ env.INVENTORY_DIR }}
+
+      - name: Cadena de extremo a extremo
+        run: npm run test:e2e:chain
+        env:
+          HU09_E2E_COMBAT_DIR: ${{ github.workspace }}/${{ env.COMBAT_DIR }}
+          HU09_E2E_PLAYER_INVENTORY_DIR: ${{ github.workspace }}/${{ env.INVENTORY_DIR }}
+
+      - name: Publicar el reporte de ejecucion
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cadena-hu-09-ejecucion
+          path: test/e2e/out/
+          retention-days: 30

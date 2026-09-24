@@ -107,6 +107,46 @@ derrota**, más un bloque `experience` agregado.
 El contrato del reporte sigue siendo `hu-74-mission-report-v1`, con el bloque nuevo;
 su forma se documenta en `docs/hu-74-reporte.md`.
 
+## Verificación de extremo a extremo (Task HU-09.6)
+
+`npm run test:e2e:chain` recorre **la cadena completa con las tres piezas reales**: la app
+de Missions en proceso con PostgreSQL real, y **Combat y Player/Inventory como procesos
+reales** (`node dist/main.js`, cada uno con su MongoDB real en réplica). Comprueba lo que
+ninguna Task probó por separado: que la tirada que produjo Combat es la que usó Missions,
+que el importe que calculó Missions es el que acreditó Player/Inventory, y que un
+reintento en cualquier punto no duplica nada.
+
+**Por qué procesos y no importaciones.** HU-23 intentó levantar dos `AppModule` de repos
+distintos en el mismo proceso de Jest y no se pudo (dos copias de `@nestjs/core` y sus
+guards globales). Aquí no se importa nada de los repos hermanos: se compilan y se arrancan
+como procesos, y lo único que cruza es HTTP firmado, que es justo lo que se prueba.
+
+**Dónde y cómo.** La suite vive en `test/e2e/`, en su propia configuración
+(`jest.e2e.config.ts`), y **no** entra en `npm test` ni en `test:db`: quien trabaja en el
+dominio no debería necesitar Docker ni dos repos hermanos compilados. Necesita los tres
+repos clonados juntos (por defecto `../Nexus-Battle-Combat` y
+`../Nexus-Battle-Player-Inventory`, o `HU09_E2E_COMBAT_DIR` y
+`HU09_E2E_PLAYER_INVENTORY_DIR`) y Docker. El workflow `cadena-hu-09.yml` los clona y la
+ejecuta; el reporte de ejecución queda en `test/e2e/out/hu-09-ejecucion-e2e.json`.
+
+**Qué se sustituye, y se declara:** el resultado de la simulación de Combat (todavía no
+produce bitácoras: su ingreso responde `503`), el perfil y el compromiso del héroe, el
+testimonio del jugador, y en el escenario de los ocho valores de `1d8` el puerto de tirada
+(con la acreditación real). El reloj **no** se sustituye: los sellos HMAC caducan a los
+30 s, así que el tiempo se maneja con dos datos de partida — la ventana de la matrícula se
+desplaza al pasado y el escalonado de reintento se vence escribiendo `next_attempt_at`.
+
+**Casos:** S-00 las tres piezas reales; S-01 la cadena completa con tiradas reales; S-02
+los ocho valores del contrato acreditados; S-03 subida de uno, de varios y nivel máximo sin
+descarte; S-04 idempotencia del cierre; S-05 replay de la acreditación; S-06 `409` en las
+dos fronteras; S-07 `CA-08`; S-08 dos derrotas del mismo arquetipo; S-09 recuperación de una
+tirada sin acreditar; S-10 auditoría cruzada y controles del informe; S-11 las guardas de
+no-duplicación, que se ejecutan sobre el commit que se está probando.
+
+La evidencia publicable vive en
+`Nexus-Battle-Infrastructure/docs/evidence/HU-09-verificacion-extremo-a-extremo.md`, con la
+tabla de qué piezas fueron reales y cuáles simuladas.
+
 ## Configuración
 
 `EXPERIENCE_REWARDS_DRIVER` (`memory` en desarrollo, `http` en producción),
