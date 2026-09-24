@@ -4,6 +4,7 @@ import type {
   EpicGrantStatus,
   MasterEncounterStatus,
 } from '../../../domain/entities/MasterEncounterRecord'
+import type { ExperienceRewardStatus } from '../../../domain/entities/ExperienceReward'
 import type { MissionDefinition } from '../../../domain/entities/MissionDefinition'
 import type {
   EnrollmentRejection,
@@ -47,6 +48,7 @@ export interface Database {
   readonly mission_reports: MissionReportsTable
   readonly mission_report_rewards: MissionReportRewardsTable
   readonly mission_master_encounters: MissionMasterEncountersTable
+  readonly mission_experience_rewards: MissionExperienceRewardsTable
 }
 
 /**
@@ -210,6 +212,31 @@ export interface MissionMasterEncountersTable {
   readonly granted_at: Date | null
   readonly reward_line_no: ColumnType<number | null, number | null, never>
   readonly grant_product_id: string | null
+}
+
+/**
+ * Recompensa de experiencia de UNA derrota (HU-09, migracion
+ * `007-experience-rewards`). La crea el cierre en su transaccion, `PENDING` y
+ * antes de pedir ninguna tirada; despues solo avanza su estado.
+ */
+export interface MissionExperienceRewardsTable {
+  readonly enrollment_id: ColumnType<string, string, never>
+  readonly encounter_id: ColumnType<string, string, never>
+  readonly enemy_instance_id: ColumnType<string, string, never>
+  readonly player_id: ColumnType<string, string, never>
+  readonly hero_id: ColumnType<string, string, never>
+  readonly simulation_id: ColumnType<string, string, never>
+  readonly rival_ref: ColumnType<string, string, never>
+  readonly status: ExperienceRewardStatus
+  /** Cara del dado de Combat; `null` mientras no se haya pedido la tirada. */
+  readonly roll: number | null
+  /** Experiencia ya calculada y entera; `null` mientras no haya tirada. */
+  readonly amount: number | null
+  readonly attempts: ColumnType<number, number | undefined, number>
+  readonly next_attempt_at: Date | null
+  readonly last_error: string | null
+  readonly credited_at: Date | null
+  readonly created_at: ColumnType<Date, Date | undefined, never>
 }
 
 /** Hechos internos de Missions (`MissionEnrollmentStarted`); los consume HU-72. */

@@ -79,6 +79,15 @@ export interface AppConfig {
   readonly missionExecutionIntervalMs: number
   /** HU-73: entrega de epicas en Player/Inventory, con la misma URL y secreto que la reserva. */
   readonly epicGrantsDriver: IntegrationDriver
+  /**
+   * HU-09: tiradas en Combat y acreditaciones en Player/Inventory. Un solo driver
+   * para las dos llamadas porque son UNA operacion: tirar sin poder acreditar (o
+   * al reves) no deja el flujo en ningun estado util.
+   */
+  readonly experienceRewardsDriver: IntegrationDriver
+  /** HU-09: barrido de las recompensas no terminales. Apagado por defecto. */
+  readonly experienceRewardEnabled: boolean
+  readonly experienceRewardIntervalMs: number
   /** Misiones de ejemplo del curso, solo con persistencia en memoria. */
   readonly exampleCatalog: boolean
 }
@@ -239,6 +248,7 @@ export const loadConfig = (env: RawEnv): AppConfig => {
   const heroAbilitiesDriver = readIntegrationDriver('HERO_ABILITIES_DRIVER')
   const combatSimulationDriver = readIntegrationDriver('COMBAT_SIMULATION_DRIVER')
   const epicGrantsDriver = readIntegrationDriver('EPIC_GRANTS_DRIVER')
+  const experienceRewardsDriver = readIntegrationDriver('EXPERIENCE_REWARDS_DRIVER')
 
   const exampleCatalog = readBoolean(env, 'MISSIONS_EXAMPLE_CATALOG', false)
 
@@ -303,6 +313,19 @@ export const loadConfig = (env: RawEnv): AppConfig => {
       3_600_000,
     ),
     epicGrantsDriver,
+    // HU-09 (Task HU-09.4): barrido de la recompensa de experiencia. Se reutilizan
+    // las URLs y el secreto que ya existen (`COMBAT_BASE_URL`,
+    // `PLAYER_INVENTORY_BASE_URL`, `INTERNAL_SERVICE_AUTH_SECRET`): la operacion
+    // habla con los mismos dos servicios que HU-72 y HU-73.
+    experienceRewardsDriver,
+    experienceRewardEnabled: readBoolean(env, 'EXPERIENCE_REWARD_ENABLED', false),
+    experienceRewardIntervalMs: readInteger(
+      env,
+      'EXPERIENCE_REWARD_INTERVAL_MS',
+      15_000,
+      1_000,
+      3_600_000,
+    ),
     exampleCatalog,
   }
 }
