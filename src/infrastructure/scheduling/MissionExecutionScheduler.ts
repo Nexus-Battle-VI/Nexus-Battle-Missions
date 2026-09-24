@@ -1,12 +1,13 @@
 import type { EvaluateMissionAchievements } from '../../application/use-cases/EvaluateMissionAchievements'
 import type { GrantAchievementRecognitions } from '../../application/use-cases/GrantAchievementRecognitions'
 import type { GrantMasterEpics } from '../../application/use-cases/GrantMasterEpics'
+import type { GrantMissionLoot } from '../../application/use-cases/GrantMissionLoot'
 import type { RunMissionExecutions } from '../../application/use-cases/RunMissionExecutions'
 import { describeError } from '../observability/describe-error'
 import type { Logger } from '../observability/logger'
 
 /** Los pasos del ciclo, en el orden en que corren; `step` en el registro de un fallo. */
-type CycleStep = 'executions' | 'epics' | 'achievements' | 'recognitions'
+type CycleStep = 'executions' | 'epics' | 'loot' | 'achievements' | 'recognitions'
 
 /**
  * Ejecuta el ciclo de HU-72 cada cierto intervalo (CU-72.1 a CU-72.3): programa,
@@ -36,6 +37,8 @@ export class MissionExecutionScheduler {
     private readonly epics: GrantMasterEpics | null = null,
     private readonly achievements: EvaluateMissionAchievements | null = null,
     private readonly recognitions: GrantAchievementRecognitions | null = null,
+    /** Diseno «misiones jugables», P-J1: la entrega del botin del jefe. */
+    private readonly loot: GrantMissionLoot | null = null,
   ) {}
 
   onModuleInit(): void {
@@ -81,6 +84,7 @@ export class MissionExecutionScheduler {
 
       await this.step('executions', summary, this.executions)
       await this.step('epics', summary, this.epics)
+      await this.step('loot', summary, this.loot)
       await this.step('achievements', summary, this.achievements)
       await this.step('recognitions', summary, this.recognitions)
 

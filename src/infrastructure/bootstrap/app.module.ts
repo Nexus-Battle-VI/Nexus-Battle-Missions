@@ -111,6 +111,14 @@ import {
 import { ENROLL_IN_MISSION, EnrollInMission } from '../../application/use-cases/EnrollInMission'
 import { GET_MISSION_DETAIL, GetMissionDetail } from '../../application/use-cases/GetMissionDetail'
 import { GRANT_MASTER_EPICS, GrantMasterEpics } from '../../application/use-cases/GrantMasterEpics'
+import { GRANT_MISSION_LOOT, GrantMissionLoot } from '../../application/use-cases/GrantMissionLoot'
+import { LOOT_GRANTS, type LootGrantPort } from '../../application/ports/LootGrantPort'
+import {
+  LOOT_GRANT_REPOSITORY,
+  type LootGrantRepositoryPort,
+} from '../../application/ports/LootGrantRepositoryPort'
+import { InMemoryLootGrantRepository } from '../../adapters/outbound/persistence/InMemoryLootGrantRepository'
+import { PostgresLootGrantRepository } from '../../adapters/outbound/persistence/PostgresLootGrantRepository'
 import {
   COORDINATE_EXPERIENCE_REWARD,
   CoordinateExperienceReward,
@@ -616,6 +624,7 @@ export const INTERNAL_CALLERS: readonly string[] = []
         reports: ReportRepositoryPort,
         masters: MasterEncounterRepositoryPort,
         experience: ExperienceRewardRepositoryPort,
+        loot: LootGrantRepositoryPort,
       ): ExecutionRepositoryPort => {
         if (usesPostgres(config, db)) {
           return new PostgresExecutionRepository(db)
@@ -644,6 +653,10 @@ export const INTERNAL_CALLERS: readonly string[] = []
           experience instanceof InMemoryExperienceRewardRepository
             ? experience
             : new InMemoryExperienceRewardRepository(reportsInMemory),
+          // P-J1: la entrega del botin lee de ESTE mismo doble lo que escribe el cierre.
+          loot instanceof InMemoryLootGrantRepository
+            ? loot
+            : new InMemoryLootGrantRepository(reportsInMemory),
         )
       },
       inject: [
@@ -654,6 +667,7 @@ export const INTERNAL_CALLERS: readonly string[] = []
         REPORT_REPOSITORY,
         MASTER_ENCOUNTER_REPOSITORY,
         EXPERIENCE_REWARD_REPOSITORY,
+        LOOT_GRANT_REPOSITORY,
       ],
     },
     // El perfil del heroe sale de la misma consulta a Player/Inventory que sus habilidades.
@@ -744,6 +758,7 @@ export const INTERNAL_CALLERS: readonly string[] = []
         epics: GrantMasterEpics,
         achievements: EvaluateMissionAchievements,
         recognitions: GrantAchievementRecognitions,
+        loot: GrantMissionLoot,
       ): MissionExecutionScheduler =>
         new MissionExecutionScheduler(
           executions,
@@ -753,6 +768,7 @@ export const INTERNAL_CALLERS: readonly string[] = []
           epics,
           achievements,
           recognitions,
+          loot,
         ),
       inject: [
         APP_CONFIG,
@@ -761,6 +777,49 @@ export const INTERNAL_CALLERS: readonly string[] = []
         GRANT_MASTER_EPICS,
         EVALUATE_MISSION_ACHIEVEMENTS,
         GRANT_ACHIEVEMENT_RECOGNITIONS,
+        GRANT_MISSION_LOOT,
+      ],
+    },
+    // --- Diseno «misiones jugables», P-J1: entrega del botin del jefe ---
+    {
+      provide: LOOT_GRANT_REPOSITORY,
+      useFactory: (
+        config: AppConfig,
+        db: Kysely<Database> | null,
+        reports: ReportRepositoryPort,
+      ): LootGrantRepositoryPort =>
+        usesPostgres(config, db)
+          ? new PostgresLootGrantRepository(db)
+          : new InMemoryLootGrantRepository(
+              reports instanceof InMemoryReportRepository ? reports : undefined,
+            ),
+      inject: [APP_CONFIG, DATABASE, REPORT_REPOSITORY],
+    },
+    // Mismo contrato de entregas de HU-59 y mismo cliente que la epica.
+    { provide: LOOT_GRANTS, useExisting: EPIC_GRANTS },
+    {
+      provide: GRANT_MISSION_LOOT,
+      useFactory: (
+        grants: LootGrantRepositoryPort,
+        enrollments: EnrollmentRepositoryPort,
+        catalog: MissionCatalogPort,
+        inventory: LootGrantPort,
+        clock: ClockPort,
+        logger: Logger,
+      ): GrantMissionLoot =>
+        new GrantMissionLoot(grants, enrollments, catalog, inventory, clock, {
+          batchSize: 50,
+          onError: (enrollmentId, error) => {
+            logger.warn('loot_grant_error', { enrollmentId, detail: describeError(error) })
+          },
+        }),
+      inject: [
+        LOOT_GRANT_REPOSITORY,
+        ENROLLMENT_REPOSITORY,
+        MISSION_CATALOG,
+        LOOT_GRANTS,
+        CLOCK,
+        LOGGER,
       ],
     },
     // --- HU-73: evidencia del Master y entrega de su epica ---

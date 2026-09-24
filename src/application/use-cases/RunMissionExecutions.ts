@@ -22,7 +22,8 @@ import {
   masterEncounterRecordsOf,
   simulationMasterOf,
 } from '../../domain/policies/MasterPolicy'
-import { missionReportOf, type ReportInput } from '../../domain/policies/ReportPolicy'
+import { lootRewardsOf } from '../../domain/policies/LootPolicy'
+import { lootOf, missionReportOf, type ReportInput } from '../../domain/policies/ReportPolicy'
 import {
   experienceReportLinesOf,
   experienceRewardsOf,
@@ -418,6 +419,27 @@ export class RunMissionExecutions {
       enemyNames: enemyNamesOf(definition),
       now,
     })
+    // P-J1: el botin del jefe se ENTREGA. Sus lineas `PRODUCT` van detras de las de
+    // HU-73 y HU-09, y cada una nace con su entrega pendiente.
+    const loot = lootRewardsOf({
+      enrollmentId: enrollment.enrollmentId,
+      loot: lootOf(result.summary.loot),
+      definition,
+      firstLineNo: epics.rewards.length + experienceReport.lines.length + 1,
+      now,
+    })
+    const report = this.reportFor(
+      {
+        enrollment,
+        definition,
+        result,
+        settlement,
+        heroProfile: execution.request?.hero.profile ?? null,
+        masters: epics.records,
+        generatedAt: now,
+      },
+      [...epics.rewards, ...experienceReport.lines, ...loot.rewards],
+    )
     const closed = await this.executions.close({
       enrollment: closeEnrollment(enrollment, settlement.outcome, now),
       enrollmentVersion: enrollment.version,
@@ -438,18 +460,9 @@ export class RunMissionExecutions {
       masters: epics.records,
       // HU-09: las recompensas de experiencia nacen con el cierre.
       experience: experienceReport.rewards,
-      report: this.reportFor(
-        {
-          enrollment,
-          definition,
-          result,
-          settlement,
-          heroProfile: execution.request?.hero.profile ?? null,
-          masters: epics.records,
-          generatedAt: now,
-        },
-        [...epics.rewards, ...experienceReport.lines],
-      ),
+      // P-J1: cada entrega apunta a su linea: sin reporte no hay a donde apuntar.
+      loot: report === null ? [] : loot.records,
+      report,
     })
 
     if (closed) {
@@ -501,6 +514,8 @@ export class RunMissionExecutions {
       // HU-09: ni recompensas de experiencia. Una anulacion no devenga nada
       // (CA-08): no hay resultado valido del que sacar derrotas.
       experience: [],
+      // P-J1: ni botin.
+      loot: [],
       // HU-74 (P-T3): una anulacion aparece en el historial sin reporte.
       report: null,
     })

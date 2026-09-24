@@ -12,6 +12,11 @@ export interface EpicGrantRequest {
   readonly playerId: string
   /** El producto de Catalog que representa la epica. */
   readonly productId: string
+  /**
+   * Unidades; 1 si falta. La epica y el cosmetico son siempre una; el botin del
+   * jefe puede traer varias (diseno «misiones jugables», P-J1).
+   */
+  readonly quantity?: number
 }
 
 export type EpicGrantOutcome =
