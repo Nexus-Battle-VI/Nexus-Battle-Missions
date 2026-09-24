@@ -12,7 +12,9 @@ import {
   type MissionExecution,
   type SimulationRequest,
 } from '../../domain/entities/MissionExecution'
+import type { DifficultyLevel } from '../../domain/value-objects/difficulty-level'
 import { scalingOf } from '../../domain/value-objects/difficulty-scaling'
+import type { Rotation } from '../../domain/value-objects/rotation'
 import { toIsoDuration } from '../../domain/value-objects/mission-category'
 import type { ReportRecord, ReportRewardLine } from '../../domain/entities/MissionReport'
 import {
@@ -22,7 +24,8 @@ import {
   masterEncounterRecordsOf,
   simulationMasterOf,
 } from '../../domain/policies/MasterPolicy'
-import { missionReportOf, type ReportInput } from '../../domain/policies/ReportPolicy'
+import { lootRewardsOf } from '../../domain/policies/LootPolicy'
+import { lootOf, missionReportOf, type ReportInput } from '../../domain/policies/ReportPolicy'
 import {
   experienceReportLinesOf,
   experienceRewardsOf,
@@ -97,12 +100,105 @@ const bossProfileOf = (boss: MissionBoss): Readonly<Record<string, unknown>> =>
     abilities: null,
   }
 
+/** Todo lo que hace falta para pedir una simulacion, con o sin matricula. */
+export interface SimulationRequestInput {
+  readonly operationId: string
+  readonly enrollmentId: string
+  readonly missionId: string
+  readonly difficulty: DifficultyLevel
+  readonly durationMinutes: number
+  readonly heroId: string
+  readonly heroProfile: Readonly<Record<string, unknown>>
+  readonly strategyVersion: number | null
+  readonly rotations: readonly Rotation[]
+  readonly definition: MissionDefinition
+}
+
+/** Una probabilidad mejorada por el nivel, sin pasar del 100 %. */
+const boosted = (probability: number, multiplier: number): number =>
+  Math.min(1, probability * multiplier)
+
 /**
  * Solicitud a Combat con lo que Missions tiene congelado (P-S4): la duracion y
  * las rotaciones de la matricula, la dificultad de HU-75 y los encuentros del
  * contenido. El bloque `master` lleva la probabilidad ya resuelta para el
  * subtipo del heroe (HU-73, P-X2).
+ *
+ * Tambien la usa la estimacion de exito (P-J7), que no tiene matricula: por eso
+ * recibe lo que necesita y no la matricula entera. El nivel de dificultad cambia
+ * la composicion y las recompensas (P-J8): enemigos de mas en cada encuentro
+ * regular, ataque de mas del jefe enfurecido y mas probabilidad de botin. La del
+ * Master no cambia: el PO la fijo por mision.
  */
+export const buildSimulationRequest = (input: SimulationRequestInput): SimulationRequest => {
+  const { definition } = input
+  const enemiesByRef = new Map(definition.enemies.map((enemy) => [enemy.enemyRef, enemy]))
+  const boss = definition.finalBoss
+  const scaling = scalingOf(input.difficulty)
+
+  return {
+    schemaVersion: 1,
+    operationId: input.operationId,
+    enrollmentId: input.enrollmentId,
+    missionId: input.missionId,
+    difficulty: input.difficulty,
+    enemyStatMultiplier:
+      definition.combatRules?.difficultyMultipliers?.[input.difficulty] ??
+      scaling.enemyStatMultiplier,
+    timeBudget: toIsoDuration(input.durationMinutes),
+    hero: { heroId: input.heroId, profile: input.heroProfile },
+    strategy: {
+      version: input.strategyVersion,
+      rotations: input.rotations,
+      fallback: 'BASIC_ATTACK',
+    },
+    encounters: definition.encounters.map((encounter) => ({
+      index: encounter.index,
+      kind: encounter.kind,
+      powerStep: encounter.powerStep,
+      enemies: encounter.enemies.map(({ enemyRef, count }, position) => {
+        if (enemyRef === boss.enemyRef) {
+          const profile = bossProfileOf(boss)
+          const enrage =
+            typeof profile.enrageAttackBonus === 'number' ? profile.enrageAttackBonus : 0
+          return {
+            enemyRef,
+            name: boss.name,
+            count,
+            profile:
+              scaling.bossEnrageBonus === 0
+                ? profile
+                : { ...profile, enrageAttackBonus: enrage + scaling.bossEnrageBonus },
+          }
+        }
+        // P-J8: los enemigos de mas se suman al primer grupo de cada encuentro regular.
+        const extra =
+          encounter.kind === 'REGULAR' && position === 0 ? scaling.extraEnemiesPerEncounter : 0
+        return {
+          enemyRef,
+          name: enemiesByRef.get(enemyRef)?.name ?? enemyRef,
+          count: count + extra,
+          profile: enemiesByRef.get(enemyRef)?.profile ?? null,
+        }
+      }),
+    })),
+    ...(definition.combatRules === undefined ? {} : { rules: definition.combatRules }),
+    ...(definition.finalBoss.drops === undefined
+      ? {}
+      : {
+          bossDrops: definition.finalBoss.drops.map((drop) => ({
+            ...drop,
+            probability: boosted(drop.probability, scaling.lootProbabilityMultiplier),
+          })),
+        }),
+    contentSnapshot: definition,
+    master:
+      definition.masterEncounter === null
+        ? null
+        : simulationMasterOf(definition.masterEncounter, heroSubtypeOf(input.heroProfile)),
+  }
+}
+
 export const simulationRequestFor = (
   execution: MissionExecution,
   enrollment: MissionEnrollment,
@@ -113,50 +209,18 @@ export const simulationRequestFor = (
     throw new Error(`La matricula ${enrollment.enrollmentId} no tiene inicio y fin.`)
   }
 
-  const enemiesByRef = new Map(definition.enemies.map((enemy) => [enemy.enemyRef, enemy]))
-  const boss = definition.finalBoss
-
-  return {
-    schemaVersion: 1,
+  return buildSimulationRequest({
     operationId: execution.operationId,
     enrollmentId: enrollment.enrollmentId,
     missionId: enrollment.missionId,
     difficulty: enrollment.difficulty,
-    enemyStatMultiplier:
-      definition.combatRules?.difficultyMultipliers?.[enrollment.difficulty] ??
-      scalingOf(enrollment.difficulty).enemyStatMultiplier,
-    timeBudget: toIsoDuration(
-      (enrollment.endsAt.getTime() - enrollment.startedAt.getTime()) / MINUTE_MS,
-    ),
-    hero: { heroId: enrollment.heroId, profile: heroProfile },
-    strategy: {
-      version: enrollment.strategyVersion,
-      rotations: enrollment.rotations,
-      fallback: 'BASIC_ATTACK',
-    },
-    encounters: definition.encounters.map((encounter) => ({
-      index: encounter.index,
-      kind: encounter.kind,
-      powerStep: encounter.powerStep,
-      enemies: encounter.enemies.map(({ enemyRef, count }) =>
-        enemyRef === boss.enemyRef
-          ? { enemyRef, name: boss.name, count, profile: bossProfileOf(boss) }
-          : {
-              enemyRef,
-              name: enemiesByRef.get(enemyRef)?.name ?? enemyRef,
-              count,
-              profile: enemiesByRef.get(enemyRef)?.profile ?? null,
-            },
-      ),
-    })),
-    ...(definition.combatRules === undefined ? {} : { rules: definition.combatRules }),
-    ...(definition.finalBoss.drops === undefined ? {} : { bossDrops: definition.finalBoss.drops }),
-    contentSnapshot: definition,
-    master:
-      definition.masterEncounter === null
-        ? null
-        : simulationMasterOf(definition.masterEncounter, heroSubtypeOf(heroProfile)),
-  }
+    durationMinutes: (enrollment.endsAt.getTime() - enrollment.startedAt.getTime()) / MINUTE_MS,
+    heroId: enrollment.heroId,
+    heroProfile,
+    strategyVersion: enrollment.strategyVersion,
+    rotations: enrollment.rotations,
+    definition,
+  })
 }
 
 /**
@@ -418,6 +482,27 @@ export class RunMissionExecutions {
       enemyNames: enemyNamesOf(definition),
       now,
     })
+    // P-J1: el botin del jefe se ENTREGA. Sus lineas `PRODUCT` van detras de las de
+    // HU-73 y HU-09, y cada una nace con su entrega pendiente.
+    const loot = lootRewardsOf({
+      enrollmentId: enrollment.enrollmentId,
+      loot: lootOf(result.summary.loot),
+      definition,
+      firstLineNo: epics.rewards.length + experienceReport.lines.length + 1,
+      now,
+    })
+    const report = this.reportFor(
+      {
+        enrollment,
+        definition,
+        result,
+        settlement,
+        heroProfile: execution.request?.hero.profile ?? null,
+        masters: epics.records,
+        generatedAt: now,
+      },
+      [...epics.rewards, ...experienceReport.lines, ...loot.rewards],
+    )
     const closed = await this.executions.close({
       enrollment: closeEnrollment(enrollment, settlement.outcome, now),
       enrollmentVersion: enrollment.version,
@@ -438,18 +523,9 @@ export class RunMissionExecutions {
       masters: epics.records,
       // HU-09: las recompensas de experiencia nacen con el cierre.
       experience: experienceReport.rewards,
-      report: this.reportFor(
-        {
-          enrollment,
-          definition,
-          result,
-          settlement,
-          heroProfile: execution.request?.hero.profile ?? null,
-          masters: epics.records,
-          generatedAt: now,
-        },
-        [...epics.rewards, ...experienceReport.lines],
-      ),
+      // P-J1: cada entrega apunta a su linea: sin reporte no hay a donde apuntar.
+      loot: report === null ? [] : loot.records,
+      report,
     })
 
     if (closed) {
@@ -501,6 +577,8 @@ export class RunMissionExecutions {
       // HU-09: ni recompensas de experiencia. Una anulacion no devenga nada
       // (CA-08): no hay resultado valido del que sacar derrotas.
       experience: [],
+      // P-J1: ni botin.
+      loot: [],
       // HU-74 (P-T3): una anulacion aparece en el historial sin reporte.
       report: null,
     })

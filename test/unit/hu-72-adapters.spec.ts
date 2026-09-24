@@ -345,6 +345,8 @@ describe('ScriptedCombatSimulation (HU-72)', () => {
       bossDefeated: true,
       minHealthPercent: 100,
       master: { appeared: false, defeated: false },
+      // P-J1: el doble solo deja caer el botin de probabilidad 1; el del ejemplo no lo es.
+      loot: [],
     })
     expect(result.summary).toMatchObject({
       simulatedDuration: 'PT12H',
@@ -513,6 +515,7 @@ describe('InMemoryExecutionRepository (HU-72)', () => {
       fact: missionSettledFact(enrollment, settlement, 'sim_op-sim', ENDS),
       masters: [],
       experience: [],
+      loot: [],
       report: null,
     }
 

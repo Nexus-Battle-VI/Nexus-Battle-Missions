@@ -472,13 +472,20 @@ describe('Historial y su resumen (Task HU-74.2, CU-74.3, CA-05)', () => {
     expect(view.bestTimes).toEqual([
       {
         missionId: TEMPLO,
+        missionName: 'El Templo Olvidado',
         difficulty: 'NORMAL',
         simulatedDuration: 'PT8H55M',
         enrollmentId: 'enr_2',
       },
     ])
     expect(view.narrativeProgress).toEqual([
-      { chainId: TEMPLO, missions: [TEMPLO, CAMARA], completed: 1, total: 2 },
+      {
+        chainId: TEMPLO,
+        missions: [TEMPLO, CAMARA],
+        missionNames: ['El Templo Olvidado', 'La Cámara Sellada'],
+        completed: 1,
+        total: 2,
+      },
     ])
     // El Master del Templo no aparece en estas misiones: sin derrota no hay epica (CA-03 de HU-73).
     expect(view.epicCollection).toEqual([])

@@ -11,6 +11,7 @@ import type {
   MasterEncounterStatus,
 } from '../../../domain/entities/MasterEncounterRecord'
 import type { ExperienceRewardStatus } from '../../../domain/entities/ExperienceReward'
+import type { LootGrantStatus } from '../../../domain/entities/LootGrantRecord'
 import type { MissionDefinition } from '../../../domain/entities/MissionDefinition'
 import type {
   EnrollmentRejection,
@@ -54,6 +55,7 @@ export interface Database {
   readonly mission_reports: MissionReportsTable
   readonly mission_report_rewards: MissionReportRewardsTable
   readonly mission_master_encounters: MissionMasterEncountersTable
+  readonly mission_loot_grants: MissionLootGrantsTable
   readonly mission_experience_rewards: MissionExperienceRewardsTable
   readonly mission_achievement_unlocks: MissionAchievementUnlocksTable
   readonly mission_achievement_evaluations: MissionAchievementEvaluationsTable
@@ -235,6 +237,25 @@ export interface MissionMasterEncountersTable {
   readonly granted_at: Date | null
   readonly reward_line_no: ColumnType<number | null, number | null, never>
   readonly grant_product_id: string | null
+}
+
+/**
+ * Entrega del botin del jefe (diseno «misiones jugables», P-J1, migracion
+ * `011-mission-loot-grants`). La escribe el cierre; despues solo cambia la entrega.
+ */
+export interface MissionLootGrantsTable {
+  readonly enrollment_id: ColumnType<string, string, never>
+  readonly line_no: ColumnType<number, number, never>
+  readonly label: ColumnType<string, string, never>
+  readonly quantity: ColumnType<number, number, never>
+  readonly operation_id: ColumnType<string, string, never>
+  readonly status: LootGrantStatus
+  readonly attempts: ColumnType<number, number | undefined, number>
+  readonly next_attempt_at: Date | null
+  readonly last_error: string | null
+  readonly granted_at: Date | null
+  readonly product_id: string | null
+  readonly created_at: ColumnType<Date, Date | undefined, never>
 }
 
 /**

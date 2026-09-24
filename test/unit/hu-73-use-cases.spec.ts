@@ -52,7 +52,8 @@ const AT = new Date('2026-10-01T15:00:00.000Z')
 const TEMPLO = EXAMPLE_MISSIONS[0]!
 const HERO = '7f3c2a9e-2d4b-4c1a-9e7f-1b2c3d4e5f60'
 const MASTER = 'sombra-del-olvido'
-const EPIC = 'velo-de-sombras'
+// La epica oficial del Picaro Veneno (P-J5), la que entrega la Sombra del Olvido.
+const EPIC = 'toma-y-lleva'
 const PRODUCT = '11111111-1111-4111-8111-111111111111'
 
 const required = <T>(value: T | null | undefined, what: string): T => {
@@ -367,7 +368,7 @@ describe('El Master en la simulacion y el cierre (Task HU-73.2)', () => {
     expect(view.rewards[0]).toEqual({
       kind: 'EPIC',
       reference: EPIC,
-      name: 'Velo de Sombras',
+      name: 'Toma y lleva',
       rarity: null,
       quantity: 1,
       status: 'PENDING',

@@ -10,7 +10,16 @@ export interface MissionDifficultyView {
   readonly lockReason: string | null
   readonly enemyStatMultiplier: number | null
   readonly rewardTier: RewardTier
+  /** P-J8: enemigos de mas en cada encuentro regular. */
+  readonly extraEnemiesPerEncounter: number
+  /** P-J8: ataque de mas del jefe cuando se enfurece. */
+  readonly bossEnrageBonus: number
+  /** P-J8: cuanto sube la probabilidad del botin, en porcentaje (25 = +25 %). */
+  readonly lootBonusPercent: number
 }
+
+/** Un multiplicador como porcentaje de mejora: 1.25 es +25 %. */
+const bonusPercent = (multiplier: number): number => Math.round((multiplier - 1) * 100)
 
 export interface MissionDifficultiesView {
   readonly missionId: string
@@ -53,6 +62,9 @@ export class ListMissionDifficulties {
             definition?.combatRules?.difficultyMultipliers?.[availability.difficulty] ??
             scaling.enemyStatMultiplier,
           rewardTier: scaling.rewardTier,
+          extraEnemiesPerEncounter: scaling.extraEnemiesPerEncounter,
+          bossEnrageBonus: scaling.bossEnrageBonus,
+          lootBonusPercent: bonusPercent(scaling.lootProbabilityMultiplier),
         }
       }),
     }

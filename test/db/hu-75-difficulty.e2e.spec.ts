@@ -60,27 +60,43 @@ const LOCK_REASON: Readonly<Record<DifficultyLevel, string | null>> = {
   MYTHIC: 'Debes completar esta misión en Legendario al menos una vez.',
 }
 
+/**
+ * Por nivel: factor, tabla y lo que P-J8 cambia (enemigos de mas por encuentro,
+ * ataque de mas del jefe y la mejora del botin en porcentaje).
+ */
 const SCALING = [
-  ['NORMAL', 1, 'STANDARD'],
-  ['HEROIC', 1.5, 'IMPROVED'],
-  ['LEGENDARY', 2, 'PREMIUM'],
-  ['MYTHIC', 2.5, 'EXCLUSIVE'],
+  ['NORMAL', 1, 'STANDARD', 0, 0, 0],
+  ['HEROIC', 1.5, 'IMPROVED', 1, 0, 25],
+  ['LEGENDARY', 2, 'PREMIUM', 1, 2, 50],
+  ['MYTHIC', 2.5, 'EXCLUSIVE', 2, 4, 100],
 ] as const
 
 /** Cuerpo esperado cuando estan libres EXACTAMENTE los niveles indicados. */
 const expectedBody = (missionId: string, unlocked: readonly DifficultyLevel[]) => ({
   missionId,
-  items: SCALING.map(([difficulty, enemyStatMultiplier, rewardTier]) => {
-    const free = unlocked.includes(difficulty)
-
-    return {
+  items: SCALING.map(
+    ([
       difficulty,
-      unlocked: free,
-      lockReason: free ? null : LOCK_REASON[difficulty],
       enemyStatMultiplier,
       rewardTier,
-    }
-  }),
+      extraEnemiesPerEncounter,
+      bossEnrageBonus,
+      lootBonusPercent,
+    ]) => {
+      const free = unlocked.includes(difficulty)
+
+      return {
+        difficulty,
+        unlocked: free,
+        lockReason: free ? null : LOCK_REASON[difficulty],
+        enemyStatMultiplier,
+        rewardTier,
+        extraEnemiesPerEncounter,
+        bossEnrageBonus,
+        lootBonusPercent,
+      }
+    },
+  ),
 })
 
 const T0 = new Date('2026-09-22T15:00:00.000Z')

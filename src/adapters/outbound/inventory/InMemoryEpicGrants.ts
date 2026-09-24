@@ -18,7 +18,9 @@ export class InMemoryEpicGrants implements EpicGrantPort {
 
     if (
       previous !== undefined &&
-      (previous.playerId !== request.playerId || previous.productId !== request.productId)
+      (previous.playerId !== request.playerId ||
+        previous.productId !== request.productId ||
+        (previous.quantity ?? 1) !== (request.quantity ?? 1))
     ) {
       return Promise.resolve({ kind: 'UNKNOWN', reason: 'HTTP_409' })
     }

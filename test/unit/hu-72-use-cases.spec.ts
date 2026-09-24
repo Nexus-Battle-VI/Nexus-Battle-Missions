@@ -295,7 +295,7 @@ describe('RunMissionExecutions: simulacion (Task HU-72.2, CU-72.1)', () => {
             probability: 0.15,
             levelOffset: 2,
             profile: EXAMPLE_MISSIONS[0]!.masterEncounter?.candidates[0]?.profile,
-            epicRef: 'velo-de-sombras',
+            epicRef: 'toma-y-lleva',
           },
         ],
       },

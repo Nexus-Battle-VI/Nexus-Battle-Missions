@@ -2,10 +2,15 @@ import type {
   MasterCandidate,
   MissionEnemy,
   MissionObjective,
-  MissionRewards,
 } from '../../domain/entities/MissionDefinition'
+import {
+  deliverableEpicOf,
+  playerRewardsOf,
+  type PlayerRewards,
+} from '../../domain/policies/DeliverableRewardsPolicy'
 import { MissionNotFoundError } from '../../domain/errors/mission-errors'
 import { derivePlayerMissionStatus } from '../../domain/policies/EnrollmentPolicy'
+import { masterAppearanceChanceOf } from '../../domain/policies/MasterPolicy'
 import { isRecord } from '../../domain/policies/SettlementPolicy'
 import {
   toIsoDuration,
@@ -22,11 +27,15 @@ export interface MissionDetailView {
   readonly name: string
   readonly category: MissionCategory
   readonly narrative: string
+  /** La ilustracion de la mision (P-J11); `null` usa la de su categoria. */
+  readonly imageRef: string | null
   /** Sin `rule`: como se evalua es interno del cierre de HU-72. */
   readonly objectives: readonly Omit<MissionObjective, 'rule'>[]
   readonly estimatedDuration: string
   readonly recommendedPower: number | null
   readonly prerequisites: readonly string[]
+  /** Las mismas, con su nombre: la interfaz no muestra identificadores (P-J10). */
+  readonly prerequisiteMissions: readonly { readonly missionId: string; readonly name: string }[]
   /** Sin `enemyRef`: es la referencia interna que HU-72 envia a Combat. */
   readonly enemies: readonly Omit<MissionEnemy, 'enemyRef' | 'profile'>[]
   readonly finalBoss: {
@@ -37,8 +46,9 @@ export interface MissionDetailView {
   }
   readonly masterEncounter: {
     /**
-     * La mayor probabilidad configurada. La que aplica depende del subtipo del
-     * heroe que se matricule (HU-73, P-X2): el detalle aun no lo conoce.
+     * La probabilidad de que aparezca un Master en la mision: el 15 % que fijo el
+     * PO. Depende del subtipo del heroe que se matricule (HU-73, P-X2) y el detalle
+     * aun no lo conoce, asi que es la mayor.
      */
     readonly probability: number
     readonly candidates: readonly {
@@ -46,14 +56,19 @@ export interface MissionDetailView {
       readonly heroType: string
       /** Por subtipo del heroe; `"*"` vale para cualquiera (HU-73). */
       readonly probabilityByHeroType: Readonly<Record<string, number>>
+      /**
+       * `null` si la epica todavia no es un producto que se pueda entregar: el
+       * Master aparece igual, pero no se promete una recompensa que no llega (P-J2).
+       */
       readonly epic: {
         readonly name: string
         readonly generalEffect: string | null
         readonly epicEffect: string | null
-      }
+      } | null
     }[]
   }
-  readonly rewards: MissionRewards
+  /** Solo lo que se entrega de verdad (diseno «misiones jugables», P-J2). */
+  readonly rewards: PlayerRewards
   readonly playerStatus: PlayerMissionStatus
   readonly canEnroll: boolean
   readonly lockReason: string | null
@@ -96,9 +111,10 @@ export class GetMissionDetail {
       this.enrollments.listByPlayer(playerId),
       this.clears.completedMissions(playerId),
     ])
+    const names = namesOf(definitions)
     const view = derivePlayerMissionStatus(
       definition,
-      playerContextFor(missionId, enrollments, completed, namesOf(definitions)),
+      playerContextFor(missionId, enrollments, completed, names),
     )
     const master = definition.masterEncounter
 
@@ -107,10 +123,15 @@ export class GetMissionDetail {
       name: definition.name,
       category: definition.category,
       narrative: definition.narrative,
+      imageRef: definition.imageRef,
       objectives: definition.objectives.map(({ id, text, primary }) => ({ id, text, primary })),
       estimatedDuration: toIsoDuration(definition.estimatedDurationMinutes),
       recommendedPower: definition.recommendedPower,
       prerequisites: definition.prerequisites,
+      prerequisiteMissions: definition.prerequisites.map((prerequisite) => ({
+        missionId: prerequisite,
+        name: names.get(prerequisite) ?? prerequisite,
+      })),
       enemies: definition.enemies.map(({ name, count, description }) => ({
         name,
         count,
@@ -123,24 +144,25 @@ export class GetMissionDetail {
         stats: definition.finalBoss.stats,
       },
       masterEncounter: {
-        probability: Math.max(
-          0,
-          ...(master?.candidates ?? []).flatMap((candidate) =>
-            Object.values(probabilitiesOf(candidate)),
-          ),
-        ),
-        candidates: (master?.candidates ?? []).map((candidate) => ({
-          name: candidate.name,
-          heroType: candidate.subtype,
-          probabilityByHeroType: probabilitiesOf(candidate),
-          epic: {
-            name: candidate.epic.name,
-            generalEffect: candidate.epic.generalEffect,
-            epicEffect: candidate.epic.epicEffect,
-          },
-        })),
+        probability: masterAppearanceChanceOf(master),
+        candidates: (master?.candidates ?? []).map((candidate) => {
+          const epic = deliverableEpicOf(candidate)
+          return {
+            name: candidate.name,
+            heroType: candidate.subtype,
+            probabilityByHeroType: probabilitiesOf(candidate),
+            epic:
+              epic === null
+                ? null
+                : {
+                    name: epic.name,
+                    generalEffect: epic.generalEffect,
+                    epicEffect: epic.epicEffect,
+                  },
+          }
+        }),
       },
-      rewards: definition.rewards,
+      rewards: playerRewardsOf(definition),
       playerStatus: view.status,
       canEnroll: view.canEnroll,
       lockReason: view.lockReason,

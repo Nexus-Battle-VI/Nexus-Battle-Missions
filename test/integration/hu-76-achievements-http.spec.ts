@@ -8,6 +8,7 @@ import request from 'supertest'
 
 import { createValidationPipe } from '../../src/adapters/inbound/http/validation.pipe'
 import { InMemoryEpicGrants } from '../../src/adapters/outbound/inventory/InMemoryEpicGrants'
+import { APPROVED_ACHIEVEMENTS } from '../../src/adapters/outbound/persistence/approved-achievements'
 import { EXAMPLE_ACHIEVEMENTS } from '../../src/adapters/outbound/persistence/example-achievements'
 import { EXAMPLE_MISSIONS } from '../../src/adapters/outbound/persistence/example-missions'
 import { InMemoryMissionCatalog } from '../../src/adapters/outbound/persistence/InMemoryMissionCatalog'
@@ -360,16 +361,23 @@ describe('Logros de misiones por HTTP: catalogo y cableado (Task HU-76.2)', () =
     restore()
   })
 
-  it('sin catalogo aprobado responde 200 con la lista vacia, y el cosmetico usa el cliente de las epicas', async () => {
+  it('con el catalogo aprobado responde 200 con sus siete logros, y el cosmetico usa el cliente de las epicas', async () => {
     const app = await compile({})
 
     try {
       const response = await request(app.getHttpServer())
         .get('/api/v1/missions/me/achievements')
         .set('Authorization', 'Bearer token-jugador-1')
+      const items = (
+        response.body as { items: readonly { achievementId: string; status: string }[] }
+      ).items
 
       expect(response.status).toBe(200)
-      expect(response.body).toEqual({ items: [] })
+      // Decision 1 del PO (2026-09-24): los siete del contrato; un jugador nuevo no tiene ninguno.
+      expect(items.map((item) => item.achievementId)).toEqual(
+        APPROVED_ACHIEVEMENTS.map((definition) => definition.achievementId),
+      )
+      expect(items.filter((item) => item.status === 'UNLOCKED')).toEqual([])
       expect(app.get(RECOGNITION_GRANTS)).toBe(app.get(EPIC_GRANTS))
     } finally {
       await app.close()

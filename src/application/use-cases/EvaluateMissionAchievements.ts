@@ -62,7 +62,7 @@ export class EvaluateMissionAchievements {
     }
     const definitions = await this.catalog.list()
 
-    // Sin catalogo aprobado (decision 1) no hay nada que evaluar ni que consultar.
+    // Sin logros en el catalogo no hay nada que evaluar ni que consultar.
     if (definitions.length === 0) {
       return { ...tally }
     }

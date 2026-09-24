@@ -1,5 +1,6 @@
 import type { MasterEncounterRecord } from '../../domain/entities/MasterEncounterRecord'
 import type { ExperienceReward } from '../../domain/entities/ExperienceReward'
+import type { LootGrantRecord } from '../../domain/entities/LootGrantRecord'
 import type { MissionDifficultyClear } from '../../domain/entities/MissionDifficultyClear'
 import type { MissionEnrollment, MissionFact } from '../../domain/entities/MissionEnrollment'
 import type { MissionExecution } from '../../domain/entities/MissionExecution'
@@ -38,6 +39,12 @@ export interface MissionClosure {
    * si se escribiera despues, una caida dejaria tiradas sin dueno.
    */
   readonly experience: readonly ExperienceReward[]
+  /**
+   * Diseno «misiones jugables» (P-J1): la entrega pendiente de cada botin ganado.
+   * Cada una apunta a su linea `PRODUCT` del reporte, asi que va vacia si no hay
+   * reporte o la mision se anulo.
+   */
+  readonly loot: readonly LootGrantRecord[]
   /** HU-74 (P-T1): la foto nace con el cierre. Una anulacion no tiene reporte (P-T3). */
   readonly report: ReportRecord | null
 }

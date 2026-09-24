@@ -58,6 +58,20 @@ const masterOf = (request: SimulationRequest): Readonly<Record<string, unknown>>
   }
 }
 
+/**
+ * El botin del jefe sin tirar dados (diseno «misiones jugables», P-J1): cae solo
+ * el de probabilidad 1, una vez por tirada. Como con el Master, sirve para recorrer
+ * el camino de la entrega en desarrollo; no reproduce las probabilidades.
+ */
+const lootOf = (request: SimulationRequest): readonly Readonly<Record<string, unknown>>[] =>
+  request.encounters.some((encounter) => encounter.kind === 'BOSS')
+    ? (request.bossDrops ?? []).flatMap((drop) =>
+        drop.probability >= 1
+          ? [{ label: drop.label, productId: drop.productId ?? null, quantity: drop.rolls }]
+          : [],
+      )
+    : []
+
 export class ScriptedCombatSimulation implements CombatSimulationPort {
   simulate(request: SimulationRequest): Promise<SimulationCallOutcome> {
     const defeated = new Map<string, number>()
@@ -108,6 +122,7 @@ export class ScriptedCombatSimulation implements CombatSimulationPort {
           enemiesDefeated: [...defeated].map(([enemyRef, count]) => ({ enemyRef, count })),
           bossDefeated: request.encounters.some((encounter) => encounter.kind === 'BOSS'),
           master: masterOf(request),
+          loot: lootOf(request),
           simulatedDuration: request.timeBudget,
         },
         combatLog: events.map((event, index) => ({ seq: index + 1, ...event })),

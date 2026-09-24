@@ -191,7 +191,8 @@ describe('Reporte e historial por HTTP (Task HU-74.2)', () => {
       ['obj_camaras', true],
       ['obj_vida', true],
       ['obj_master', null],
-      ['obj_fragmentos', null],
+      // P-J1: Combat (y su doble) informa el botin; sin fragmentos, el objetivo no se cumple.
+      ['obj_fragmentos', false],
     ])
     expect(response.body).not.toHaveProperty('playerId')
   })
@@ -290,20 +291,32 @@ describe('Reporte e historial por HTTP (Task HU-74.2)', () => {
       bestTimes: [
         {
           missionId: TEMPLO,
+          missionName: 'El Templo Olvidado',
           difficulty: 'NORMAL',
           simulatedDuration: 'PT12H',
           enrollmentId: normal.enrollmentId,
         },
         {
           missionId: TEMPLO,
+          missionName: 'El Templo Olvidado',
           difficulty: 'HEROIC',
           simulatedDuration: 'PT12H',
           enrollmentId: heroic.enrollmentId,
         },
       ],
       epicCollection: [],
+      // El catalogo de ejemplo no tiene epicas enlazadas a productos: el album esta vacio.
+      epicAlbum: [],
       lootCollection: [],
-      narrativeProgress: [{ chainId: TEMPLO, missions: [TEMPLO, CAMARA], completed: 1, total: 2 }],
+      narrativeProgress: [
+        {
+          chainId: TEMPLO,
+          missions: [TEMPLO, CAMARA],
+          missionNames: ['El Templo Olvidado', 'La Cámara Sellada'],
+          completed: 1,
+          total: 2,
+        },
+      ],
     })
   })
 

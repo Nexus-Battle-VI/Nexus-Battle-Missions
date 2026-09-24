@@ -46,6 +46,21 @@ export class MissionDifficultyItemDto {
 
   @ApiProperty({ enum: [...REWARD_TIERS], example: 'IMPROVED' })
   rewardTier!: RewardTier
+
+  @ApiProperty({
+    example: 1,
+    description: 'P-J8: enemigos de mas en el primer grupo de cada encuentro regular.',
+  })
+  extraEnemiesPerEncounter!: number
+
+  @ApiProperty({ example: 0, description: 'P-J8: ataque de mas del jefe cuando se enfurece.' })
+  bossEnrageBonus!: number
+
+  @ApiProperty({
+    example: 25,
+    description: 'P-J8: cuanto sube la probabilidad del botin del jefe, en porcentaje.',
+  })
+  lootBonusPercent!: number
 }
 
 /** Web -> Missions, `GET /api/v1/missions/{missionId}/difficulties` (hu-75-mission-difficulty-v1). */

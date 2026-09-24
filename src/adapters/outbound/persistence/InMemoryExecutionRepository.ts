@@ -7,6 +7,7 @@ import type { MissionExecution } from '../../../domain/entities/MissionExecution
 import type { InMemoryDifficultyClearRepository } from './InMemoryDifficultyClearRepository'
 import type { InMemoryEnrollmentRepository } from './InMemoryEnrollmentRepository'
 import { InMemoryExperienceRewardRepository } from './InMemoryExperienceRewardRepository'
+import { InMemoryLootGrantRepository } from './InMemoryLootGrantRepository'
 import { InMemoryMasterEncounterRepository } from './InMemoryMasterEncounterRepository'
 import type { InMemoryReportRepository } from './InMemoryReportRepository'
 
@@ -30,6 +31,8 @@ export class InMemoryExecutionRepository implements ExecutionRepositoryPort {
     ),
     // HU-09: las recompensas de experiencia nacen en el MISMO cierre.
     private readonly experience: InMemoryExperienceRewardRepository = new InMemoryExperienceRewardRepository(),
+    // P-J1: y las entregas del botin, que cambian la linea del mismo doble de reportes.
+    private readonly loot: InMemoryLootGrantRepository = new InMemoryLootGrantRepository(reports),
   ) {}
 
   pendingStarts(limit: number): Promise<readonly StartedMission[]> {
@@ -126,6 +129,8 @@ export class InMemoryExecutionRepository implements ExecutionRepositoryPort {
     this.masters.recordNow(closure.masters)
     // HU-09: una recompensa PENDING por cada derrota, a la vez que el cierre.
     this.experience.insert(closure.experience)
+    // P-J1: la entrega pendiente de cada botin ganado.
+    this.loot.recordNow(closure.loot)
 
     return Promise.resolve(true)
   }

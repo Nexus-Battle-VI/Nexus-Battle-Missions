@@ -179,7 +179,7 @@ describe('Logros de misiones en PostgreSQL (HU-76)', () => {
 
   /** Cada prueba empieza sin datos: la deteccion recorre toda la tabla. */
   const reset = async (): Promise<void> => {
-    await sql`truncate mission_experience_rewards, mission_achievement_unlocks, mission_achievement_evaluations,
+    await sql`truncate mission_loot_grants, mission_experience_rewards, mission_achievement_unlocks, mission_achievement_evaluations,
       mission_master_encounters, mission_report_rewards, mission_reports, mission_executions,
       mission_facts, mission_enrollments, mission_difficulty_clears`.execute(db)
   }

@@ -57,6 +57,31 @@ export interface CombatStats {
   readonly damageTaken: number | null
   readonly criticalEffects: number | null
   readonly skillsUsed: readonly SkillUse[]
+  /** Vida que curaron las habilidades (diseno «misiones jugables», P-J4). */
+  readonly healingDone?: number | null
+  /** Dano directo y reflejado de las habilidades (P-J4). */
+  readonly abilityDamage?: number | null
+}
+
+/**
+ * Que hizo la estrategia (P-J5): cuantas veces se uso cada habilidad y por que se
+ * salto cuando no se pudo. Sale de la bitacora de Combat en el cierre.
+ */
+export interface ReportStrategyAbility {
+  readonly abilityId: string
+  /** El nombre congelado en la solicitud a Combat; el id si no venia. */
+  readonly name: string
+  readonly used: number
+  /** Motivo de Combat (`ON_COOLDOWN`, `NOT_ENOUGH_POWER`, ...) y veces. */
+  readonly skipped: Readonly<Record<string, number>>
+}
+
+export interface ReportStrategy {
+  readonly abilities: readonly ReportStrategyAbility[]
+  /** Ataques basicos elegidos por una rotacion. */
+  readonly basicAttacks: number
+  /** Ataques basicos de respaldo: ninguna rotacion era viable (HU-71 CA-03). */
+  readonly fallbackAttacks: number
 }
 
 export interface DefeatedEnemy {
@@ -117,6 +142,8 @@ export interface MissionReport {
     readonly productId: string | null
   }[]
   readonly objectives: readonly ReportObjective[]
+  /** Que hizo la estrategia (P-J5); falta en los reportes anteriores. */
+  readonly strategy?: ReportStrategy
   /** Cuando se genero: el momento del cierre. */
   readonly generatedAt: Date
 }
@@ -130,15 +157,16 @@ export const REWARD_STATUSES = ['PENDING', 'CREDITED', 'FAILED'] as const
 export type RewardStatus = (typeof REWARD_STATUSES)[number]
 
 /**
- * Quien calcula la linea: HU-10 (creditos y productos), HU-73 (la epica) o HU-09
- * (la experiencia de cada NPC derrotado, Task HU-09.5).
+ * Quien calcula la linea: HU-10 (creditos), HU-73 (la epica), HU-09 (la
+ * experiencia de cada NPC derrotado, Task HU-09.5) o HU-72 (el botin del jefe,
+ * diseno «misiones jugables», P-J1).
  *
  * EL ORIGEN ES PARTE DE LA CLAVE DE LA LINEA, no una etiqueta: dice quien la
  * escribio y con que reglas se puede tocar. Una linea `HU-09` solo la mueve el
  * ciclo de experiencia, y por eso el resumen de experiencia del reporte se
  * calcula filtrando por este campo y no por `kind`.
  */
-export const REWARD_SOURCES = ['HU-10', 'HU-73', 'HU-09'] as const
+export const REWARD_SOURCES = ['HU-10', 'HU-73', 'HU-09', 'HU-72'] as const
 
 export type RewardSource = (typeof REWARD_SOURCES)[number]
 
