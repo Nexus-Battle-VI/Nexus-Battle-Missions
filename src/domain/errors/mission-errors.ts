@@ -14,6 +14,17 @@ export class MissionNotFoundError extends DomainError {
   }
 }
 
+/**
+ * `404 ENROLLMENT_NOT_FOUND` (diseno «misiones jugables», P-J6): la matricula no
+ * existe o no es del jugador. Son el mismo caso para no revelar las ajenas.
+ */
+export class EnrollmentNotFoundError extends DomainError {
+  constructor(readonly enrollmentId: string) {
+    super('Esa misión no existe o no es tuya.')
+    this.name = 'EnrollmentNotFoundError'
+  }
+}
+
 /** `422 MISSION_LOCKED` (CA-07): faltan misiones previas. */
 export class MissionLockedError extends DomainError {
   constructor(

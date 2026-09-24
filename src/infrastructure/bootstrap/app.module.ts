@@ -9,6 +9,15 @@ import { MissionContentController } from '../../adapters/inbound/http/mission-co
 import { MissionDifficultyController } from '../../adapters/inbound/http/mission-difficulty.controller'
 import { MissionEnrollmentController } from '../../adapters/inbound/http/mission-enrollment.controller'
 import { MissionReportController } from '../../adapters/inbound/http/mission-report.controller'
+import { MissionProgressController } from '../../adapters/inbound/http/mission-progress.controller'
+import {
+  LIST_ACTIVE_MISSIONS,
+  ListActiveMissions,
+} from '../../application/use-cases/ListActiveMissions'
+import {
+  GET_MISSION_PROGRESS,
+  GetMissionProgress,
+} from '../../application/use-cases/GetMissionProgress'
 import { MissionStrategyController } from '../../adapters/inbound/http/mission-strategy.controller'
 import { CombatSimulationClient } from '../../adapters/outbound/combat/CombatSimulationClient'
 import { ScriptedCombatSimulation } from '../../adapters/outbound/combat/ScriptedCombatSimulation'
@@ -278,9 +287,31 @@ export const INTERNAL_CALLERS: readonly string[] = []
     MissionEnrollmentController,
     MissionStrategyController,
     MissionReportController,
+    MissionProgressController,
     MissionAchievementController,
   ],
   providers: [
+    // --- Diseno «misiones jugables», P-J6: misiones en curso y su progreso ---
+    {
+      provide: LIST_ACTIVE_MISSIONS,
+      useFactory: (
+        enrollments: EnrollmentRepositoryPort,
+        catalog: MissionCatalogPort,
+        executions: ExecutionRepositoryPort,
+        clock: ClockPort,
+      ): ListActiveMissions => new ListActiveMissions(enrollments, catalog, executions, clock),
+      inject: [ENROLLMENT_REPOSITORY, MISSION_CATALOG, EXECUTION_REPOSITORY, CLOCK],
+    },
+    {
+      provide: GET_MISSION_PROGRESS,
+      useFactory: (
+        enrollments: EnrollmentRepositoryPort,
+        executions: ExecutionRepositoryPort,
+        catalog: MissionCatalogPort,
+        clock: ClockPort,
+      ): GetMissionProgress => new GetMissionProgress(enrollments, executions, catalog, clock),
+      inject: [ENROLLMENT_REPOSITORY, EXECUTION_REPOSITORY, MISSION_CATALOG, CLOCK],
+    },
     {
       provide: APP_CONFIG,
       useFactory: (): AppConfig => loadConfig(process.env),

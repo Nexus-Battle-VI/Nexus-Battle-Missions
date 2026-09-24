@@ -17,6 +17,7 @@ import {
   LoadoutIncompleteError,
   MissionAlreadyInProgressError,
   MissionLockedError,
+  EnrollmentNotFoundError,
   MissionNotFoundError,
   StrategyVersionMismatchError,
 } from '../../../domain/errors/mission-errors'
@@ -67,6 +68,15 @@ export const toMissionsHttpException = (error: unknown): HttpException => {
       code: 'MISSION_NOT_FOUND',
       message: error.message,
       missionId: error.missionId,
+    })
+  }
+
+  if (error instanceof EnrollmentNotFoundError) {
+    return new NotFoundException({
+      statusCode: 404,
+      code: 'ENROLLMENT_NOT_FOUND',
+      message: error.message,
+      enrollmentId: error.enrollmentId,
     })
   }
 
