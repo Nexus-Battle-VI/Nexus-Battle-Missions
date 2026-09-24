@@ -24,6 +24,11 @@ import {
 } from '../../domain/policies/MasterPolicy'
 import { missionReportOf, type ReportInput } from '../../domain/policies/ReportPolicy'
 import {
+  experienceRewardsOf,
+  invalidDefeatError,
+  readCombatLog,
+} from '../../domain/policies/CombatLogPolicy'
+import {
   missionSettledFact,
   settlementOf,
   simulationFactsOf,
@@ -359,6 +364,25 @@ export class RunMissionExecutions {
     const now = this.clock.now()
     const settlement = settlementOf(result.combatOutcome, definition.objectives, facts)
     const epics = epicRewardsOf(evidence, definition.masterEncounter, now)
+    // HU-09 (Task HU-09.4): una recompensa PENDING por cada NPC derrotado, en la
+    // MISMA transaccion del cierre y ANTES de pedir ninguna tirada (contrato
+    // §9.1). Es lo que hace imposible la tirada huerfana.
+    const reading = readCombatLog(result.combatLog)
+
+    // Un evento ilegible NO impide cerrar -- dejaria al heroe reservado para
+    // siempre --, pero se dice: un productor roto tiene que verse.
+    for (const detail of reading.invalid) {
+      this.options.onError?.(enrollment.enrollmentId, invalidDefeatError(detail))
+    }
+
+    const experience = experienceRewardsOf({
+      enrollmentId: enrollment.enrollmentId,
+      playerId: enrollment.playerId,
+      heroId: enrollment.heroId,
+      simulationId: result.simulationId,
+      defeats: reading.defeats,
+      now,
+    })
     const closed = await this.executions.close({
       enrollment: closeEnrollment(enrollment, settlement.outcome, now),
       enrollmentVersion: enrollment.version,
@@ -377,6 +401,8 @@ export class RunMissionExecutions {
       fact: missionSettledFact(enrollment, settlement, result.simulationId, now, epics.records),
       // HU-73: la evidencia del Master y las entregas pendientes de sus epicas.
       masters: epics.records,
+      // HU-09: las recompensas de experiencia nacen con el cierre.
+      experience,
       report: this.reportFor(
         {
           enrollment,
@@ -437,6 +463,9 @@ export class RunMissionExecutions {
       ),
       // Una anulacion no deja evidencia del Master ni epica (P-X6).
       masters: [],
+      // HU-09: ni recompensas de experiencia. Una anulacion no devenga nada
+      // (CA-08): no hay resultado valido del que sacar derrotas.
+      experience: [],
       // HU-74 (P-T3): una anulacion aparece en el historial sin reporte.
       report: null,
     })

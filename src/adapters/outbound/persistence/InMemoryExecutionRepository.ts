@@ -6,6 +6,7 @@ import type {
 import type { MissionExecution } from '../../../domain/entities/MissionExecution'
 import type { InMemoryDifficultyClearRepository } from './InMemoryDifficultyClearRepository'
 import type { InMemoryEnrollmentRepository } from './InMemoryEnrollmentRepository'
+import { InMemoryExperienceRewardRepository } from './InMemoryExperienceRewardRepository'
 import { InMemoryMasterEncounterRepository } from './InMemoryMasterEncounterRepository'
 import type { InMemoryReportRepository } from './InMemoryReportRepository'
 
@@ -27,6 +28,8 @@ export class InMemoryExecutionRepository implements ExecutionRepositoryPort {
     private readonly masters: InMemoryMasterEncounterRepository = new InMemoryMasterEncounterRepository(
       reports,
     ),
+    // HU-09: las recompensas de experiencia nacen en el MISMO cierre.
+    private readonly experience: InMemoryExperienceRewardRepository = new InMemoryExperienceRewardRepository(),
   ) {}
 
   pendingStarts(limit: number): Promise<readonly StartedMission[]> {
@@ -121,6 +124,8 @@ export class InMemoryExecutionRepository implements ExecutionRepositoryPort {
     }
 
     this.masters.recordNow(closure.masters)
+    // HU-09: una recompensa PENDING por cada derrota, a la vez que el cierre.
+    this.experience.insert(closure.experience)
 
     return Promise.resolve(true)
   }

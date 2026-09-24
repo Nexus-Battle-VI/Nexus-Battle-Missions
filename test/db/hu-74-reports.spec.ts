@@ -243,6 +243,7 @@ describe('Reportes de mision en PostgreSQL (HU-74)', () => {
       },
       fact: missionSettledFact(enrollment, settlement, P01_RESULT.simulationId, CLOSED),
       masters: [],
+     experience: [],
       report: recordFor(enrollment),
     }
   }

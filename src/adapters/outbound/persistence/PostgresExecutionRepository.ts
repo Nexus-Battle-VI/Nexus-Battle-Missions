@@ -7,6 +7,7 @@ import type {
 } from '../../../application/ports/ExecutionRepositoryPort'
 import type { MissionExecution } from '../../../domain/entities/MissionExecution'
 import { insertMasterEncounters } from './PostgresMasterEncounterRepository'
+import { insertExperienceRewards } from './PostgresExperienceRewardRepository'
 import { insertReport } from './PostgresReportRepository'
 import type { Database, MissionExecutionsTable } from './schema'
 
@@ -242,6 +243,10 @@ export class PostgresExecutionRepository implements ExecutionRepositoryPort {
 
         // HU-73 (P-X7): la evidencia del Master y las entregas pendientes.
         await insertMasterEncounters(trx, closure.masters)
+
+        // HU-09 (Task HU-09.4, contrato §9.1): una recompensa PENDING por cada NPC
+        // derrotado, ANTES de que el ciclo pida ninguna tirada.
+        await insertExperienceRewards(trx, closure.experience)
       })
 
       return true

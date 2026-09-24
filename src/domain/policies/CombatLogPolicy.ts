@@ -1,13 +1,13 @@
-import { DomainError } from '../errors/DomainError'
 import {
   pendingReward,
   type ExperienceReward,
   type ExperienceRewardDefeat,
 } from '../entities/ExperienceReward'
+import { DomainError } from '../errors/DomainError'
 
 /**
  * Lectura de las derrotas de una simulacion (HU-09, Task HU-09.4;
- * `hu-09-experience-reward-v1` §4.1). Task HU-09.4.
+ * `hu-09-experience-reward-v1` §4.1).
  *
  * DE DONDE SALE LA IDENTIDAD DE UNA RECOMPENSA. Del `combatLog` que produce la
  * simulacion de HU-72: cada baja se registra como
@@ -27,26 +27,37 @@ import {
  *
  * ENTRADA NO CONFIABLE. La bitacora llega de otro servicio y se guarda como
  * `unknown[]`: aqui se comprueba campo a campo. Un evento de otro tipo se IGNORA
- * (la bitacora tiene muchos mas: turnos, ataques, inicio y fin de encuentro), pero
- * un `combatantDefeated` con el cuerpo mal formado LANZA: significa que el
- * productor incumple el contrato y callarlo perderia una recompensa sin que nadie
- * se entere. Preferimos que el cierre falle y se vea.
+ * (la bitacora tiene muchos mas: turnos, ataques, inicio y fin de encuentro), y
+ * un `combatantDefeated` que no cumple el contrato se DESCARTA y se devuelve como
+ * incidencia, en lugar de lanzar.
+ *
+ * POR QUE NO LANZA. Lanzar dejaria la mision sin cerrar en cada ciclo -- y con
+ * ella al heroe reservado para siempre -- por un unico evento mal formado de un
+ * productor ajeno. El cierre tiene que terminar; lo que no puede es callarse: las
+ * incidencias viajan al registro, de modo que un productor roto se ve. Se pierde
+ * como mucho la recompensa de ese evento, nunca la mision entera.
  */
 
 /** Tipo del evento de baja en la bitacora de HU-72. */
 export const COMBATANT_DEFEATED_EVENT = 'combatantDefeated'
 
+export interface CombatLogReading {
+  /** Las derrotas legibles, en el orden de la bitacora. */
+  readonly defeats: readonly ExperienceRewardDefeat[]
+  /** Una linea por evento `combatantDefeated` que no cumple el contrato. */
+  readonly invalid: readonly string[]
+}
+
 /**
- * Las derrotas de una bitacora, en su orden.
+ * Lee la bitacora y devuelve las derrotas, mas las incidencias.
  *
  * Deduplica por instancia: dos eventos con el mismo encuentro y el mismo
  * `combatant` son la MISMA baja registrada dos veces -- la clave de la recompensa
  * es unica por instancia --, no dos recompensas.
  */
-export const defeatsOfCombatLog = (
-  combatLog: readonly unknown[],
-): readonly ExperienceRewardDefeat[] => {
+export const readCombatLog = (combatLog: readonly unknown[]): CombatLogReading => {
   const defeats = new Map<string, ExperienceRewardDefeat>()
+  const invalid: string[] = []
 
   for (const [index, entry] of combatLog.entries()) {
     if (typeof entry !== 'object' || entry === null) {
@@ -59,7 +70,15 @@ export const defeatsOfCombatLog = (
       continue
     }
 
-    const defeat = parseDefeat(event, index)
+    const defeat = defeatOf(event)
+
+    if (defeat === null) {
+      invalid.push(
+        `La baja ${String(index)} de la bitacora no identifica una instancia (<enemyRef>#<n>) con su encuentro.`,
+      )
+      continue
+    }
+
     const key = `${defeat.encounterId}#${defeat.enemyInstanceId}`
 
     if (!defeats.has(key)) {
@@ -67,37 +86,31 @@ export const defeatsOfCombatLog = (
     }
   }
 
-  return [...defeats.values()]
+  return { defeats: [...defeats.values()], invalid }
 }
 
 /**
- * Una baja de la bitacora, comprobada campo a campo.
+ * Una baja de la bitacora, o `null` si no cumple el contrato.
  *
  * `combatant` tiene que ser `<enemyRef>#<n>`: el arquetipo se deriva de ahi para
  * trazabilidad, y una instancia sin numero no identifica nada.
  */
-const parseDefeat = (event: Record<string, unknown>, index: number): ExperienceRewardDefeat => {
+const defeatOf = (event: Record<string, unknown>): ExperienceRewardDefeat | null => {
   const encounter = event.encounter
   const combatant = event.combatant
 
   if (typeof encounter !== 'number' || !Number.isInteger(encounter) || encounter < 1) {
-    throw new DomainError(
-      `La baja ${String(index)} de la bitacora no trae un encuentro valido: ${describe(encounter)}.`,
-    )
+    return null
   }
 
   if (typeof combatant !== 'string' || combatant.trim().length === 0) {
-    throw new DomainError(
-      `La baja ${String(index)} de la bitacora no trae un enemigo concreto: ${describe(combatant)}.`,
-    )
+    return null
   }
 
   const [rivalRef, instance] = combatant.split('#')
 
   if (rivalRef === undefined || rivalRef.trim().length === 0 || !isInstance(instance)) {
-    throw new DomainError(
-      `La baja ${String(index)} de la bitacora no identifica una instancia (<enemyRef>#<n>): ${describe(combatant)}.`,
-    )
+    return null
   }
 
   return {
@@ -130,20 +143,18 @@ const isInstance = (raw: string | undefined): boolean => {
  * tirada y sin importe: la tirada la traera Combat y el importe lo pondra
  * `experienceForRoll` cuando se conozca la cara.
  *
- * SIN VICTORIA NO HAY RECOMPENSAS (CA-08). Una mision anulada o fallida no llega
- * aqui con derrotas que devengar: quien llama solo invoca esto cuando el cierre
- * tiene un resultado con victoria sobre rivales, y sin derrotas en la bitacora
- * devuelve una lista vacia -- que es un resultado legitimo, no un error.
+ * SIN DERROTAS NO HAY RECOMPENSAS (CA-08), y una lista vacia es un resultado
+ * legitimo, no un error: significa que esa mision no dejo ninguna baja legible.
  */
 export const experienceRewardsOf = (input: {
   readonly enrollmentId: string
   readonly playerId: string
   readonly heroId: string
   readonly simulationId: string
-  readonly combatLog: readonly unknown[]
+  readonly defeats: readonly ExperienceRewardDefeat[]
   readonly now: Date
 }): readonly ExperienceReward[] =>
-  defeatsOfCombatLog(input.combatLog).map((defeat) =>
+  input.defeats.map((defeat) =>
     pendingReward({
       enrollmentId: input.enrollmentId,
       playerId: input.playerId,
@@ -154,10 +165,5 @@ export const experienceRewardsOf = (input: {
     }),
   )
 
-/** Representacion legible de un valor rechazado, sin volcar objetos enteros. */
-const describe = (raw: unknown): string => {
-  if (typeof raw === 'number') return String(raw)
-  if (typeof raw === 'string') return `"${raw}"`
-  if (raw === null) return 'null'
-  return typeof raw
-}
+/** Un `DomainError` con el detalle de una incidencia, para el registro del cierre. */
+export const invalidDefeatError = (detail: string): DomainError => new DomainError(detail)

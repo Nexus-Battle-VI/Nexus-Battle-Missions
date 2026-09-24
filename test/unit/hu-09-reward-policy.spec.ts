@@ -205,7 +205,7 @@ describe('HU-09 — la formula no se duplica', () => {
 
   it('el calculo se pide a `experienceForRoll`, no se copia', () => {
     const consumers = sourceFiles(ROOT)
-      .filter((file) => /experienceForRoll/.test(codeOf(file)))
+      .filter((file) => codeOf(file).includes('experienceForRoll'))
       .map(relative)
 
     // La politica que lo define y el caso de uso que lo consume.
