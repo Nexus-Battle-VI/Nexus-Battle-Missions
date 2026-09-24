@@ -209,7 +209,7 @@ describe('Resultado de la mision (tabla del diseno de HU-72)', () => {
       { id: 'obj_camaras', type: 'CLEAR_ENCOUNTERS', primary: true, met: true },
       { id: 'obj_vida', type: 'MIN_HEALTH_PERCENT', primary: false, met: false },
       { id: 'obj_master', type: 'DEFEAT_MASTER', primary: false, met: null },
-      { id: 'obj_fragmentos', type: null, primary: false, met: null },
+      { id: 'obj_fragmentos', type: 'COLLECT_LOOT', primary: false, met: null },
     ])
   })
 

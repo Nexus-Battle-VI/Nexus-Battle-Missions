@@ -72,7 +72,11 @@ export interface MissionEnrollment {
 
 /** Hecho interno de Missions, registrado en la misma transaccion que la transicion. */
 export interface MissionFact {
-  /** `MissionEnrollmentStarted` lo consume HU-72; `MissionSettled`, HU-74, HU-76 y HU-10. */
+  /**
+   * `MissionEnrollmentStarted` lo consume HU-72. `MissionSettled` queda para HU-10 y el
+   * aviso de fin de mision; HU-76 solo lo cuenta, sin marcarlo. El reporte de HU-74
+   * no lo consume: se escribe en la misma transaccion del cierre.
+   */
   readonly type: 'MissionEnrollmentStarted' | 'MissionSettled'
   readonly enrollmentId: string
   readonly payload: Readonly<Record<string, unknown>>

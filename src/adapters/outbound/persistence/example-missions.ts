@@ -6,7 +6,8 @@ import type { MissionDefinition } from '../../../domain/entities/MissionDefiniti
  * el ejemplo de la seccion 7.8.14 del documento del curso, y «La Camara Sellada»
  * existe solo para ver un requisito previo en el tablon.
  *
- * Donde el curso no da un valor, queda vacio: no se inventan estadisticas.
+ * Los valores de combate que faltaban en el curso son decisiones editables del
+ * equipo. Este catalogo sigue siendo solo para desarrollo; produccion usa jsonb.
  */
 export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
   {
@@ -21,6 +22,17 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
     imageRef: null,
     estimatedDurationMinutes: 12 * 60,
     recommendedPower: 15,
+    combatRules: {
+      turnDurationSeconds: 60,
+      maxTurnsPerEncounter: 90,
+      recoveryPercent: 35,
+      criticalChance: 0.1,
+      criticalMultiplier: 1.5,
+      difficultyMultipliers: { NORMAL: 1, HEROIC: 1.5, LEGENDARY: 2, MYTHIC: 2.5 },
+      supportAttack: 10,
+      supportDamage: 3,
+      supportRegen: 1,
+    },
     prerequisites: [],
     // Reglas de la tabla «Objetivos del ejemplo del curso» del contrato de HU-72.
     objectives: [
@@ -49,11 +61,10 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
         rule: { type: 'DEFEAT_MASTER' },
       },
       {
-        // Botin: no evaluable hasta HU-10.
         id: 'obj_fragmentos',
         text: 'Encontrar los 3 fragmentos del Sello Antiguo.',
         primary: false,
-        rule: null,
+        rule: { type: 'COLLECT_LOOT', label: 'Fragmento del Sello Antiguo', count: 3 },
       },
     ],
     enemies: [
@@ -62,18 +73,21 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
         name: 'Sombras Corrompidas',
         count: 10,
         description: 'Enemigos básicos con ataque moderado.',
+        profile: { maxHealth: 5, attack: 2, defense: 3, damage: 1, ai: 'AGGRESSIVE' },
       },
       {
         enemyRef: 'guardian-de-piedra',
         name: 'Guardianes de Piedra',
         count: 5,
         description: 'Enemigos con alta defensa.',
+        profile: { maxHealth: 8, attack: 3, defense: 6, damage: 1, ai: 'GUARDED' },
       },
       {
         enemyRef: 'espectro-ancestral',
         name: 'Espectros Ancestrales',
         count: 3,
         description: 'Enemigos con ataques mágicos.',
+        profile: { maxHealth: 7, attack: 4, defense: 4, damage: 2, ai: 'AGGRESSIVE' },
       },
     ],
     finalBoss: {
@@ -81,7 +95,21 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
       name: 'El Guardián Eterno',
       heroType: 'GUERRERO_TANQUE',
       description: 'Guerrero Tanque con habilidades potenciadas.',
-      stats: { health: 100 },
+      stats: { health: 100, attack: 2, defense: 5, damage: 1 },
+      profile: {
+        maxHealth: 100,
+        attack: 2,
+        defense: 5,
+        damage: 1,
+        ai: 'BOSS',
+        enrageBelowPercent: 50,
+        enrageAttackBonus: 3,
+      },
+      drops: [
+        { label: 'Fragmento del Sello Antiguo', probability: 0.6, rolls: 3, productId: null },
+        { label: 'Armadura «Piel del Guardián»', probability: 0.2, rolls: 1, productId: null },
+        { label: 'Arma «Espada del Templo»', probability: 0.15, rolls: 1, productId: null },
+      ],
     },
     // Reparto ilustrativo del contrato de HU-72: el curso da las cantidades
     // (10, 5 y 3) y «las 5 cámaras», no el orden.
@@ -89,31 +117,31 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
       {
         index: 1,
         kind: 'REGULAR',
-        powerStep: null,
+        powerStep: 0,
         enemies: [{ enemyRef: 'sombra-corrompida', count: 4 }],
       },
       {
         index: 2,
         kind: 'REGULAR',
-        powerStep: null,
+        powerStep: 0.05,
         enemies: [{ enemyRef: 'sombra-corrompida', count: 6 }],
       },
       {
         index: 3,
         kind: 'REGULAR',
-        powerStep: null,
+        powerStep: 0.1,
         enemies: [{ enemyRef: 'guardian-de-piedra', count: 5 }],
       },
       {
         index: 4,
         kind: 'REGULAR',
-        powerStep: null,
+        powerStep: 0.15,
         enemies: [{ enemyRef: 'espectro-ancestral', count: 3 }],
       },
       {
         index: 5,
         kind: 'BOSS',
-        powerStep: null,
+        powerStep: 0.2,
         enemies: [{ enemyRef: 'guardian-eterno', count: 1 }],
       },
     ],
@@ -128,7 +156,7 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
           name: 'Sombra del Olvido',
           subtype: 'PICARO_VENENO',
           levelOffset: 2,
-          profile: null,
+          profile: { maxHealth: 55, attack: 3, defense: 6, damage: 1, ai: 'AGGRESSIVE' },
           probabilityByHeroType: { '*': 0.15 },
           epic: {
             epicRef: 'velo-de-sombras',
@@ -168,6 +196,17 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
     imageRef: null,
     estimatedDurationMinutes: 6 * 60,
     recommendedPower: null,
+    combatRules: {
+      turnDurationSeconds: 60,
+      maxTurnsPerEncounter: 90,
+      recoveryPercent: 35,
+      criticalChance: 0.1,
+      criticalMultiplier: 1.5,
+      difficultyMultipliers: { NORMAL: 1, HEROIC: 1.5, LEGENDARY: 2, MYTHIC: 2.5 },
+      supportAttack: 10,
+      supportDamage: 3,
+      supportRegen: 1,
+    },
     prerequisites: ['msn_templo_olvidado'],
     // Abrir la cámara es vencer a su custodio, el jefe final.
     objectives: [
@@ -178,25 +217,67 @@ export const EXAMPLE_MISSIONS: readonly MissionDefinition[] = [
         rule: { type: 'DEFEAT_BOSS' },
       },
     ],
-    enemies: [],
+    enemies: [
+      {
+        enemyRef: 'centinela-arcano',
+        name: 'Centinela Arcano',
+        count: 4,
+        description: 'Defiende el acceso a la cámara.',
+        profile: { maxHealth: 8, attack: 3, defense: 5, damage: 1, ai: 'GUARDED' },
+      },
+      {
+        enemyRef: 'eco-del-sello',
+        name: 'Eco del Sello',
+        count: 2,
+        description: 'Proyección mágica de la cámara.',
+        profile: { maxHealth: 10, attack: 4, defense: 5, damage: 1, ai: 'AGGRESSIVE' },
+      },
+    ],
     finalBoss: {
       enemyRef: 'custodio-del-sello',
       name: 'Custodio del Sello',
       heroType: null,
       description: null,
-      stats: {},
+      stats: { health: 75, attack: 3, defense: 5, damage: 1 },
+      profile: {
+        maxHealth: 75,
+        attack: 3,
+        defense: 5,
+        damage: 1,
+        ai: 'BOSS',
+        enrageBelowPercent: 50,
+        enrageAttackBonus: 2,
+      },
+      drops: [{ label: 'Núcleo del Sello', probability: 0.5, rolls: 1, productId: null }],
     },
     encounters: [
       {
         index: 1,
+        kind: 'REGULAR',
+        powerStep: 0,
+        enemies: [{ enemyRef: 'centinela-arcano', count: 4 }],
+      },
+      {
+        index: 2,
+        kind: 'REGULAR',
+        powerStep: 0.1,
+        enemies: [{ enemyRef: 'eco-del-sello', count: 2 }],
+      },
+      {
+        index: 3,
         kind: 'BOSS',
-        powerStep: null,
+        powerStep: 0.2,
         enemies: [{ enemyRef: 'custodio-del-sello', count: 1 }],
       },
     ],
     masterEncounter: null,
-    rewards: { guaranteed: [], potential: [], objectiveBonuses: [], firstTime: [] },
-    highlightedRewards: [],
+    rewards: {
+      guaranteed: [{ label: '30 créditos' }],
+      potential: [{ label: 'Núcleo del Sello', probability: 0.5, rolls: 1 }],
+      objectiveBonuses: [],
+      firstTime: [{ label: 'Título «Custodio de la Cámara»' }],
+    },
+    highlightedRewards: [{ label: '30 créditos' }, { label: 'Núcleo del Sello' }],
     active: true,
   },
 ]

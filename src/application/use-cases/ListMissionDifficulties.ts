@@ -2,6 +2,7 @@ import { evaluateAllDifficulties } from '../../domain/policies/DifficultyPolicy'
 import type { DifficultyLevel } from '../../domain/value-objects/difficulty-level'
 import { scalingOf, type RewardTier } from '../../domain/value-objects/difficulty-scaling'
 import type { DifficultyClearRepositoryPort } from '../ports/DifficultyClearRepositoryPort'
+import type { MissionCatalogPort } from '../ports/MissionCatalogPort'
 
 export interface MissionDifficultyView {
   readonly difficulty: DifficultyLevel
@@ -28,10 +29,16 @@ export interface MissionDifficultiesView {
  * para una mision sin progreso.
  */
 export class ListMissionDifficulties {
-  constructor(private readonly clears: DifficultyClearRepositoryPort) {}
+  constructor(
+    private readonly clears: DifficultyClearRepositoryPort,
+    private readonly catalog?: MissionCatalogPort,
+  ) {}
 
   async execute(playerId: string, missionId: string): Promise<MissionDifficultiesView> {
-    const cleared = await this.clears.clearedLevels(playerId, missionId)
+    const [cleared, definition] = await Promise.all([
+      this.clears.clearedLevels(playerId, missionId),
+      this.catalog?.findById(missionId),
+    ])
 
     return {
       missionId,
@@ -42,7 +49,9 @@ export class ListMissionDifficulties {
           difficulty: availability.difficulty,
           unlocked: availability.unlocked,
           lockReason: availability.lockReason,
-          enemyStatMultiplier: scaling.enemyStatMultiplier,
+          enemyStatMultiplier:
+            definition?.combatRules?.difficultyMultipliers?.[availability.difficulty] ??
+            scaling.enemyStatMultiplier,
           rewardTier: scaling.rewardTier,
         }
       }),

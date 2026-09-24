@@ -110,6 +110,12 @@ export interface MissionReport {
   readonly summary: ReportSummary
   readonly combatStats: CombatStats
   readonly enemies: ReportEnemies
+  /** Botin obtenido del jefe, congelado en el cierre. Sin productId es contenido narrativo. */
+  readonly loot?: readonly {
+    readonly label: string
+    readonly quantity: number
+    readonly productId: string | null
+  }[]
   readonly objectives: readonly ReportObjective[]
   /** Cuando se genero: el momento del cierre. */
   readonly generatedAt: Date

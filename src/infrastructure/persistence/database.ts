@@ -17,6 +17,8 @@ import * as missionReports from '../../adapters/outbound/persistence/migrations/
 import * as missionMasterEncounters from '../../adapters/outbound/persistence/migrations/006-mission-master-encounters'
 import * as missionExperienceRewards from '../../adapters/outbound/persistence/migrations/007-experience-rewards'
 import * as reportExperience from '../../adapters/outbound/persistence/migrations/008-report-experience'
+import * as missionAchievements from '../../adapters/outbound/persistence/migrations/009-mission-achievements'
+import * as playableMissions from '../../adapters/outbound/persistence/migrations/010-playable-missions'
 import type { Database } from '../../adapters/outbound/persistence/schema'
 
 export interface DatabaseOptions {
@@ -85,7 +87,9 @@ export const createDatabase = (options: DatabaseOptions): Kysely<Database> => {
  * la entrega de su epica; `007-experience-rewards` (HU-09, Task #442), el estado
  * de la recompensa de experiencia de cada derrota; `008-report-experience` (HU-09,
  * Task #443), el origen `HU-09`, la progresion del heroe en la linea del reporte y
- * su enlace con la recompensa.
+ * su enlace con la recompensa; `009-mission-achievements` (HU-76, Task #388), los
+ * logros desbloqueados, sus reconocimientos y el punto de control de cada
+ * jugador; y `010-playable-missions`, la siembra de las dos misiones jugables.
  */
 export const MIGRATIONS: Readonly<Record<string, Migration>> = {
   '001-mission-difficulty-clears': missionDifficultyClears,
@@ -96,6 +100,8 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = {
   '006-mission-master-encounters': missionMasterEncounters,
   '007-experience-rewards': missionExperienceRewards,
   '008-report-experience': reportExperience,
+  '009-mission-achievements': missionAchievements,
+  '010-playable-missions': playableMissions,
 }
 
 export interface MigrationOutcome {

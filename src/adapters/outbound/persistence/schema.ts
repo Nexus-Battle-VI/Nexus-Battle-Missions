@@ -1,6 +1,12 @@
 import type { ColumnType, Generated } from 'kysely'
 
 import type {
+  AchievementCriterion,
+  AchievementProof,
+  RecognitionKind,
+  RecognitionStatus,
+} from '../../../domain/entities/Achievement'
+import type {
   EpicGrantStatus,
   MasterEncounterStatus,
 } from '../../../domain/entities/MasterEncounterRecord'
@@ -49,6 +55,8 @@ export interface Database {
   readonly mission_report_rewards: MissionReportRewardsTable
   readonly mission_master_encounters: MissionMasterEncountersTable
   readonly mission_experience_rewards: MissionExperienceRewardsTable
+  readonly mission_achievement_unlocks: MissionAchievementUnlocksTable
+  readonly mission_achievement_evaluations: MissionAchievementEvaluationsTable
 }
 
 /**
@@ -70,6 +78,7 @@ export interface MissionDefinitionContent {
   readonly enemies: MissionDefinition['enemies']
   readonly finalBoss: MissionDefinition['finalBoss']
   readonly encounters: MissionDefinition['encounters']
+  readonly combatRules?: MissionDefinition['combatRules']
   readonly masterEncounter: MissionDefinition['masterEncounter']
   readonly rewards: MissionDefinition['rewards']
   readonly highlightedRewards: MissionDefinition['highlightedRewards']
@@ -255,7 +264,50 @@ export interface MissionExperienceRewardsTable {
   readonly created_at: ColumnType<Date, Date | undefined, never>
 }
 
-/** Hechos internos de Missions (`MissionEnrollmentStarted`); los consume HU-72. */
+/**
+ * Logros desbloqueados (HU-76, migracion `009-mission-achievements`), uno por
+ * jugador y logro. Lo desbloqueado queda congelado; despues solo cambia la
+ * entrega de un cosmetico.
+ */
+export interface MissionAchievementUnlocksTable {
+  readonly player_id: ColumnType<string, string, never>
+  readonly achievement_id: ColumnType<string, string, never>
+  readonly achievement_version: ColumnType<number, number, never>
+  readonly criterion: ColumnType<AchievementCriterion, AchievementCriterion, never>
+  readonly name: ColumnType<string, string, never>
+  readonly progress_current: ColumnType<number, number, never>
+  readonly progress_target: ColumnType<number, number, never>
+  readonly proof: ColumnType<AchievementProof, string, never>
+  readonly unlocked_at: ColumnType<Date, Date, never>
+  readonly recognition_kind: ColumnType<RecognitionKind, RecognitionKind, never>
+  readonly recognition_name: ColumnType<string, string, never>
+  readonly recognition_status: RecognitionStatus
+  readonly grant_operation_id: ColumnType<string | null, string | null, never>
+  readonly grant_attempts: ColumnType<number, number | undefined, number>
+  readonly grant_next_attempt_at: Date | null
+  readonly grant_last_error: string | null
+  readonly grant_product_id: string | null
+  readonly credited_at: Date | null
+}
+
+/** Punto de control de la evaluacion de logros de cada jugador (HU-76, migracion 009). */
+export interface MissionAchievementEvaluationsTable {
+  readonly player_id: ColumnType<string, string, never>
+  readonly settled_seen: number
+  readonly epics_granted_seen: number
+  readonly catalog_fingerprint: string | null
+  readonly evaluated_at: Date | null
+  readonly attempts: ColumnType<number, number | undefined, number>
+  readonly next_attempt_at: Date | null
+  readonly last_error: string | null
+}
+
+/**
+ * Hechos internos de Missions: `MissionEnrollmentStarted` (HU-70), que consume
+ * HU-72, y `MissionSettled` (HU-72). `processed_at` es SOLO de HU-72: cada otro
+ * consumidor lleva su propio registro (HU-76, `mission_achievement_evaluations`)
+ * y no lo marca, para no ocultar el hecho a los demas.
+ */
 export interface MissionFactsTable {
   readonly fact_id: Generated<string>
   readonly type: string

@@ -64,7 +64,7 @@ const SCALING = [
   ['NORMAL', 1, 'STANDARD'],
   ['HEROIC', 1.5, 'IMPROVED'],
   ['LEGENDARY', 2, 'PREMIUM'],
-  ['MYTHIC', null, 'EXCLUSIVE'],
+  ['MYTHIC', 2.5, 'EXCLUSIVE'],
 ] as const
 
 /** Cuerpo esperado cuando estan libres EXACTAMENTE los niveles indicados. */
@@ -196,7 +196,7 @@ describe('HU-75 de punta a punta: HTTP real y PostgreSQL real (Task HU-75.4)', (
     )
   })
 
-  it('P-05 / CA-04: con Legendario completado, Mitico queda libre sin multiplicador inventado', async () => {
+  it('P-05 / CA-04: con Legendario completado, Mitico queda libre con escalado definido', async () => {
     for (const level of ['NORMAL', 'HEROIC', 'LEGENDARY'] as const) {
       await complete('sujeto-ana', 'msn-p05', level)
     }
@@ -208,7 +208,7 @@ describe('HU-75 de punta a punta: HTTP real y PostgreSQL real (Task HU-75.4)', (
     )
     expect(response.body.items[3]).toMatchObject({
       difficulty: 'MYTHIC',
-      enemyStatMultiplier: null,
+      enemyStatMultiplier: 2.5,
       rewardTier: 'EXCLUSIVE',
     })
   })

@@ -87,14 +87,15 @@ const enemyNamesOf = (definition: MissionDefinition): ReadonlyMap<string, string
 }
 
 /** El jefe con lo que da el contenido; lo que el curso no da queda en `null`. */
-const bossProfileOf = (boss: MissionBoss): Readonly<Record<string, unknown>> => ({
-  subtype: boss.heroType,
-  maxHealth: boss.stats.health ?? null,
-  attack: boss.stats.attack ?? null,
-  defense: boss.stats.defense ?? null,
-  damage: boss.stats.damage ?? null,
-  abilities: null,
-})
+const bossProfileOf = (boss: MissionBoss): Readonly<Record<string, unknown>> =>
+  boss.profile ?? {
+    subtype: boss.heroType,
+    maxHealth: boss.stats.health ?? null,
+    attack: boss.stats.attack ?? null,
+    defense: boss.stats.defense ?? null,
+    damage: boss.stats.damage ?? null,
+    abilities: null,
+  }
 
 /**
  * Solicitud a Combat con lo que Missions tiene congelado (P-S4): la duracion y
@@ -112,7 +113,7 @@ export const simulationRequestFor = (
     throw new Error(`La matricula ${enrollment.enrollmentId} no tiene inicio y fin.`)
   }
 
-  const names = new Map(definition.enemies.map((enemy) => [enemy.enemyRef, enemy.name]))
+  const enemiesByRef = new Map(definition.enemies.map((enemy) => [enemy.enemyRef, enemy]))
   const boss = definition.finalBoss
 
   return {
@@ -121,7 +122,9 @@ export const simulationRequestFor = (
     enrollmentId: enrollment.enrollmentId,
     missionId: enrollment.missionId,
     difficulty: enrollment.difficulty,
-    enemyStatMultiplier: scalingOf(enrollment.difficulty).enemyStatMultiplier,
+    enemyStatMultiplier:
+      definition.combatRules?.difficultyMultipliers?.[enrollment.difficulty] ??
+      scalingOf(enrollment.difficulty).enemyStatMultiplier,
     timeBudget: toIsoDuration(
       (enrollment.endsAt.getTime() - enrollment.startedAt.getTime()) / MINUTE_MS,
     ),
@@ -138,9 +141,17 @@ export const simulationRequestFor = (
       enemies: encounter.enemies.map(({ enemyRef, count }) =>
         enemyRef === boss.enemyRef
           ? { enemyRef, name: boss.name, count, profile: bossProfileOf(boss) }
-          : { enemyRef, name: names.get(enemyRef) ?? enemyRef, count, profile: null },
+          : {
+              enemyRef,
+              name: enemiesByRef.get(enemyRef)?.name ?? enemyRef,
+              count,
+              profile: enemiesByRef.get(enemyRef)?.profile ?? null,
+            },
       ),
     })),
+    ...(definition.combatRules === undefined ? {} : { rules: definition.combatRules }),
+    ...(definition.finalBoss.drops === undefined ? {} : { bossDrops: definition.finalBoss.drops }),
+    contentSnapshot: definition,
     master:
       definition.masterEncounter === null
         ? null
@@ -347,7 +358,8 @@ export class RunMissionExecutions {
   /** CU-72.2: se evaluan los objetivos y se cierra todo en una transaccion. */
   private async close(execution: MissionExecution, tally: Tally): Promise<void> {
     const enrollment = await this.requireEnrollment(execution.enrollmentId)
-    const definition = await this.catalog.findById(enrollment.missionId)
+    const definition =
+      execution.request?.contentSnapshot ?? (await this.catalog.findById(enrollment.missionId))
     const result = execution.result
     const facts = simulationFactsOf(result?.summary)
 

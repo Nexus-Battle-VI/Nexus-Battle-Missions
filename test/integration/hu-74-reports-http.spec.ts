@@ -163,8 +163,7 @@ describe('Reporte e historial por HTTP (Task HU-74.2)', () => {
       summary: {
         outcome: 'COMPLETED',
         outcomeReason: null,
-        // El doble de Player/Inventory no trae nombre ni subtipo.
-        hero: { heroId: HERO, name: null, subtype: null },
+        hero: { heroId: HERO, name: 'Guerrero de prueba', subtype: 'GUERRERO_ARMAS' },
         startedAt: normal.startedAt,
         finishedAt: normal.endsAt,
         // El doble de Combat devuelve el presupuesto de tiempo como duracion.
@@ -303,6 +302,7 @@ describe('Reporte e historial por HTTP (Task HU-74.2)', () => {
         },
       ],
       epicCollection: [],
+      lootCollection: [],
       narrativeProgress: [{ chainId: TEMPLO, missions: [TEMPLO, CAMARA], completed: 1, total: 2 }],
     })
   })

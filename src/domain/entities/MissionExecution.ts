@@ -1,7 +1,7 @@
 import { DomainError } from '../errors/DomainError'
 import type { DifficultyLevel } from '../value-objects/difficulty-level'
 import type { Rotation } from '../value-objects/rotation'
-import type { ObjectiveRule } from './MissionDefinition'
+import type { MissionCombatRules, MissionDefinition, ObjectiveRule } from './MissionDefinition'
 
 /**
  * Ejecucion de la simulacion de una matricula (HU-72, agregado `MissionExecution`,
@@ -50,7 +50,7 @@ export interface SimulationRequest {
   readonly enrollmentId: string
   readonly missionId: string
   readonly difficulty: DifficultyLevel
-  /** HU-75; `null` en Mitico mientras el PO no fije el numero. */
+  /** HU-75; el contenido editable puede ajustar el factor de cada dificultad. */
   readonly enemyStatMultiplier: number | null
   /** Duracion de la mision en ISO-8601 (decision 1 del diseno). */
   readonly timeBudget: string
@@ -66,6 +66,15 @@ export interface SimulationRequest {
     readonly fallback: 'BASIC_ATTACK'
   }
   readonly encounters: readonly SimulationEncounter[]
+  readonly rules?: MissionCombatRules
+  readonly bossDrops?: readonly {
+    readonly label: string
+    readonly probability: number
+    readonly rolls: number
+    readonly productId?: string | null
+  }[]
+  /** Copia local para el cierre; el cliente HTTP no la envia a Combat. */
+  readonly contentSnapshot?: MissionDefinition
   /**
    * HU-73: `null` si la mision no tiene Master o ningun candidato tiene
    * probabilidad para el subtipo del heroe (P-X2).
@@ -98,6 +107,7 @@ export interface SimulationFacts {
   readonly bossDefeated: boolean
   readonly minHealthPercent: number
   readonly master: { readonly appeared: boolean; readonly defeated: boolean }
+  readonly loot?: readonly { readonly label: string; readonly quantity: number }[]
 }
 
 /** Resultado de Combat tal como se guarda, sellado hasta `endsAt` (P-S9). */

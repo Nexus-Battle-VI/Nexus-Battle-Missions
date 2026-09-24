@@ -612,16 +612,16 @@ describe('Ejecuciones de mision en PostgreSQL (HU-72)', () => {
       const executor = app.get<RunMissionExecutions>(RUN_MISSION_EXECUTIONS)
 
       await expect(executor.run()).resolves.toEqual(cycle({ queued: 1, simulated: 1 }))
-      expect((await get('/api/v1/missions')).body.items).toEqual([
+      expect((await get('/api/v1/missions')).body.items).toContainEqual(
         expect.objectContaining({ missionId: TEMPLO, playerStatus: 'IN_PROGRESS' }),
-      ])
+      )
 
       clock.current = new Date(String(enrolled.body.endsAt))
       await expect(executor.run()).resolves.toEqual(cycle({ settled: 1, released: 1 }))
 
-      expect((await get('/api/v1/missions')).body.items).toEqual([
+      expect((await get('/api/v1/missions')).body.items).toContainEqual(
         expect.objectContaining({ missionId: TEMPLO, playerStatus: 'COMPLETED', canEnroll: true }),
-      ])
+      )
       const levels = (await get(`/api/v1/missions/${TEMPLO}/difficulties`)).body.items as {
         difficulty: string
         unlocked: boolean

@@ -14,10 +14,10 @@ describe('Descriptor de escalado (HU-75, CA-02 y CA-04)', () => {
     })
   })
 
-  it('Mitico no lleva un multiplicador inventado: queda pendiente del PO', () => {
+  it('Mitico usa el multiplicador definido por el equipo', () => {
     expect(scalingOf('MYTHIC')).toEqual({
       difficulty: 'MYTHIC',
-      enemyStatMultiplier: null,
+      enemyStatMultiplier: 2.5,
       rewardTier: 'EXCLUSIVE',
     })
   })

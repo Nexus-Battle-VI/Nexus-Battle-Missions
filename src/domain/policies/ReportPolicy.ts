@@ -127,6 +127,30 @@ const simulatedDurationOf = (value: unknown): string | null => {
   return duration !== null && isoDurationSeconds(duration) !== null ? duration : null
 }
 
+const lootOf = (
+  value: unknown,
+): readonly {
+  readonly label: string
+  readonly quantity: number
+  readonly productId: string | null
+}[] =>
+  Array.isArray(value)
+    ? (value as unknown[]).flatMap((item) =>
+        isRecord(item) &&
+        textOrNull(item.label) !== null &&
+        isCount(item.quantity) &&
+        item.quantity > 0
+          ? [
+              {
+                label: item.label as string,
+                quantity: item.quantity,
+                productId: textOrNull(item.productId),
+              },
+            ]
+          : [],
+      )
+    : []
+
 const reportOutcomeOf = (settlement: Settlement): ReportOutcome => {
   if (settlement.outcome === 'VOIDED') {
     throw new RangeError('Una mision anulada no tiene reporte (HU-74, P-T3).')
@@ -179,6 +203,7 @@ export const missionReportOf = (input: ReportInput): MissionReport => {
       },
       masters: mastersOf(input.masters ?? [], definition),
     },
+    ...(Array.isArray(summary.loot) ? { loot: lootOf(summary.loot) } : {}),
     objectives: definition.objectives.map((objective) => ({
       id: objective.id,
       text: objective.text,

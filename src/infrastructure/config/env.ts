@@ -77,7 +77,10 @@ export interface AppConfig {
   /** Planificador de HU-72; apagado por defecto, como los demas temporizadores. */
   readonly missionExecutionEnabled: boolean
   readonly missionExecutionIntervalMs: number
-  /** HU-73: entrega de epicas en Player/Inventory, con la misma URL y secreto que la reserva. */
+  /**
+   * HU-73 y HU-76: entrega de epicas y de cosmeticos de logro en Player/Inventory,
+   * con la misma URL y secreto que la reserva.
+   */
   readonly epicGrantsDriver: IntegrationDriver
   /**
    * HU-09: tiradas en Combat y acreditaciones en Player/Inventory. Un solo driver
@@ -88,7 +91,7 @@ export interface AppConfig {
   /** HU-09: barrido de las recompensas no terminales. Apagado por defecto. */
   readonly experienceRewardEnabled: boolean
   readonly experienceRewardIntervalMs: number
-  /** Misiones de ejemplo del curso, solo con persistencia en memoria. */
+  /** Misiones (HU-70) y logros (HU-76) de ejemplo, solo con persistencia en memoria. */
   readonly exampleCatalog: boolean
 }
 
