@@ -69,6 +69,13 @@ export interface ExperienceReward {
   readonly nextAttemptAt: Date | null
   readonly lastError: string | null
   readonly creditedAt: Date | null
+  /**
+   * HU-09 (Task HU-09.5): la linea del reporte de HU-74 que refleja ESTA derrota,
+   * para poder mover las dos en la misma transaccion. `null` mientras la mision no
+   * tenga reporte -- una anulacion no lo tiene (P-T3) -- o si el cierre no llego a
+   * escribir las lineas.
+   */
+  readonly reportLineNo: number | null
 }
 
 /** Clave de la recompensa: la INSTANCIA de la derrota dentro de la mision. */
@@ -143,6 +150,20 @@ export const pendingReward = (input: {
   nextAttemptAt: input.now,
   lastError: null,
   creditedAt: null,
+  reportLineNo: null,
+})
+
+/**
+ * Ata la recompensa a la linea del reporte que la refleja (HU-09, Task HU-09.5).
+ *
+ * SE HACE EN EL CIERRE Y NO DESPUES: la linea nace con la foto, en la misma
+ * transaccion, asi que el numero se conoce ahi y no hay que emparejarlos luego por
+ * nombre ni por orden, que se rompe en cuanto una mision tiene dos derrotas del
+ * mismo arquetipo.
+ */
+export const withReportLine = (reward: ExperienceReward, lineNo: number): ExperienceReward => ({
+  ...reward,
+  reportLineNo: lineNo,
 })
 
 /**

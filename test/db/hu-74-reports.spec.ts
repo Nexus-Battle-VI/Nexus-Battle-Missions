@@ -107,6 +107,7 @@ const line = (overrides: Partial<ReportRewardLine>): ReportRewardLine => ({
   quantity: 50,
   status: 'PENDING',
   source: 'HU-10',
+  progression: null,
   updatedAt: CLOSED,
   ...overrides,
 })

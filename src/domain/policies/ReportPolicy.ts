@@ -7,8 +7,10 @@ import {
   type CombatStats,
   type DefeatedEnemy,
   type MissionReport,
+  type ReportExperience,
   type ReportMaster,
   type ReportOutcome,
+  type ReportRewardLine,
   type SkillUse,
 } from '../entities/MissionReport'
 import { isoDurationSeconds } from '../value-objects/iso-duration'
@@ -185,5 +187,68 @@ export const missionReportOf = (input: ReportInput): MissionReport => {
       bonus: null,
     })),
     generatedAt: input.generatedAt,
+  }
+}
+
+/** Una linea de experiencia la escribio HU-09: es la unica fuente de este bloque. */
+const isExperienceLine = (line: ReportRewardLine): boolean =>
+  line.source === 'HU-09' && line.kind === 'EXPERIENCE'
+
+/**
+ * El resumen de experiencia del reporte (HU-09, Task HU-09.5), derivado de sus
+ * lineas `HU-09`.
+ *
+ * SE DERIVA Y NO SE GUARDA: es lo unico del reporte que cambia con el tiempo, y un
+ * total guardado aparte acabaria diciendo algo distinto que sus propias lineas.
+ *
+ * EL NIVEL ES EL MAXIMO DE LAS LINEAS ACREDITADAS, no el de la ultima ni el de la
+ * de mayor numero. El nivel y la experiencia acumulada SOLO CRECEN (lo garantiza
+ * Player/Inventory), asi que el maximo es el estado final del heroe con
+ * independencia del orden en que el barrido acredito las derrotas -- que no es un
+ * orden que este codigo controle.
+ *
+ * SIN ACREDITACIONES TODAVIA, el nivel es `null` y no un cero: un cero seria un
+ * nivel que el heroe no tiene.
+ *
+ * UN REPORTE ANTERIOR A HU-09 no tiene lineas de este origen y sale con ceros y
+ * con `level: null`, que es la verdad: esa mision no registro derrotas.
+ */
+export const experienceSummaryOf = (rewards: readonly ReportRewardLine[]): ReportExperience => {
+  const lines = rewards.filter(isExperienceLine)
+  const credited = lines.filter((line) => line.status === 'CREDITED')
+
+  let level: number | null = null
+  let currentXp: number | null = null
+  let maxLevel: number | null = null
+  let levelsGained = 0
+  let totalXp = 0
+
+  for (const line of credited) {
+    const progression = line.progression
+
+    totalXp += line.quantity
+
+    if (progression === null) {
+      continue
+    }
+
+    level = level === null ? progression.level : Math.max(level, progression.level)
+    currentXp =
+      currentXp === null ? progression.currentXp : Math.max(currentXp, progression.currentXp)
+    maxLevel = maxLevel === null ? progression.maxLevel : Math.max(maxLevel, progression.maxLevel)
+    levelsGained += progression.levelsGained
+  }
+
+  return {
+    defeats: lines.length,
+    totalXp,
+    credited: credited.length,
+    pending: lines.filter((line) => line.status === 'PENDING').length,
+    failed: lines.filter((line) => line.status === 'FAILED').length,
+    level,
+    currentXp,
+    maxLevel,
+    levelsGained,
+    leveledUp: levelsGained > 0,
   }
 }

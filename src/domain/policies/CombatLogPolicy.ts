@@ -1,8 +1,10 @@
 import {
   pendingReward,
+  withReportLine,
   type ExperienceReward,
   type ExperienceRewardDefeat,
 } from '../entities/ExperienceReward'
+import type { ReportRewardLine } from '../entities/MissionReport'
 import { DomainError } from '../errors/DomainError'
 
 /**
@@ -167,3 +169,59 @@ export const experienceRewardsOf = (input: {
 
 /** Un `DomainError` con el detalle de una incidencia, para el registro del cierre. */
 export const invalidDefeatError = (detail: string): DomainError => new DomainError(detail)
+
+/** Las recompensas ATADAS a su linea del reporte, mas las lineas. */
+export interface ExperienceReportLines {
+  /** Las mismas recompensas, cada una con `reportLineNo` ya puesto. */
+  readonly rewards: readonly ExperienceReward[]
+  /** Las lineas `EXPERIENCE` de HU-74, en el orden de las derrotas. */
+  readonly lines: readonly ReportRewardLine[]
+}
+
+/**
+ * Las lineas `EXPERIENCE` del reporte de HU-74 y la recompensa de cada una (HU-09,
+ * Task HU-09.5).
+ *
+ * UNA LINEA POR DERROTA, no una por mision ni una con la suma: la derrota es la
+ * unidad de la recompensa (§4.1), y el reporte tiene que poder ensenar cual de
+ * ellas fallo sin ensenar un total enganoso. Hoy la mision de ejemplo deja 19.
+ *
+ * LA LINEA NACE `PENDING` Y CON `quantity: 0` PORQUE TODAVIA NO HAY IMPORTE. El
+ * importe lo decide la tirada de Combat, que ocurre despues del cierre; escribir
+ * aqui un cero con otro significado, o un importe estimado, seria mentir en la
+ * foto. El ciclo de coordinacion la completa cuando acredita.
+ *
+ * `reference` ES LA INSTANCIA (`<enemyRef>#<n>`) y no el arquetipo: es lo que
+ * identifica la derrota, y dos derrotas del mismo arquetipo tienen lineas
+ * distintas. El nombre, cuando el contenido lo trae, es el del enemigo.
+ */
+export const experienceReportLinesOf = (input: {
+  readonly rewards: readonly ExperienceReward[]
+  /** El numero de la primera linea libre: las de HU-73 van delante. */
+  readonly firstLineNo: number
+  readonly enemyNames: ReadonlyMap<string, string>
+  readonly now: Date
+}): ExperienceReportLines => {
+  const lines: ReportRewardLine[] = []
+
+  const rewards = input.rewards.map((reward, index) => {
+    const lineNo = input.firstLineNo + index
+
+    lines.push({
+      lineNo,
+      kind: 'EXPERIENCE',
+      reference: reward.defeat.enemyInstanceId,
+      name: input.enemyNames.get(reward.defeat.rivalRef) ?? reward.defeat.rivalRef,
+      rarity: null,
+      quantity: 0,
+      status: 'PENDING',
+      source: 'HU-09',
+      progression: null,
+      updatedAt: input.now,
+    })
+
+    return withReportLine(reward, lineNo)
+  })
+
+  return { rewards, lines }
+}

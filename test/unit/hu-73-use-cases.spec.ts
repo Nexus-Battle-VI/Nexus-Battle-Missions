@@ -358,25 +358,34 @@ describe('El Master en la simulacion y el cierre (Task HU-73.2)', () => {
       enemies: {
         masters: [{ masterRef: MASTER, name: 'Sombra del Olvido', status: 'APPEARED_DEFEATED' }],
       },
-      rewards: [
-        {
-          kind: 'EPIC',
-          reference: EPIC,
-          name: 'Velo de Sombras',
-          status: 'PENDING',
-          source: 'HU-73',
-        },
-      ],
     })
+
+    // HU-09 (Task HU-09.5): detras de la epica van las lineas de la experiencia de
+    // cada derrota, asi que la epica es la PRIMERA y no la unica.
+    const view = await report.execute('sub-1', enrollmentId)
+
+    expect(view.rewards[0]).toEqual({
+      kind: 'EPIC',
+      reference: EPIC,
+      name: 'Velo de Sombras',
+      rarity: null,
+      quantity: 1,
+      status: 'PENDING',
+      source: 'HU-73',
+    })
+    expect(view.rewards.slice(1).every((line) => line.kind === 'EXPERIENCE')).toBe(true)
 
     await expect(epics.run()).resolves.toEqual(cycle({ epicsGranted: 1 }))
     expect(grants.calls).toEqual([{ operationId, playerId: 'sub-1', productId: PRODUCT }])
     await expect(onlyRecord(masters, enrollmentId)).resolves.toMatchObject({
       grant: { status: 'GRANTED', grantedAt: clock.current, attempts: 1 },
     })
-    await expect(report.execute('sub-1', enrollmentId)).resolves.toMatchObject({
-      rewards: [{ kind: 'EPIC', status: 'CREDITED' }],
-    })
+    const granted = await report.execute('sub-1', enrollmentId)
+
+    expect(granted.rewards[0]).toMatchObject({ kind: 'EPIC', status: 'CREDITED' })
+    // HU-09 (Task HU-09.5): las derrotas de la mision siguen ahi, sin acreditar
+    // todavia: la entrega de la epica no toca la experiencia.
+    expect(granted.experience).toMatchObject({ defeats: 19, credited: 0, pending: 19 })
     await expect(summary.execute('sub-1')).resolves.toMatchObject({
       epicCollection: [{ epicRef: EPIC, masterRef: MASTER, status: 'CREDITED' }],
     })
@@ -418,10 +427,13 @@ describe('El Master en la simulacion y el cierre (Task HU-73.2)', () => {
       status: 'NOT_APPEARED',
       grant: null,
     })
-    await expect(report.execute('sub-1', enrollmentId)).resolves.toMatchObject({
-      enemies: { masters: [] },
-      rewards: [],
-    })
+    const withoutMaster = await report.execute('sub-1', enrollmentId)
+
+    expect(withoutMaster.enemies.masters).toEqual([])
+    // HU-09 (Task HU-09.5): sin Master no hay epica, pero la experiencia de las
+    // derrotas sigue siendo de la mision.
+    expect(withoutMaster.rewards.filter((line) => line.kind === 'EPIC')).toEqual([])
+    expect(withoutMaster.experience).toMatchObject({ defeats: 19, credited: 0, pending: 19 })
     await expect(epics.run()).resolves.toEqual(cycle())
     expect(grants.calls).toEqual([])
   })
@@ -546,9 +558,9 @@ describe('Entrega de la epica en Player/Inventory (Task HU-73.2, CU-73.3)', () =
     await expect(onlyRecord(masters, enrollmentId)).resolves.toMatchObject({
       grant: { status: 'REJECTED', lastError: 'INVENTORY_REJECTED', nextAttemptAt: null },
     })
-    await expect(report.execute('sub-1', enrollmentId)).resolves.toMatchObject({
-      rewards: [{ kind: 'EPIC', status: 'FAILED' }],
-    })
+    const rejected = await report.execute('sub-1', enrollmentId)
+
+    expect(rejected.rewards[0]).toMatchObject({ kind: 'EPIC', status: 'FAILED' })
 
     clock.advance(3_600_000)
     await expect(epics.run()).resolves.toEqual(cycle())

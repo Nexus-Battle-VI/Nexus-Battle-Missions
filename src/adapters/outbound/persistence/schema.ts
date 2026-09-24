@@ -176,7 +176,11 @@ export interface MissionReportsTable {
   readonly generated_at: ColumnType<Date, Date, never>
 }
 
-/** Lineas de recompensa de cada reporte (HU-74): solo cambian su estado y su fecha. */
+/**
+ * Lineas de recompensa de cada reporte (HU-74): solo cambian su estado, su
+ * importe y su fecha. La progresion del heroe la escribe el avance de la
+ * experiencia (HU-09, migracion `008-report-experience`).
+ */
 export interface MissionReportRewardsTable {
   readonly enrollment_id: ColumnType<string, string, never>
   readonly line_no: ColumnType<number, number, never>
@@ -184,9 +188,19 @@ export interface MissionReportRewardsTable {
   readonly reference: ColumnType<string | null, string | null, never>
   readonly name: ColumnType<string, string, never>
   readonly rarity: ColumnType<string | null, string | null, never>
-  readonly quantity: ColumnType<number, number, never>
+  /**
+   * Unidades entregadas. En una linea de experiencia es el importe ACREDITADO, que
+   * solo se conoce cuando la tirada ocurre: nace en cero y el avance de HU-09 lo
+   * escribe (Task HU-09.5), de ahi que sea actualizable.
+   */
+  readonly quantity: ColumnType<number, number, number>
   readonly status: RewardStatus
   readonly source: ColumnType<RewardSource, RewardSource, never>
+  /** Nivel del heroe al acreditar; `null` mientras no se acredite o no se leyera. */
+  readonly hero_level: number | null
+  readonly hero_current_xp: number | null
+  readonly hero_max_level: number | null
+  readonly levels_gained: number | null
   readonly updated_at: Date
 }
 
@@ -236,6 +250,8 @@ export interface MissionExperienceRewardsTable {
   readonly next_attempt_at: Date | null
   readonly last_error: string | null
   readonly credited_at: Date | null
+  /** La linea del reporte que refleja esta derrota (HU-09.5); `null` sin reporte. */
+  readonly reward_line_no: number | null
   readonly created_at: ColumnType<Date, Date | undefined, never>
 }
 

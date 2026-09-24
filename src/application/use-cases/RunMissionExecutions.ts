@@ -24,6 +24,7 @@ import {
 } from '../../domain/policies/MasterPolicy'
 import { missionReportOf, type ReportInput } from '../../domain/policies/ReportPolicy'
 import {
+  experienceReportLinesOf,
   experienceRewardsOf,
   invalidDefeatError,
   readCombatLog,
@@ -71,6 +72,19 @@ export interface ExecutionOptions {
 }
 
 const MINUTE_MS = 60_000
+
+/**
+ * El nombre de cada enemigo del contenido, jefe incluido: es lo que da nombre a las
+ * lineas de experiencia (HU-09, Task HU-09.5). El jefe se pone aparte porque el
+ * contenido no tiene por que repetirlo en su lista de enemigos.
+ */
+const enemyNamesOf = (definition: MissionDefinition): ReadonlyMap<string, string> => {
+  const names = new Map(definition.enemies.map((enemy) => [enemy.enemyRef, enemy.name]))
+
+  names.set(definition.finalBoss.enemyRef, definition.finalBoss.name)
+
+  return names
+}
 
 /** El jefe con lo que da el contenido; lo que el curso no da queda en `null`. */
 const bossProfileOf = (boss: MissionBoss): Readonly<Record<string, unknown>> => ({
@@ -383,6 +397,15 @@ export class RunMissionExecutions {
       defeats: reading.defeats,
       now,
     })
+    // HU-09 (Task HU-09.5): la linea `EXPERIENCE` de cada derrota nace con la foto,
+    // detras de las de HU-73 -- que ya ocuparon los primeros numeros -- y atada a su
+    // recompensa, para que el ciclo de coordinacion mueva las dos a la vez.
+    const experienceReport = experienceReportLinesOf({
+      rewards: experience,
+      firstLineNo: epics.rewards.length + 1,
+      enemyNames: enemyNamesOf(definition),
+      now,
+    })
     const closed = await this.executions.close({
       enrollment: closeEnrollment(enrollment, settlement.outcome, now),
       enrollmentVersion: enrollment.version,
@@ -402,7 +425,7 @@ export class RunMissionExecutions {
       // HU-73: la evidencia del Master y las entregas pendientes de sus epicas.
       masters: epics.records,
       // HU-09: las recompensas de experiencia nacen con el cierre.
-      experience,
+      experience: experienceReport.rewards,
       report: this.reportFor(
         {
           enrollment,
@@ -413,7 +436,7 @@ export class RunMissionExecutions {
           masters: epics.records,
           generatedAt: now,
         },
-        epics.rewards,
+        [...epics.rewards, ...experienceReport.lines],
       ),
     })
 
@@ -423,9 +446,9 @@ export class RunMissionExecutions {
   }
 
   /**
-   * HU-74 (P-T1): el reporte nace en la misma transaccion del cierre. Por ahora
-   * solo HU-73 aporta lineas (la epica de cada Master derrotado); las de
-   * creditos, productos y experiencia las calculara HU-10.
+   * HU-74 (P-T1): el reporte nace en la misma transaccion del cierre. Hoy aportan
+   * lineas HU-73 (la epica de cada Master derrotado) y HU-09 (la experiencia de cada
+   * NPC derrotado, Task HU-09.5); las de creditos y productos las calculara HU-10.
    *
    * Si la foto no se puede armar, la mision se cierra igual y el fallo se
    * informa: queda en el historial sin reporte, que es mejor que un heroe
