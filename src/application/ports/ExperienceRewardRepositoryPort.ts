@@ -1,4 +1,5 @@
 import type { ExperienceReward } from '../../domain/entities/ExperienceReward'
+import type { ReportLineUpdate } from '../../domain/entities/MissionReport'
 
 /**
  * Estado de las recompensas de experiencia (HU-09, Task HU-09.4): la tabla que
@@ -32,8 +33,20 @@ export interface ExperienceRewardRepositoryPort {
   /**
    * Guarda el avance si la recompensa seguia con los intentos leidos. `false`:
    * otro proceso se adelanto y no se escribe nada.
+   *
+   * HU-09 (Task HU-09.5): `line` es el reflejo del desenlace en la linea del
+   * reporte de HU-74, y se escribe EN LA MISMA TRANSACCION que el estado de la
+   * recompensa. Son el mismo hecho contado dos veces -- una derrota acreditada y su
+   * linea diciendo `CREDITED` --, y separarlos dejaria al jugador viendo una
+   * recompensa entregada que su reporte sigue dando por pendiente. La linea la
+   * escribe SOLO quien gana el bloqueo; `null` en un desenlace no terminal, donde
+   * la linea sigue `PENDING`, y en una recompensa sin linea (mision anulada).
    */
-  save(next: ExperienceReward, expectedAttempts: number): Promise<boolean>
+  save(
+    next: ExperienceReward,
+    expectedAttempts: number,
+    line?: ReportLineUpdate | null,
+  ): Promise<boolean>
 }
 
 export const EXPERIENCE_REWARD_REPOSITORY = Symbol('ExperienceRewardRepositoryPort')

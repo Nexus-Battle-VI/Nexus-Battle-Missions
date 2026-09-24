@@ -572,6 +572,7 @@ export const INTERNAL_CALLERS: readonly string[] = []
         clears: DifficultyClearRepositoryPort,
         reports: ReportRepositoryPort,
         masters: MasterEncounterRepositoryPort,
+        experience: ExperienceRewardRepositoryPort,
       ): ExecutionRepositoryPort => {
         if (usesPostgres(config, db)) {
           return new PostgresExecutionRepository(db)
@@ -594,6 +595,12 @@ export const INTERNAL_CALLERS: readonly string[] = []
           masters instanceof InMemoryMasterEncounterRepository
             ? masters
             : new InMemoryMasterEncounterRepository(reportsInMemory),
+          // HU-09 (Task HU-09.5): el cierre inserta aqui las recompensas PENDING, y
+          // el barrido que las tira y las acredita lee de ESTE mismo doble. Con uno
+          // distinto, en memoria se cerraban misiones cuyas recompensas nadie veia.
+          experience instanceof InMemoryExperienceRewardRepository
+            ? experience
+            : new InMemoryExperienceRewardRepository(reportsInMemory),
         )
       },
       inject: [
@@ -603,6 +610,7 @@ export const INTERNAL_CALLERS: readonly string[] = []
         DIFFICULTY_CLEAR_REPOSITORY,
         REPORT_REPOSITORY,
         MASTER_ENCOUNTER_REPOSITORY,
+        EXPERIENCE_REWARD_REPOSITORY,
       ],
     },
     // El perfil del heroe sale de la misma consulta a Player/Inventory que sus habilidades.
@@ -780,11 +788,16 @@ export const INTERNAL_CALLERS: readonly string[] = []
       useFactory: (
         config: AppConfig,
         db: Kysely<Database> | null,
+        reports: ReportRepositoryPort,
       ): ExperienceRewardRepositoryPort =>
         usesPostgres(config, db)
           ? new PostgresExperienceRewardRepository(db)
-          : new InMemoryExperienceRewardRepository(),
-      inject: [APP_CONFIG, DATABASE],
+          : // En memoria, el avance de una recompensa mueve ademas su linea del
+            // reporte (Task HU-09.5), asi que los dos dobles comparten estado.
+            new InMemoryExperienceRewardRepository(
+              reports instanceof InMemoryReportRepository ? reports : undefined,
+            ),
+      inject: [APP_CONFIG, DATABASE, REPORT_REPOSITORY],
     },
     {
       provide: EXPERIENCE_ROLLS,

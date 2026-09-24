@@ -6,13 +6,14 @@ import {
   rewardRolled,
   type ExperienceReward,
 } from '../../domain/entities/ExperienceReward'
+import type { ReportLineUpdate } from '../../domain/entities/MissionReport'
 import {
   experienceForRoll,
   experienceRollsOperationId,
 } from '../../domain/policies/ExperienceRewardPolicy'
 import type { ClockPort } from '../ports/ClockPort'
 import type { EnrollmentRepositoryPort } from '../ports/EnrollmentRepositoryPort'
-import type { ExperienceCreditPort } from '../ports/ExperienceCreditPort'
+import type { ExperienceCreditOutcome, ExperienceCreditPort } from '../ports/ExperienceCreditPort'
 import type { ExperienceRewardRepositoryPort } from '../ports/ExperienceRewardRepositoryPort'
 import type { ExperienceRollPort, ExperienceRollResult } from '../ports/ExperienceRollPort'
 
@@ -65,6 +66,12 @@ export interface ExperienceRewardOptions {
  * UNA DERROTA QUE FALLA NO ARRASTRA A LAS DEMAS. Cada recompensa tiene su estado
  * y su clave: un rechazo definitivo de una no toca a las otras, y la mision no se
  * revierte (contrato §9).
+ *
+ * Y DEJA EL RASTRO EN EL REPORTE. Cada avance terminal mueve, EN LA MISMA
+ * ESCRITURA, la linea `EXPERIENCE` de esa derrota en el reporte de HU-74 (Task
+ * HU-09.5): el jugador ve ahi que su experiencia llego y cuanta, y el nivel en que
+ * quedo el heroe. Un desenlace sin respuesta definitiva no toca la linea, porque no
+ * es un desenlace.
  */
 export class CoordinateExperienceReward {
   constructor(
@@ -124,7 +131,13 @@ export class CoordinateExperienceReward {
     // no deberia existir (mismo criterio que la entrega de la epica, P-X6).
     if (enrollment.status === 'VOIDED') {
       for (const reward of rewards) {
-        if (await this.rewards.save(rewardRejected(reward, 'MISSION_VOIDED'), reward.attempts)) {
+        if (
+          await this.rewards.save(
+            rewardRejected(reward, 'MISSION_VOIDED'),
+            reward.attempts,
+            rejectedLine(this.now()),
+          )
+        ) {
           tally.rewardsRejected += 1
         }
       }
@@ -164,7 +177,13 @@ export class CoordinateExperienceReward {
 
     if (outcome.kind === 'REJECTED') {
       for (const reward of pending) {
-        if (await this.rewards.save(rewardRejected(reward, outcome.reason), reward.attempts)) {
+        if (
+          await this.rewards.save(
+            rewardRejected(reward, outcome.reason),
+            reward.attempts,
+            rejectedLine(this.now()),
+          )
+        ) {
           tally.rewardsRejected += 1
         }
       }
@@ -264,7 +283,12 @@ export class CoordinateExperienceReward {
           ? rewardRejected(reward, outcome.reason)
           : rewardDeferred(reward, outcome.reason, this.now())
 
-    if (await this.rewards.save(next, reward.attempts)) {
+    // HU-09 (Task HU-09.5): la linea del reporte se mueve CON la recompensa, en su
+    // misma escritura. Un desenlace sin respuesta definitiva no la toca: la
+    // recompensa sigue viva y su linea sigue `PENDING`.
+    if (
+      await this.rewards.save(next, reward.attempts, creditedLineOf(outcome, reward, this.now()))
+    ) {
       if (outcome.kind === 'CREDITED') {
         tally.rewardsCredited += 1
       } else if (outcome.kind === 'REJECTED') {
@@ -347,4 +371,50 @@ const indexOfRolls = (
   }
 
   return byDefeat
+}
+
+/**
+ * La linea del reporte en un rechazo definitivo: queda `FAILED` y SIN IMPORTE,
+ * porque no se entrego nada. Se marca para que el jugador vea QUE derrota fallo;
+ * el motivo viaja al registro, no al reporte.
+ */
+const rejectedLine = (at: Date): ReportLineUpdate => ({
+  status: 'FAILED',
+  quantity: 0,
+  progression: null,
+  at,
+})
+
+/**
+ * El reflejo de una acreditacion en su linea, o `null` si el desenlace no fue
+ * definitivo.
+ *
+ * `quantity` ES LA EXPERIENCIA ACREDITADA: en una linea de experiencia la cantidad
+ * es el propio importe. Por eso la linea nace en cero -- cuando nace, la tirada
+ * todavia no ha ocurrido -- y se completa aqui, con el importe que ya calculo la
+ * politica.
+ *
+ * `progression` viaja tal cual venga de Player/Inventory: `null` si no la devolvio,
+ * y entonces la linea queda acreditada, con su importe y sin nivel, en lugar de
+ * darla por fallida.
+ */
+const creditedLineOf = (
+  outcome: ExperienceCreditOutcome,
+  reward: ExperienceReward,
+  at: Date,
+): ReportLineUpdate | null => {
+  if (outcome.kind === 'UNKNOWN') {
+    return null
+  }
+
+  if (outcome.kind === 'REJECTED') {
+    return rejectedLine(at)
+  }
+
+  return {
+    status: 'CREDITED',
+    quantity: reward.amount ?? 0,
+    progression: outcome.progression,
+    at,
+  }
 }

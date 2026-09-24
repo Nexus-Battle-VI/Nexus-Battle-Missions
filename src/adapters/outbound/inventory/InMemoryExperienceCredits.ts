@@ -13,6 +13,11 @@ import type {
  * conoce la tabla de HU-08 -- eso es de Player/Inventory --, asi que solo lleva
  * el acumulado y el numero de acreditaciones aplicadas.
  *
+ * POR ESO NO DEVUELVE PROGRESION (Task HU-09.5). Inventar un nivel aqui seria
+ * duplicar la tabla de HU-08 en el doble y, peor, hacer que el reporte de una demo
+ * ensenara un nivel que ningun servicio calculo: `progression: null` es la verdad
+ * de este doble, y el reporte sale con la experiencia acreditada y sin nivel.
+ *
  * Prohibido en produccion: en produccion el driver `memory` no arranca.
  */
 export class InMemoryExperienceCredits implements ExperienceCreditPort {
@@ -24,13 +29,13 @@ export class InMemoryExperienceCredits implements ExperienceCreditPort {
     const applied = this.byOperationId.get(request.operationId)
 
     if (applied !== undefined) {
-      return Promise.resolve({ kind: 'CREDITED' })
+      return Promise.resolve({ kind: 'CREDITED', progression: null })
     }
 
     this.byOperationId.set(request.operationId, request.amount)
     this.totals.set(key, (this.totals.get(key) ?? 0) + request.amount)
 
-    return Promise.resolve({ kind: 'CREDITED' })
+    return Promise.resolve({ kind: 'CREDITED', progression: null })
   }
 
   /** Experiencia acumulada de un heroe. Para las pruebas y las demos. */

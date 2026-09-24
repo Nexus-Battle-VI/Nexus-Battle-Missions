@@ -105,7 +105,7 @@ class StubCredits implements ExperienceCreditPort {
       return Promise.resolve({ kind: 'UNKNOWN', reason: 'HTTP_503' })
     }
 
-    return Promise.resolve({ kind: 'CREDITED' })
+    return Promise.resolve({ kind: 'CREDITED', progression: null })
   }
 }
 

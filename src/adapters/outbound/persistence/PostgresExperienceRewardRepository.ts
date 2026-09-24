@@ -2,6 +2,7 @@ import type { Kysely, Selectable } from 'kysely'
 
 import type { ExperienceRewardRepositoryPort } from '../../../application/ports/ExperienceRewardRepositoryPort'
 import type { ExperienceReward } from '../../../domain/entities/ExperienceReward'
+import type { ReportLineUpdate } from '../../../domain/entities/MissionReport'
 import type { Database, MissionExperienceRewardsTable } from './schema'
 
 const rewardOf = (row: Selectable<MissionExperienceRewardsTable>): ExperienceReward => ({
@@ -21,6 +22,7 @@ const rewardOf = (row: Selectable<MissionExperienceRewardsTable>): ExperienceRew
   nextAttemptAt: row.next_attempt_at,
   lastError: row.last_error,
   creditedAt: row.credited_at,
+  reportLineNo: row.reward_line_no,
 })
 
 /**
@@ -59,6 +61,9 @@ export const insertExperienceRewards = async (
         next_attempt_at: reward.nextAttemptAt,
         last_error: reward.lastError,
         credited_at: reward.creditedAt,
+        // HU-09 (Task HU-09.5): la linea del reporte que refleja ESTA derrota. Es
+        // la clave con la que el avance mueve las dos filas a la vez.
+        reward_line_no: reward.reportLineNo,
       })),
     )
     .onConflict((conflict) =>
@@ -103,26 +108,69 @@ export class PostgresExperienceRewardRepository implements ExperienceRewardRepos
     return rows.map(rewardOf)
   }
 
-  async save(next: ExperienceReward, expectedAttempts: number): Promise<boolean> {
-    const updated = await this.db
-      .updateTable('mission_experience_rewards')
-      .set({
-        status: next.status,
-        roll: next.roll,
-        amount: next.amount,
-        attempts: next.attempts,
-        next_attempt_at: next.nextAttemptAt,
-        last_error: next.lastError,
-        credited_at: next.creditedAt,
-      })
-      .where('enrollment_id', '=', next.enrollmentId)
-      .where('encounter_id', '=', next.defeat.encounterId)
-      .where('enemy_instance_id', '=', next.defeat.enemyInstanceId)
-      .where('status', 'in', ['PENDING', 'ROLLED'])
-      .where('attempts', '=', expectedAttempts)
-      .returning('encounter_id')
-      .executeTakeFirst()
+  /**
+   * Guarda el avance si la recompensa seguia con los intentos leidos, y CON EL, la
+   * linea del reporte que la refleja (HU-09, Task HU-09.5).
+   *
+   * LAS DOS FILAS VAN EN UNA TRANSACCION porque son el mismo hecho: una derrota
+   * acreditada y su linea diciendo `CREDITED` con su importe. Escribirlas por
+   * separado dejaria al jugador con una recompensa entregada que su reporte sigue
+   * dando por pendiente -- o al reves --, y ninguna de las dos mitades se puede
+   * reconstruir despues por si sola.
+   *
+   * LA LINEA LA ESCRIBE SOLO QUIEN GANA EL BLOQUEO. Si el avance no encontro la
+   * recompensa en los intentos leidos, otro proceso se adelanto: no se escribe nada
+   * mas, ni la recompensa ni su linea.
+   */
+  async save(
+    next: ExperienceReward,
+    expectedAttempts: number,
+    line: ReportLineUpdate | null = null,
+  ): Promise<boolean> {
+    return this.db.transaction().execute(async (trx) => {
+      const updated = await trx
+        .updateTable('mission_experience_rewards')
+        .set({
+          status: next.status,
+          roll: next.roll,
+          amount: next.amount,
+          attempts: next.attempts,
+          next_attempt_at: next.nextAttemptAt,
+          last_error: next.lastError,
+          credited_at: next.creditedAt,
+        })
+        .where('enrollment_id', '=', next.enrollmentId)
+        .where('encounter_id', '=', next.defeat.encounterId)
+        .where('enemy_instance_id', '=', next.defeat.enemyInstanceId)
+        .where('status', 'in', ['PENDING', 'ROLLED'])
+        .where('attempts', '=', expectedAttempts)
+        .returning('encounter_id')
+        .executeTakeFirst()
 
-    return updated !== undefined
+      if (updated === undefined) {
+        return false
+      }
+
+      // Una recompensa sin linea -- la de una mision anulada, que no tiene reporte
+      // (P-T3) -- no tiene nada que reflejar.
+      if (line !== null && next.reportLineNo !== null) {
+        await trx
+          .updateTable('mission_report_rewards')
+          .set({
+            status: line.status,
+            quantity: line.quantity,
+            hero_level: line.progression?.level ?? null,
+            hero_current_xp: line.progression?.currentXp ?? null,
+            hero_max_level: line.progression?.maxLevel ?? null,
+            levels_gained: line.progression?.levelsGained ?? null,
+            updated_at: line.at,
+          })
+          .where('enrollment_id', '=', next.enrollmentId)
+          .where('line_no', '=', next.reportLineNo)
+          .execute()
+      }
+
+      return true
+    })
   }
 }

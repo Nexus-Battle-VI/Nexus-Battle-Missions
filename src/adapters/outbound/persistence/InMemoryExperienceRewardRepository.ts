@@ -3,6 +3,8 @@ import {
   experienceRewardKey,
   type ExperienceReward,
 } from '../../../domain/entities/ExperienceReward'
+import type { ReportLineUpdate } from '../../../domain/entities/MissionReport'
+import { InMemoryReportRepository } from './InMemoryReportRepository'
 
 /**
  * Estado de las recompensas de experiencia en memoria (HU-09, Task HU-09.4).
@@ -13,10 +15,18 @@ import {
  * intentos leidos -- si otro proceso se adelanto, `save` devuelve `false` y no
  * escribe nada.
  *
+ * SI EL AVANCE GANA, ADEMAS MUEVE LA LINEA DEL REPORTE (Task HU-09.5), igual que
+ * la transaccion del adaptador real: comparte estado con el doble de reportes, y
+ * sin esa linea el reporte diria `PENDING` de una experiencia ya entregada.
+ *
  * Guarda instantaneas, no objetos vivos: una mutacion sin guardar no se filtra.
  */
 export class InMemoryExperienceRewardRepository implements ExperienceRewardRepositoryPort {
   private readonly byKey = new Map<string, ExperienceReward>()
+
+  constructor(
+    private readonly reports: InMemoryReportRepository = new InMemoryReportRepository(),
+  ) {}
 
   /** Lo llama el cierre de la mision, dentro de su transaccion (aqui, sin ella). */
   insert(rewards: readonly ExperienceReward[]): void {
@@ -56,7 +66,11 @@ export class InMemoryExperienceRewardRepository implements ExperienceRewardRepos
     return Promise.resolve(rewards)
   }
 
-  save(next: ExperienceReward, expectedAttempts: number): Promise<boolean> {
+  save(
+    next: ExperienceReward,
+    expectedAttempts: number,
+    line: ReportLineUpdate | null = null,
+  ): Promise<boolean> {
     const key = experienceRewardKey(next)
     const current = this.byKey.get(key)
 
@@ -65,6 +79,11 @@ export class InMemoryExperienceRewardRepository implements ExperienceRewardRepos
     }
 
     this.byKey.set(key, { ...next })
+
+    // La linea se mueve solo si el avance gano, como en la transaccion real.
+    if (line !== null && next.reportLineNo !== null) {
+      this.reports.applyCreditNow(next.enrollmentId, next.reportLineNo, line)
+    }
 
     return Promise.resolve(true)
   }

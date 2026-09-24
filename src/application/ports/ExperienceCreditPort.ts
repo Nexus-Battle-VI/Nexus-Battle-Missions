@@ -1,3 +1,5 @@
+import type { HeroProgressionSnapshot } from '../../domain/value-objects/hero-progression'
+
 /**
  * Acreditacion de experiencia en Player/Inventory (HU-09, Task HU-09.4;
  * `hu-09-experience-reward-v1` §7).
@@ -35,8 +37,16 @@ export interface ExperienceCreditRequest {
 }
 
 export type ExperienceCreditOutcome =
-  /** `200`: acreditada, o repetida con el mismo `operationId` y el mismo cuerpo. */
-  | { readonly kind: 'CREDITED' }
+  /**
+   * `200`: acreditada, o repetida con el mismo `operationId` y el mismo cuerpo.
+   *
+   * HU-09 (Task HU-09.5): con ella llega el ESTADO DEL HEROE que Player/Inventory
+   * devuelve en su respuesta. Missions no lo recalcula -- la tabla de niveles de
+   * HU-08 es suya --, solo lo guarda para que el reporte pueda contar la subida de
+   * nivel. `null` si la respuesta no lo traia en condiciones: la acreditacion
+   * ocurrio igual, y por eso el desenlace sigue siendo `CREDITED`.
+   */
+  | { readonly kind: 'CREDITED'; readonly progression: HeroProgressionSnapshot | null }
   /**
    * `400` (cuerpo fuera del contrato), `401` (firma), `409` (mismo `operationId`
    * con otro contenido) o `422` (importe invalido o heroe no acreditable):

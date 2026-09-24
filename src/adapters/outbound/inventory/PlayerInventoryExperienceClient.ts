@@ -3,6 +3,7 @@ import type {
   ExperienceCreditPort,
   ExperienceCreditRequest,
 } from '../../../application/ports/ExperienceCreditPort'
+import { readHeroProgression } from '../../../domain/policies/HeroProgressionPolicy'
 import { isRecord, readJson } from './json'
 import type { FailureDetail, PlayerInventoryClientOptions } from './PlayerInventoryCommitmentClient'
 import { signedPost } from './signed-post'
@@ -23,13 +24,21 @@ const pathOf = (request: ExperienceCreditRequest): string =>
  * Traduccion de respuestas, tal como la fija el contrato:
  *
  * - `200` con la misma operacion: acreditada (o repetida: `applied: false` da
- *   exactamente el mismo resultado, y para Missions es lo mismo);
+ *   exactamente el mismo resultado, y para Missions es lo mismo). De ahi se lee
+ *   ADEMAS la progresion del heroe -- nivel, experiencia acumulada y niveles
+ *   cruzados --, que es lo que el reporte de HU-74 cuenta (Task HU-09.5);
  * - `400` (cuerpo fuera del contrato), `401` (firma), `409` (misma clave con otro
  *   contenido) y `422` (importe invalido o heroe no acreditable): rechazo
  *   definitivo, con su motivo. El contrato manda marcarlas `FAILED` sin reintentar
  *   y sin arrastrar a las demas derrotas;
  * - `404`, `503`, tiempo agotado, error de red o respuesta que no cumple el
  *   contrato: desconocido. NO autoriza a suponer que no se acredito.
+ *
+ * UN `200` CON LA PROGRESION ILEGIBLE SIGUE SIENDO UNA ACREDITACION. El `200` y la
+ * clave dicen que la experiencia entro; que el cuerpo no traiga el nivel solo
+ * impide CONTARLO. Por eso el desenlace es `CREDITED` con `progression: null` y se
+ * informa del cuerpo raro: dar la acreditacion por fallida seria decir que el
+ * inventario del jugador no cambio cuando si cambio.
  */
 export class PlayerInventoryExperienceClient implements ExperienceCreditPort {
   constructor(private readonly options: PlayerInventoryClientOptions) {}
@@ -51,7 +60,13 @@ export class PlayerInventoryExperienceClient implements ExperienceCreditPort {
 
     if (response.status === 200) {
       if (isRecord(body) && body.operationId === request.operationId) {
-        return { kind: 'CREDITED' }
+        const progression = readHeroProgression(body)
+
+        if (progression === null) {
+          this.fail('player_inventory_progresion_ilegible', { path: CREDITS_PATH, status: 200 })
+        }
+
+        return { kind: 'CREDITED', progression }
       }
 
       this.fail('player_inventory_respuesta_invalida', { path: CREDITS_PATH, status: 200 })

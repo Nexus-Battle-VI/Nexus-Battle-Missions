@@ -289,7 +289,11 @@ describe('HU-09 — clientes internos firmados', () => {
 
     const outcome = await creditsClient().credit(creditRequest())
 
-    expect(outcome).toEqual({ kind: 'CREDITED' })
+    // HU-09.5: del `200` se lee ademas la progresion del heroe.
+    expect(outcome).toEqual({
+      kind: 'CREDITED',
+      progression: { level: 2, currentXp: 14, maxLevel: 8, levelsGained: 0 },
+    })
     expect(received[0]?.path).toBe('/api/internal/v1/players/sub-1/heroes/hero-01/experience')
     expect(received[0]?.service).toBe('missions')
     expect(received[0]?.signed).toBe(true)
@@ -306,6 +310,25 @@ describe('HU-09 — clientes internos firmados', () => {
         rivalRef: 'sombra',
         roll: 2,
       },
+    })
+  })
+
+  it('un 200 con la progresion ilegible SIGUE siendo una acreditacion (HU-09.5)', async () => {
+    respond = (_path, response) => {
+      json(response, 200, {
+        operationId: creditRequest().operationId,
+        applied: true,
+        // Sin `maxLevel` ni `levelsGained`: el heroe subio, pero no se puede contar.
+        level: 3,
+        currentXp: 640,
+      })
+    }
+
+    // El `200` y la clave dicen que la experiencia entro; no poder leer el nivel no
+    // autoriza a decir que el inventario del jugador no cambio.
+    expect(await creditsClient().credit(creditRequest())).toEqual({
+      kind: 'CREDITED',
+      progression: null,
     })
   })
 
