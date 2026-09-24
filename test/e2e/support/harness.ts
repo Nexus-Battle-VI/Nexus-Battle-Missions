@@ -65,8 +65,39 @@ const git = (dir: string, args: readonly string[]): string =>
 /** El commit del repositorio, para el reporte de ejecucion. */
 export const commitOf = (dir: string): string => git(dir, ['rev-parse', 'HEAD'])
 
-/** `true` si el repositorio tiene cambios sin confirmar: el reporte lo dice. */
-export const isDirty = (dir: string): boolean => git(dir, ['status', '--porcelain']).length > 0
+/** La ruta de `child` dentro de `parent`, o `null` si no esta dentro. */
+export const nestedIn = (parent: string, child: string): string | null => {
+  const relative = path.relative(parent, child)
+
+  if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
+    return null
+  }
+
+  return relative.replaceAll('\\', '/')
+}
+
+/**
+ * `true` si el repositorio tiene cambios sin confirmar: el reporte lo dice.
+ *
+ * `ignore` existe por el layout de CI, y es una correccion, no una comodidad: el
+ * workflow clona los dos repositorios hermanos DENTRO del espacio de trabajo de
+ * Missions, asi que un arbol limpio aparecia como `dirty` por dos directorios sin
+ * seguir que el propio workflow acababa de crear. La bandera dejaba de significar
+ * "el codigo que se probo tiene cambios" para significar "aqui se clono algo".
+ */
+export const isDirty = (dir: string, ignore: readonly string[] = []): boolean => {
+  const ignored = new Set(ignore)
+
+  return git(dir, ['status', '--porcelain'])
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter((line) => line.length > 0)
+    .some((line) => {
+      const changed = line.slice(3).replaceAll('\\', '/').replace(/\/$/u, '')
+
+      return !ignored.has(changed)
+    })
+}
 
 /**
  * Localiza un repositorio hermano. NO SE SALTA LA PRUEBA SI FALTA: una cadena que

@@ -58,6 +58,7 @@ import {
   commitOf,
   INTERNAL_SECRET,
   isDirty,
+  nestedIn,
   runNpmScript,
   siblingDir,
   startMongo,
@@ -291,7 +292,14 @@ describe('Cadena de experiencia de HU-09 (Task HU-09.6)', () => {
       {
         repository: 'Nexus-Battle-Missions',
         commit: commitOf(process.cwd()),
-        dirty: isDirty(process.cwd()),
+        // En CI los dos hermanos se clonan DENTRO de este repositorio, asi que sus
+        // directorios sin seguir no son un cambio del codigo que se prueba.
+        dirty: isDirty(
+          process.cwd(),
+          [nestedIn(process.cwd(), COMBAT_DIR), nestedIn(process.cwd(), INVENTORY_DIR)].filter(
+            (entry): entry is string => entry !== null,
+          ),
+        ),
       },
       {
         repository: 'Nexus-Battle-Combat',
