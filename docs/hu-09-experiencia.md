@@ -107,6 +107,57 @@ derrota**, más un bloque `experience` agregado.
 El contrato del reporte sigue siendo `hu-74-mission-report-v1`, con el bloque nuevo;
 su forma se documenta en `docs/hu-74-reporte.md`.
 
+## Verificación de extremo a extremo (Task HU-09.6)
+
+`npm run test:e2e:chain` recorre **la cadena completa con las tres piezas reales**: la app
+de Missions en proceso con PostgreSQL real, y **Combat y Player/Inventory como procesos
+reales** (`node dist/main.js`, cada uno con su MongoDB real en réplica). Comprueba lo que
+ninguna Task probó por separado: que la tirada que produjo Combat es la que usó Missions,
+que el importe que calculó Missions es el que acreditó Player/Inventory, y que un
+reintento en cualquier punto no duplica nada.
+
+**Por qué procesos y no importaciones.** HU-23 intentó levantar dos `AppModule` de repos
+distintos en el mismo proceso de Jest y no se pudo (dos copias de `@nestjs/core` y sus
+guards globales). Aquí no se importa nada de los repos hermanos: se compilan y se arrancan
+como procesos, y lo único que cruza es HTTP firmado, que es justo lo que se prueba.
+
+**Dónde y cómo.** La suite vive en `test/e2e/`, en su propia configuración
+(`jest.e2e.config.ts`), y **no** entra en `npm test` ni en `test:db`: quien trabaja en el
+dominio no debería necesitar Docker ni dos repos hermanos compilados. Necesita los tres
+repos clonados juntos (por defecto `../Nexus-Battle-Combat` y
+`../Nexus-Battle-Player-Inventory`, o `HU09_E2E_COMBAT_DIR` y
+`HU09_E2E_PLAYER_INVENTORY_DIR`) y Docker. El workflow `cadena-hu-09.yml` los clona y la
+ejecuta; el reporte de ejecución queda en `test/e2e/out/hu-09-ejecucion-e2e.json`.
+
+**Qué se sustituye, y se declara:** el resultado de la simulación de Combat y el perfil del
+héroe, que son **la misma dependencia** — la ruta de simulación de Combat existe, pero lo
+primero que valida es `hero.profile.effectiveStats` y `hero.profile.subtype`, y sin la ruta
+interna de perfil de Player/Inventory (`HU-71.2`) no hay perfil real que enviarle: con
+`COMBAT_SIMULATION_DRIVER=http` la misión se anula con `MISSION_CONTENT_INVALID`; el
+compromiso del héroe, el testimonio del jugador, y en el escenario de los ocho valores de
+`1d8` el puerto de tirada (con la acreditación real). El reloj **no** se sustituye: los sellos
+HMAC caducan a los 30 s, así que el tiempo se maneja con dos datos de partida — la ventana de
+la matrícula se desplaza al pasado y el escalonado de reintento se vence escribiendo
+`next_attempt_at`.
+
+**Casos:** S-00 las tres piezas reales; S-01 la cadena completa con tiradas reales; S-02
+los ocho valores del contrato acreditados; S-03 subida de uno, de varios y nivel máximo sin
+descarte; S-04 idempotencia del cierre; S-05 replay de la acreditación; S-06 `409` en las
+dos fronteras; S-07 `CA-08`; S-08 dos derrotas del mismo arquetipo; S-09 recuperación de una
+tirada sin acreditar; S-10 auditoría cruzada y controles del informe; S-11 las guardas de
+no-duplicación, que se ejecutan sobre el commit que se está probando y **fallan si su control
+negativo desaparece**.
+
+**En CI.** El workflow `cadena-hu-09.yml` clona los tres repositorios y publica el reporte
+como artefacto. Prueba el `develop` de los hermanos, así que acepta `combat_ref` e
+`inventory_ref` por `workflow_dispatch` para poder verificar el conjunto antes de mergearlo;
+el ref elegido queda escrito en el ambiente del reporte.
+
+La evidencia publicable vive en
+`Nexus-Battle-Infrastructure/docs/evidence/HU-09-experiencia-por-derrota-de-un-rival.md`, con
+la tabla de qué piezas fueron reales y cuáles simuladas y el
+[reporte de ejecución](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/blob/develop/docs/evidence/hu-09-ejecucion-e2e.json).
+
 ## Configuración
 
 `EXPERIENCE_REWARDS_DRIVER` (`memory` en desarrollo, `http` en producción),
@@ -116,10 +167,10 @@ Reutiliza `COMBAT_BASE_URL`, `PLAYER_INVENTORY_BASE_URL` y
 
 ## Pendiente, con su dueño
 
-| Pendiente                                                                   | Depende de                                                                                                                                                                                        |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Que la simulación emita `combatantDefeated` de verdad                       | **HU-72** (Combat): hoy solo existe el **ingreso** de solicitudes, que responde `503 SIMULATION_UNAVAILABLE`; el doble de desarrollo de Missions ya emite las bajas para poder recorrer el camino |
-| Las líneas de créditos, productos y de la experiencia por misión completada | **HU-10**: el reporte ya reserva sus tipos                                                                                                                                                        |
-| La vista de la experiencia en la Web                                        | **HU-09.5 (#443)**, en `Nexus-Battle-Web`: consume `GET /api/v1/missions/me/reports/{enrollmentId}`                                                                                               |
-| `P-2` (redondeo al más próximo o truncamiento)                              | Decisión del PO: hoy está aislada en `experienceForRoll`                                                                                                                                          |
-| Verificación extremo a extremo                                              | **HU-09.6 (#444)**, y necesita las dos anteriores                                                                                                                                                 |
+| Pendiente                                                                   | Depende de                                                                                                                                                                                                                                                                                |
+| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Que la simulación la produzca Combat de verdad                              | **HU-71.2**: su ruta de simulación ya existe y **rechaza** la petición con `422 MISSION_CONTENT_INVALID` porque el perfil que Missions puede enviar hoy es el doble de desarrollo, sin `subtype` ni `effectiveStats`. Cuando el perfil sea real, `COMBAT_SIMULATION_DRIVER` pasa a `http` |
+| Las líneas de créditos, productos y de la experiencia por misión completada | **HU-10**: el reporte ya reserva sus tipos                                                                                                                                                                                                                                                |
+| La vista de la experiencia en la Web                                        | **HU-09.5 (#443)**, en `Nexus-Battle-Web`: consume `GET /api/v1/missions/me/reports/{enrollmentId}`                                                                                                                                                                                       |
+| `P-2` (redondeo al más próximo o truncamiento)                              | Decisión del PO: hoy está aislada en `experienceForRoll`                                                                                                                                                                                                                                  |
+| Verificación extremo a extremo                                              | **Entregada** en **HU-09.6 (#444)**: `npm run test:e2e:chain`, 12/12 en local y en CI. **No es la aceptación de la HU**: eso exige revisión por pares y aprobación del PO                                                                                                                 |
