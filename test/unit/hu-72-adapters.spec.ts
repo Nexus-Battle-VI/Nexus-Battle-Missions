@@ -324,9 +324,24 @@ describe('ScriptedCombatSimulation (HU-72)', () => {
         { enemyRef: 'guardian-eterno', count: 1 },
       ],
     })
-    expect(result.combatLog).toHaveLength(11)
+    // HU-09 (Task HU-09.4): el doble emite ahora la baja de CADA instancia, que es
+    // de donde Missions saca la identidad de cada recompensa de experiencia. Los
+    // 19 enemigos del resumen son 19 eventos `combatantDefeated`, mas los 5
+    // encuentros (inicio y fin) y el cierre: 19 + 10 + 1 = 30.
+    expect(result.combatLog).toHaveLength(30)
+    const bajas = result.combatLog.filter(
+      (entry) => (entry as { type?: string }).type === 'combatantDefeated',
+    )
+    expect(bajas).toHaveLength(19)
+    expect(bajas[0]).toEqual({
+      seq: 2,
+      type: 'combatantDefeated',
+      encounter: 1,
+      turn: 1,
+      combatant: 'sombra-corrompida#1',
+    })
     expect(result.combatLog.at(-1)).toEqual({
-      seq: 11,
+      seq: 30,
       type: 'simulationFinished',
       combatOutcome: 'HERO_VICTORIOUS',
     })

@@ -176,7 +176,19 @@ export const rewardRolled = (
     )
   }
 
-  return { ...reward, status: 'ROLLED', roll, amount, nextAttemptAt: now, lastError: null }
+  return {
+    ...reward,
+    status: 'ROLLED',
+    roll,
+    amount,
+    // Los intentos son el TOKEN del bloqueo optimista del repositorio, no solo un
+    // contador informativo: si esta transicion no los moviera, dos procesos que
+    // leyeron la misma recompensa podrian guardar los dos y el segundo pisaria al
+    // primero. Por eso incrementa como las demas.
+    attempts: reward.attempts + 1,
+    nextAttemptAt: now,
+    lastError: null,
+  }
 }
 
 /** `200` de Player/Inventory: la experiencia esta acreditada. Terminal. */

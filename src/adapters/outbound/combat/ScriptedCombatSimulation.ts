@@ -72,6 +72,19 @@ export class ScriptedCombatSimulation implements CombatSimulationPort {
     const events = [
       ...request.encounters.flatMap((encounter) => [
         { type: 'encounterStarted', encounter: encounter.index },
+        // HU-09 (Task HU-09.4): la baja de CADA instancia, con la forma del
+        // contrato (`combatant` = `<enemyRef>#<n>`), que es de donde Missions saca
+        // la identidad de cada recompensa de experiencia. El resumen agregado no
+        // sirve para eso: pierde las derrotas repetidas. Antes este doble no las
+        // emitia, asi que el camino de HU-09 no se podia recorrer en desarrollo.
+        ...encounter.enemies.flatMap((enemy) =>
+          Array.from({ length: enemy.count }, (_unused, index) => ({
+            type: 'combatantDefeated',
+            encounter: encounter.index,
+            turn: 1,
+            combatant: `${enemy.enemyRef}#${String(index + 1)}`,
+          })),
+        ),
         { type: 'encounterFinished', encounter: encounter.index },
       ]),
       { type: 'simulationFinished', combatOutcome: 'HERO_VICTORIOUS' },

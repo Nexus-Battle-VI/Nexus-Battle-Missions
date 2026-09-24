@@ -29,6 +29,8 @@ Desde el 2026-09-16 corre en producción en el nodo `app` y Caddy le envía `htt
 
 **Encuentro con el Máster: HU-73** (Task HU-73.2, ver [docs/hu-73-master.md](docs/hu-73-master.md)). Sin rutas nuevas: la solicitud a Combat lleva el bloque `master` con la probabilidad del subtipo del héroe, el cierre guarda la evidencia de cada punto de evaluación (migración `006-mission-master-encounters`) y el planificador pide la épica de cada Máster derrotado a Player/Inventory, una sola vez. Player/Inventory todavía no acepta a `missions` en su ruta de entregas y la épica aún no es un producto de Catalog: hasta entonces, cada entrega queda pendiente y se reintenta.
 
+**Recompensa de experiencia: HU-09** (Task HU-09.4, ver [docs/hu-09-experiencia.md](docs/hu-09-experiencia.md)). Sin rutas nuevas: el cierre de HU-72 deja una recompensa `PENDING` por **cada NPC derrotado** (migración `007-experience-rewards`), en su misma transacción y antes de pedir ninguna tirada; un segundo planificador (`EXPERIENCE_REWARD_ENABLED`, apagado por defecto) pide a Combat el lote de tiradas, calcula `10 × 1,2^(1d8)` y acredita cada derrota en Player/Inventory con su propia clave. La bitácora de la simulación todavía no registra las bajas: hasta que la ruta de simulación de Combat exista, el camino se recorre con el doble de desarrollo.
+
 ## Qué posee este contexto
 
 - Definiciones de misión y tablón.

@@ -580,7 +580,7 @@ describe('Evidencia del Master en PostgreSQL (HU-73)', () => {
     beforeAll(async () => {
       // El ciclo recorre toda la tabla: se empieza sin lo que dejaron las pruebas
       // anteriores, y PostgreSQL exige truncar a la vez lo que referencia a las matriculas.
-      await sql`truncate mission_master_encounters, mission_report_rewards, mission_reports,
+      await sql`truncate mission_experience_rewards, mission_master_encounters, mission_report_rewards, mission_reports,
         mission_executions, mission_facts, mission_enrollments, mission_difficulty_clears`.execute(
         db,
       )
