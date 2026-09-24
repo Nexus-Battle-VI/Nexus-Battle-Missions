@@ -108,6 +108,17 @@ export const useChainEnv = (options: Omit<BootOptions, 'subject' | 'overrides'>)
     DATABASE_URL: options.databaseUrl,
     HERO_COMMITMENTS_DRIVER: 'memory',
     HERO_ABILITIES_DRIVER: 'memory',
+    // EL RESULTADO DE LA SIMULACION SE SUSTITUYE, Y NO PORQUE COMBAT NO EXISTA.
+    // El ingreso de simulacion de Combat esta en `develop` (HU-72, PR #44). Lo que
+    // pasa es que RECHAZA el contenido con `422 MISSION_CONTENT_INVALID`: lo primero
+    // que valida es `hero.profile.effectiveStats` y `hero.profile.subtype`, y el
+    // perfil que Missions puede enviar hoy es el doble de `HERO_ABILITIES_DRIVER`,
+    // que no trae ni una cosa ni la otra. Ese perfil real es `HU-71.2` (Player
+    // Inventory PR #48) y sigue sin estar en `develop`.
+    //
+    // Comprobado de verdad, no supuesto: con `http` en esta linea, la ejecucion
+    // termina en `VOIDED` con `outcome_reason = MISSION_CONTENT_INVALID`. El dia que
+    // `HU-71.2` entre, esto pasa a `http` y la sustitucion se cae sola.
     COMBAT_SIMULATION_DRIVER: 'memory',
     EPIC_GRANTS_DRIVER: 'memory',
     EXPERIENCE_REWARDS_DRIVER: 'http',

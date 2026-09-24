@@ -46,13 +46,15 @@ export const OUTPUT_FILE = path.resolve(__dirname, '..', 'out', 'hu-09-ejecucion
 
 /** Las sustituciones y los limites del escenario: van al reporte, no a un pie de pagina. */
 export const LIMITATIONS: readonly string[] = [
-  'El resultado de la simulacion de Combat se sustituye por el doble de desarrollo: Combat todavia no produce bitacoras de simulacion (su ingreso responde 503).',
-  'El perfil y el compromiso del heroe se sustituyen por los dobles de desarrollo: la ruta interna de perfil (HU-71.2) todavia no esta en develop.',
+  'El resultado de la simulacion de Combat se sustituye por el doble de desarrollo, y NO porque Combat no exista: su ingreso de simulacion esta en develop (HU-72, PR #44) pero RECHAZA el contenido con 422 MISSION_CONTENT_INVALID, porque lo primero que valida es `hero.profile.effectiveStats` y `hero.profile.subtype` y el perfil que Missions puede enviar hoy es el doble de desarrollo. Comprobado con `COMBAT_SIMULATION_DRIVER=http`: la ejecucion termina en VOIDED con `outcome_reason = MISSION_CONTENT_INVALID`.',
+  'El perfil del heroe se sustituye por el doble de desarrollo, y es LA MISMA dependencia que el punto anterior: la ruta interna de perfil (HU-71.2, Player Inventory PR #48) todavia no esta en develop. El dia que entre, el escenario pasa a `COMBAT_SIMULATION_DRIVER=http` y las dos sustituciones caen juntas.',
+  'El compromiso del heroe se sustituye por el doble de desarrollo (HERO_COMMITMENTS_DRIVER=memory).',
   'El testimonio del jugador se sustituye: no hay Cognito en la cadena.',
   'En el escenario de los ocho valores de 1d8 se sustituye el puerto de tirada por caras 1..8; la acreditacion sigue siendo la real de Player/Inventory.',
   'Combat corre con sus planificadores reales encendidos: no hacen nada porque su base de batallas esta vacia.',
   'La ventana de la matricula se desplaza al pasado para cerrar la mision sin esperar su duracion real: mide UNA HORA EXACTA y termina un segundo antes del cierre, porque la duracion viaja a Combat en minutos enteros y el reloj no se puede mover (los sellos internos caducan a los 30 s).',
   'Las guardas de no-duplicacion se ejecutan en un proceso hijo por repositorio, con `--testPathPatterns`: aqui se comprueba que estan en verde y que su control negativo corre, no se repite su matriz.',
+  'La cadena tambien corre en CI (`cadena-hu-09.yml`), que clona el `develop` de los dos hermanos salvo que se indique otro ref al lanzarlo a mano. El ref elegido queda en el ambiente de este reporte.',
 ]
 
 export const writeRunReport = (input: {
