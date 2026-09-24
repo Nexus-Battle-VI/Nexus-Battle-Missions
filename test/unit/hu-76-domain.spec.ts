@@ -81,7 +81,7 @@ const withMaster = (
 
 /**
  * El contenido activo de los fixtures del contrato: dos misiones de historia,
- * cada una con su Master y su epica (en el ejemplo, la Camara no tiene Master).
+ * cada una con su Master y su epica (los del contrato, no los del ejemplo).
  */
 const MISSIONS: readonly MissionDefinition[] = [
   withMaster(TEMPLO, [candidate(SOMBRA, VELO)], 3),
@@ -711,6 +711,7 @@ describe('Logros de misiones (Task HU-76.2)', () => {
           ),
           active: false,
         },
+        // Valida, con el Master del ejemplo: la Hechicera del Sello y su epica.
         { ...CAMARA, category: 'CHALLENGE' },
       ])
 
@@ -720,8 +721,8 @@ describe('Logros de misiones (Task HU-76.2)', () => {
           CHALLENGE: [CAMARA_ID],
           EXPLORATION: [],
         },
-        availableMasters: ['gemelo', SOMBRA],
-        masterEpics: [VELO],
+        availableMasters: ['gemelo', 'hechicera-del-sello', SOMBRA],
+        masterEpics: ['frio-concentrado', VELO],
       })
     })
 
@@ -1366,17 +1367,26 @@ describe('Logros de misiones (Task HU-76.2)', () => {
           ),
       ],
       ['un logro menos', () => catalogFingerprintOf(CATALOG.slice(1), CONTENT)],
+      // La Camara del ejemplo trae su propio Master: se quita para que cada caso
+      // cambie solo lo que dice.
       [
         'una mision activa mas',
         () =>
           catalogFingerprintOf(
             CATALOG,
-            achievementContentOf([...MISSIONS, { ...CAMARA, missionId: 'msn_nueva' }]),
+            achievementContentOf([
+              ...MISSIONS,
+              { ...CAMARA, missionId: 'msn_nueva', masterEncounter: null },
+            ]),
           ),
       ],
       [
         'un Master menos',
-        () => catalogFingerprintOf(CATALOG, achievementContentOf([MISSIONS[0]!, CAMARA])),
+        () =>
+          catalogFingerprintOf(
+            CATALOG,
+            achievementContentOf([MISSIONS[0]!, { ...CAMARA, masterEncounter: null }]),
+          ),
       ],
     ])('cambia con %s', (_caso, fingerprint) => {
       expect(fingerprint()).not.toBe(base)

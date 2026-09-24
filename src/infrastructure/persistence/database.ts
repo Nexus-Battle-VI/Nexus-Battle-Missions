@@ -20,6 +20,7 @@ import * as reportExperience from '../../adapters/outbound/persistence/migration
 import * as missionAchievements from '../../adapters/outbound/persistence/migrations/009-mission-achievements'
 import * as playableMissions from '../../adapters/outbound/persistence/migrations/010-playable-missions'
 import * as missionLootGrants from '../../adapters/outbound/persistence/migrations/011-mission-loot-grants'
+import * as contentV2 from '../../adapters/outbound/persistence/migrations/012-content-v2'
 import type { Database } from '../../adapters/outbound/persistence/schema'
 
 export interface DatabaseOptions {
@@ -106,6 +107,7 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = {
   '009-mission-achievements': missionAchievements,
   '010-playable-missions': playableMissions,
   '011-mission-loot-grants': missionLootGrants,
+  '012-content-v2': contentV2,
 }
 
 export interface MigrationOutcome {

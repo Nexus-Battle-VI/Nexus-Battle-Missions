@@ -284,7 +284,8 @@ describe('RunMissionExecutions: simulacion (Task HU-72.2, CU-72.1)', () => {
       timeBudget: 'PT12H',
       hero: { heroId: HERO, profile: PROFILE },
       strategy: { version: 1, rotations: COURSE_STRATEGY, fallback: 'BASIC_ATTACK' },
-      // HU-73 (P-X2): la probabilidad ya resuelta para el subtipo del heroe.
+      // HU-73 (P-X2): la probabilidad ya resuelta para el subtipo del heroe. El
+      // heroe es Guerrero Armas: al Coloso le toca la de "*", no la del Tanque.
       master: {
         evaluationPoints: [{ afterEncounter: 3 }],
         maxAppearances: 1,
@@ -295,7 +296,15 @@ describe('RunMissionExecutions: simulacion (Task HU-72.2, CU-72.1)', () => {
             probability: 0.15,
             levelOffset: 2,
             profile: EXAMPLE_MISSIONS[0]!.masterEncounter?.candidates[0]?.profile,
-            epicRef: 'velo-de-sombras',
+            epicRef: 'toma-y-lleva',
+          },
+          {
+            masterRef: 'coloso-de-obsidiana',
+            subtype: 'GUERRERO_TANQUE',
+            probability: 0.05,
+            levelOffset: 2,
+            profile: EXAMPLE_MISSIONS[0]!.masterEncounter?.candidates[1]?.profile,
+            epicRef: 'golpe-de-defensa',
           },
         ],
       },

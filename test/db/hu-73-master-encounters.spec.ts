@@ -78,7 +78,8 @@ import { insertDefinition } from '../support/fixtures'
  */
 const [TEMPLO, CAMARA] = EXAMPLE_MISSIONS as [MissionDefinition, MissionDefinition]
 const MASTER = 'sombra-del-olvido'
-const EPIC = 'velo-de-sombras'
+// Contenido v2 (P-J5): la Sombra del Olvido entrega la epica oficial de su tipo.
+const EPIC = 'toma-y-lleva'
 const PRODUCT = '11111111-1111-4111-8111-111111111111'
 const AT = new Date('2026-10-01T15:00:00.000Z')
 const CLOSED = new Date('2026-10-02T03:00:05.000Z')

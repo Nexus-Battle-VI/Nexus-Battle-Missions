@@ -58,16 +58,18 @@ describe('Recompensas que ve el jugador (P-J2)', () => {
     const [linkedCandidate] = linked().masterEncounter!.candidates
 
     expect(deliverableEpicOf(candidate!)).toBeNull()
-    expect(deliverableEpicOf(linkedCandidate!)).toMatchObject({ name: 'Velo de Sombras' })
+    expect(deliverableEpicOf(linkedCandidate!)).toMatchObject({ name: 'Toma y lleva' })
   })
 
   it('la tarjeta destaca experiencia, epicas posibles y el botin mas probable', () => {
     expect(deliverableHighlightsOf(TEMPLO)).toEqual([
       { label: 'Experiencia por cada enemigo derrotado' },
     ])
+    // El Templo tiene dos Master posibles: la Sombra del Olvido y el Coloso de Obsidiana.
     expect(deliverableHighlightsOf(linked())).toEqual([
       { label: 'Experiencia por cada enemigo derrotado' },
-      { label: 'Épica posible: Velo de Sombras' },
+      { label: 'Épica posible: Toma y lleva' },
+      { label: 'Épica posible: Golpe de defensa' },
       { label: 'Fragmento del Sello Antiguo' },
       { label: 'Armadura «Piel del Guardián»' },
     ])

@@ -70,8 +70,11 @@ const buildApp = async (commitments?: HeroCommitmentPort): Promise<INestApplicat
   return app
 }
 
+const CAMINO = 'msn_camino_templo'
 const TEMPLO = 'msn_templo_olvidado'
+const ARENA = 'msn_arena_caidos'
 const CAMARA = 'msn_camara_sellada'
+const TRAVESIA = 'msn_travesia_bosque'
 const HERO_A = '7f3c2a9e-2d4b-4c1a-9e7f-1b2c3d4e5f60'
 const HERO_B = '0b1c2d3e-4f50-4617-8a9b-0c1d2e3f4a5b'
 const HOUR_MS = 3_600_000
@@ -132,16 +135,17 @@ describe('Tablón, detalle y matrícula por HTTP (Task HU-70.2)', () => {
       const response = await get('/api/v1/missions', 'token-jugador-2')
 
       expect(response.status).toBe(200)
+      // Ordenadas por nombre, como las muestra el tablón.
       expect(response.body).toEqual({
         items: [
           {
-            missionId: TEMPLO,
-            name: 'El Templo Olvidado',
+            missionId: CAMINO,
+            name: 'Camino al Templo',
             category: 'STORY',
-            summary: 'Un templo custodiado por criaturas corrompidas y un guardián milenario.',
-            imageRef: null,
-            estimatedDuration: 'PT12H',
-            recommendedPower: 15,
+            summary: 'Tu primera misión: diez minutos para despejar el camino al templo.',
+            imageRef: 'mision-camino-templo',
+            estimatedDuration: 'PT10M',
+            recommendedPower: 5,
             // P-J2: lo entregable; el contenido de ejemplo no enlaza productos.
             highlightedRewards: [{ label: 'Experiencia por cada enemigo derrotado' }],
             playerStatus: 'AVAILABLE',
@@ -150,17 +154,59 @@ describe('Tablón, detalle y matrícula por HTTP (Task HU-70.2)', () => {
             activeEnrollmentId: null,
           },
           {
+            missionId: TEMPLO,
+            name: 'El Templo Olvidado',
+            category: 'STORY',
+            summary: 'Un templo custodiado por criaturas corrompidas y un guardián milenario.',
+            imageRef: 'mision-templo-olvidado',
+            estimatedDuration: 'PT12H',
+            recommendedPower: 15,
+            highlightedRewards: [{ label: 'Experiencia por cada enemigo derrotado' }],
+            playerStatus: 'AVAILABLE',
+            canEnroll: true,
+            lockReason: null,
+            activeEnrollmentId: null,
+          },
+          {
+            missionId: ARENA,
+            name: 'La Arena de los Caídos',
+            category: 'CHALLENGE',
+            summary: 'Una hora de combate sin tregua contra los campeones de la arena.',
+            imageRef: 'mision-arena-caidos',
+            estimatedDuration: 'PT1H',
+            recommendedPower: 12,
+            highlightedRewards: [{ label: 'Experiencia por cada enemigo derrotado' }],
+            playerStatus: 'LOCKED',
+            canEnroll: false,
+            lockReason: 'Completa primero «Camino al Templo».',
+            activeEnrollmentId: null,
+          },
+          {
             missionId: CAMARA,
             name: 'La Cámara Sellada',
             category: 'STORY',
-            summary: 'Ejemplo de misión con requisito previo.',
-            imageRef: null,
+            summary: 'Bajo el templo espera una cámara que nadie ha abierto en siglos.',
+            imageRef: 'mision-camara-sellada',
             estimatedDuration: 'PT6H',
             recommendedPower: null,
             highlightedRewards: [{ label: 'Experiencia por cada enemigo derrotado' }],
             playerStatus: 'LOCKED',
             canEnroll: false,
             lockReason: 'Completa primero «El Templo Olvidado».',
+            activeEnrollmentId: null,
+          },
+          {
+            missionId: TRAVESIA,
+            name: 'Travesía por el Bosque Sombrío',
+            category: 'EXPLORATION',
+            summary: 'Un día entero cruzando el bosque, con encuentros inesperados en cada claro.',
+            imageRef: 'mision-travesia-bosque',
+            estimatedDuration: 'PT24H',
+            recommendedPower: 12,
+            highlightedRewards: [{ label: 'Experiencia por cada enemigo derrotado' }],
+            playerStatus: 'LOCKED',
+            canEnroll: false,
+            lockReason: 'Completa primero «Camino al Templo».',
             activeEnrollmentId: null,
           },
         ],
@@ -209,7 +255,10 @@ describe('Tablón, detalle y matrícula por HTTP (Task HU-70.2)', () => {
         masterEncounter: {
           probability: 0.15,
           // P-J2: sin producto, la epica no se promete.
-          candidates: [{ name: 'Sombra del Olvido', heroType: 'PICARO_VENENO', epic: null }],
+          candidates: [
+            { name: 'Sombra del Olvido', heroType: 'PICARO_VENENO', epic: null },
+            { name: 'Coloso de Obsidiana', heroType: 'GUERRERO_TANQUE', epic: null },
+          ],
         },
         // P-J2: solo lo que se entrega; los creditos, el cofre y el titulo esperan a HU-10.
         rewards: {
@@ -359,8 +408,9 @@ describe('Tablón, detalle y matrícula por HTTP (Task HU-70.2)', () => {
 
       it('el tablón la muestra en curso y no deja repetirla', async () => {
         const items = (await get('/api/v1/missions', 'token-jugador-1')).body.items
+        const templo = items.find((item: { missionId: string }) => item.missionId === TEMPLO)
 
-        expect(items[0]).toMatchObject({
+        expect(templo).toMatchObject({
           missionId: TEMPLO,
           playerStatus: 'IN_PROGRESS',
           canEnroll: false,
@@ -529,7 +579,11 @@ describe('Tablón, detalle y matrícula por HTTP (Task HU-70.2)', () => {
       const board = await request(scriptedApp.getHttpServer())
         .get('/api/v1/missions')
         .set('Authorization', 'Bearer token-jugador-2')
-      expect(board.body.items[0]).toMatchObject({
+      const templo = board.body.items.find(
+        (item: { missionId: string }) => item.missionId === TEMPLO,
+      )
+      expect(templo).toMatchObject({
+        missionId: TEMPLO,
         playerStatus: 'IN_PROGRESS',
         activeEnrollmentId: first.body.enrollmentId,
       })

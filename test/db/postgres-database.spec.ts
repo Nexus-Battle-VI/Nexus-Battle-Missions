@@ -43,7 +43,14 @@ describe('Persistencia PostgreSQL', () => {
       .select(['mission_id', 'content'])
       .orderBy('mission_id')
       .execute()
-    expect(definitions).toHaveLength(2)
+    // Contenido v2 (P-J9): la base nueva ya nace con las cinco misiones.
+    expect(definitions.map((item) => item.mission_id)).toEqual([
+      'msn_arena_caidos',
+      'msn_camara_sellada',
+      'msn_camino_templo',
+      'msn_templo_olvidado',
+      'msn_travesia_bosque',
+    ])
     expect(
       definitions.every(
         (item) => item.content.combatRules !== undefined && item.content.finalBoss.profile !== null,
