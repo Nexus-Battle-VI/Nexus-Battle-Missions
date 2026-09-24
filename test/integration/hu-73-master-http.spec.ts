@@ -218,17 +218,21 @@ describe('Master y epica de punta a punta (Task HU-73.2)', () => {
       enemies: {
         masters: [{ masterRef: MASTER, name: 'Sombra del Olvido', status: 'APPEARED_DEFEATED' }],
       },
-      rewards: [
-        {
-          kind: 'EPIC',
-          reference: EPIC,
-          name: 'Velo de Sombras',
-          quantity: 1,
-          status: 'CREDITED',
-          source: 'HU-73',
-        },
-      ],
     })
+    // HU-09 (Task HU-09.5): la epica es la PRIMERA linea del reporte y detras van
+    // las de la experiencia de cada derrota.
+    const rewards = response.body.rewards as Record<string, unknown>[]
+
+    expect(rewards[0]).toEqual({
+      kind: 'EPIC',
+      reference: EPIC,
+      name: 'Velo de Sombras',
+      rarity: null,
+      quantity: 1,
+      status: 'CREDITED',
+      source: 'HU-73',
+    })
+    expect(rewards.slice(1).every((line) => line.kind === 'EXPERIENCE')).toBe(true)
     const objectives = response.body.objectives as { id: string; met: boolean | null }[]
     expect(objectives.find((objective) => objective.id === 'obj_master')?.met).toBe(true)
   })
