@@ -18,6 +18,7 @@ import {
   MissionAlreadyInProgressError,
   MissionLockedError,
   EnrollmentNotFoundError,
+  EstimateUnavailableError,
   MissionNotFoundError,
   StrategyVersionMismatchError,
 } from '../../../domain/errors/mission-errors'
@@ -176,6 +177,14 @@ export const toMissionsHttpException = (error: unknown): HttpException => {
     })
   }
 
+  if (error instanceof EstimateUnavailableError) {
+    // P-J7: sin estimacion no se bloquea nada; el motivo interno no se expone.
+    return new ServiceUnavailableException({
+      statusCode: 503,
+      code: 'ESTIMATE_UNAVAILABLE',
+      message: error.message,
+    })
+  }
   // --- HU-71: estrategia de rotaciones (contrato hu-71-mission-strategy-v1) ---
 
   if (error instanceof TooManyRotationsError) {

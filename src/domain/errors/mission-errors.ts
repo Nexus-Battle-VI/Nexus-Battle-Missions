@@ -142,3 +142,14 @@ export class StrategyVersionMismatchError extends DomainError {
     this.name = 'StrategyVersionMismatchError'
   }
 }
+
+/**
+ * `503 ESTIMATE_UNAVAILABLE` (diseno «misiones jugables», P-J7): no hubo
+ * estimacion. No bloquea nada: el jugador puede enviar al heroe sin ella.
+ */
+export class EstimateUnavailableError extends DomainError {
+  constructor(readonly reason: string) {
+    super('No pudimos calcular la probabilidad de éxito ahora. Puedes enviar al héroe igual.')
+    this.name = 'EstimateUnavailableError'
+  }
+}

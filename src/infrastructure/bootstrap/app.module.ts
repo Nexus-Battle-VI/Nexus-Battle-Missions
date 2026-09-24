@@ -10,6 +10,17 @@ import { MissionDifficultyController } from '../../adapters/inbound/http/mission
 import { MissionEnrollmentController } from '../../adapters/inbound/http/mission-enrollment.controller'
 import { MissionReportController } from '../../adapters/inbound/http/mission-report.controller'
 import { MissionProgressController } from '../../adapters/inbound/http/mission-progress.controller'
+import { MissionEstimateController } from '../../adapters/inbound/http/mission-estimate.controller'
+import { CombatEstimateClient } from '../../adapters/outbound/combat/CombatEstimateClient'
+import { ScriptedCombatEstimates } from '../../adapters/outbound/combat/ScriptedCombatEstimates'
+import {
+  MISSION_ESTIMATES,
+  type MissionEstimatePort,
+} from '../../application/ports/MissionEstimatePort'
+import {
+  ESTIMATE_MISSION_SUCCESS,
+  EstimateMissionSuccess,
+} from '../../application/use-cases/EstimateMissionSuccess'
 import {
   LIST_ACTIVE_MISSIONS,
   ListActiveMissions,
@@ -246,6 +257,11 @@ const unconfiguredSimulations: CombatSimulationPort = {
   simulate: () => Promise.resolve({ kind: 'UNKNOWN', reason: 'NOT_CONFIGURED' }),
 }
 
+/** Sin Combat configurado no hay estimacion: la ruta responde 503 y nada se bloquea. */
+const unconfiguredEstimates: MissionEstimatePort = {
+  estimate: () => Promise.resolve({ kind: 'UNAVAILABLE', reason: 'NOT_CONFIGURED' }),
+}
+
 /** Igual para las epicas de HU-73: sin configuracion, la entrega queda pendiente. */
 const unconfiguredEpicGrants: EpicGrantPort = {
   grant: () => Promise.resolve({ kind: 'UNKNOWN', reason: 'NOT_CONFIGURED' }),
@@ -288,9 +304,45 @@ export const INTERNAL_CALLERS: readonly string[] = []
     MissionStrategyController,
     MissionReportController,
     MissionProgressController,
+    MissionEstimateController,
     MissionAchievementController,
   ],
   providers: [
+    // --- Diseno «misiones jugables», P-J7: probabilidad de exito antes de enviar ---
+    {
+      provide: MISSION_ESTIMATES,
+      useFactory: (config: AppConfig, clock: ClockPort, logger: Logger): MissionEstimatePort => {
+        if (config.combatSimulationDriver === IntegrationDriver.Memory) {
+          return new ScriptedCombatEstimates()
+        }
+
+        if (config.combatBaseUrl === null || config.internalServiceAuthSecret === null) {
+          return unconfiguredEstimates
+        }
+
+        return new CombatEstimateClient({
+          baseUrl: config.combatBaseUrl,
+          secret: config.internalServiceAuthSecret,
+          clock,
+          timeoutMs: config.combatSimulationTimeoutMs,
+          onFailure: (event, detail) => {
+            logger.warn(event, detail)
+          },
+        })
+      },
+      inject: [APP_CONFIG, CLOCK, LOGGER],
+    },
+    {
+      provide: ESTIMATE_MISSION_SUCCESS,
+      useFactory: (
+        catalog: MissionCatalogPort,
+        heroes: HeroProfilePort,
+        strategies: StrategyRepositoryPort,
+        estimates: MissionEstimatePort,
+      ): EstimateMissionSuccess =>
+        new EstimateMissionSuccess(catalog, heroes, strategies, estimates),
+      inject: [MISSION_CATALOG, HERO_PROFILES, STRATEGY_REPOSITORY, MISSION_ESTIMATES],
+    },
     // --- Diseno «misiones jugables», P-J6: misiones en curso y su progreso ---
     {
       provide: LIST_ACTIVE_MISSIONS,
