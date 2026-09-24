@@ -235,6 +235,20 @@ describe('CombatSimulationClient (HU-72)', () => {
     expect(failures).toEqual([])
   })
 
+  it('un 401 del guard HMAC se avisa y no se reintenta aunque no traiga code', async () => {
+    const { client, failures } = clientReturning(() =>
+      json(401, { message: 'Peticion interna no autorizada.' }),
+    )
+
+    await expect(client.simulate(REQUEST)).resolves.toEqual({
+      kind: 'REJECTED',
+      code: 'INTERNAL_SIGNATURE_INVALID',
+    })
+    expect(failures).toEqual([
+      { event: 'combat_autorizacion_rechazada', detail: { path: PATH, status: 401 } },
+    ])
+  })
+
   it.each([400, 409])(
     'un %i con codigo es un error de programacion: se anula y se avisa',
     async (status) => {

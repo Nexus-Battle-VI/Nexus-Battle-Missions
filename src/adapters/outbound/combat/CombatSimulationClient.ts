@@ -66,7 +66,8 @@ const resultOf = (body: unknown, operationId: string): SimulationResult | null =
  * - `200` con el cuerpo del contrato: resultado. Uno que no cumple (sin resumen,
  *   con otro `operationId`...) es desconocido.
  * - `422`, `400` o `409` con `code`: rechazo definitivo; los dos ultimos son un
- *   error de programacion y se avisan.
+ *   error de programacion y se avisan. `401` tambien es definitivo aunque el
+ *   guard HMAC de Combat no devuelva `code`: reintentar la misma firma no ayuda.
  * - Cualquier otra respuesta, un tiempo agotado o un error de red: desconocido.
  *
  * El cuerpo va en JSON canonico: la solicitud congelada puede volver de `jsonb`
@@ -110,6 +111,11 @@ export class CombatSimulationClient implements CombatSimulationPort {
     }
 
     const body = await readJson(response)
+
+    if (response.status === 401) {
+      this.fail('combat_autorizacion_rechazada', { path: PATH, status: 401 })
+      return { kind: 'REJECTED', code: 'INTERNAL_SIGNATURE_INVALID' }
+    }
 
     if (response.status === 200) {
       const result = resultOf(body, request.operationId)
