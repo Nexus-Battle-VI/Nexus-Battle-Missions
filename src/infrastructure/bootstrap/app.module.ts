@@ -1136,8 +1136,8 @@ export const INTERNAL_CALLERS: readonly string[] = []
     },
     // --- HU-76: logros y reconocimientos ---
     {
-      // El ejemplo del contrato solo con MISSIONS_EXAMPLE_CATALOG; si no, el
-      // aprobado, vacio hasta la decision 1. Un catalogo roto impide arrancar.
+      // El ejemplo solo con MISSIONS_EXAMPLE_CATALOG; si no, el aprobado por el PO
+      // (decision 1). Hoy son el mismo. Un catalogo roto impide arrancar.
       provide: ACHIEVEMENT_CATALOG,
       useFactory: (config: AppConfig): AchievementCatalogPort =>
         new StaticAchievementCatalog(

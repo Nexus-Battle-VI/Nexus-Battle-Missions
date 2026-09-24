@@ -5,8 +5,7 @@ import { assertAchievementCatalog } from '../../../domain/policies/AchievementPo
 /**
  * Catalogo de logros en codigo (HU-76). Construirlo es cargarlo: un logro mal
  * definido falla aqui y el servicio no arranca, en lugar de otorgarse mal. Sin
- * definiciones no hay logros que evaluar ni que mostrar, como hoy en produccion
- * mientras el PO no apruebe el catalogo (decision 1).
+ * definiciones no hay logros que evaluar ni que mostrar.
  */
 export class StaticAchievementCatalog implements AchievementCatalogPort {
   private readonly definitions: readonly AchievementDefinition[]

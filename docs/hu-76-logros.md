@@ -11,7 +11,7 @@
 - Un paso nuevo del planificador de HU-72, después de la entrega de épicas de HU-73, evalúa a cada jugador con algo nuevo y desbloquea cada logro cuyo criterio se cumple con evidencia (CA-02). Nunca otorga un logro con progreso parcial ni con un objetivo vacío (CA-03).
 - Los cinco criterios del contrato: todas las misiones de una categoría, todos los Máster, misión sin daño, tiempo récord y colección de épicas.
 - Un título o una insignia quedan registrados en Missions en el mismo momento del desbloqueo. Un cosmético se pide a Player/Inventory con el contrato de entregas de HU-59, una sola vez y con reintentos, igual que la épica de HU-73.
-- El catálogo vive en código y se valida al arrancar. El aprobado está vacío hasta que lo fije el PO (decisión 1). Los siete logros de ejemplo del contrato solo se cargan con `MISSIONS_EXAMPLE_CATALOG=true`.
+- El catálogo vive en código y se valida al arrancar. El PO aprobó el 2026-09-24 los siete logros del contrato (decisión 1): `APPROVED_ACHIEVEMENTS` los trae, y el ejemplo de `MISSIONS_EXAMPLE_CATALOG=true` es el mismo catálogo.
 
 Missions no calcula daño ni tiempos: lee lo que Combat informó y HU-74 guardó en el reporte. Acreditar un cosmético en el inventario es de Player/Inventory.
 
@@ -92,7 +92,7 @@ La entrega del cosmético repite el patrón de la épica de HU-73. El `operation
 | `achievement_processed_facts` y marcar el hecho procesado (P-L4, pasos 2 y 6 de CU-76.1) | Un punto de control por jugador con el número de `MissionSettled`, el de épicas `GRANTED` y la huella. `mission_facts.processed_at` no se toca: es de HU-72, y HU-10 y el aviso de fin de misión siguen viendo los hechos.                                         |
 | `FOR UPDATE SKIP LOCKED`                                                                 | Las lecturas no bloquean filas y las escrituras son idempotentes o condicionales, como en HU-72. Hay una réplica (ADR-019).                                                                                                                                        |
 | El hecho `MissionFinishedForAchievements` se arma al cerrar                              | No se arma ni se guarda: es la evidencia del jugador al evaluar. `epicsCredited` es el estado actual de cada entrega. El `payload` de `MissionSettled` no cambia.                                                                                                  |
-| Tabla `achievement_definitions`                                                          | El catálogo vive en código, detrás de `AchievementCatalogPort`, y se valida al arrancar. `APPROVED_ACHIEVEMENTS` queda vacío hasta la decisión 1. Se conserva la versión de cada logro (P-L1 en parte).                                                            |
+| Tabla `achievement_definitions`                                                          | El catálogo vive en código, detrás de `AchievementCatalogPort`, y se valida al arrancar. `APPROVED_ACHIEVEMENTS` trae los siete aprobados (decisión 1). Se conserva la versión de cada logro (P-L1 en parte).                                                      |
 | Tabla `achievement_recognition_grants`                                                   | La entrega va en la fila del desbloqueo, con lo que añadió HU-73: intentos, próximo intento, último error, producto congelado y fecha de acreditación.                                                                                                             |
 | Nombres de tablas `achievement_*`                                                        | Llevan el prefijo `mission_` y las restricciones, nombres en español. Sin claves foráneas.                                                                                                                                                                         |
 | Las misiones `ABANDONED` y `VOIDED` no generan el hecho (línea 55 del contrato)          | Las anulaciones sí generan `MissionSettled` (`VOIDED`): cuentan como disparador, pero no aportan evidencia.                                                                                                                                                        |
@@ -131,7 +131,7 @@ Con `MISSIONS_EXAMPLE_CATALOG=true` y el doble de Combat (`COMBAT_SIMULATION_DRI
 - «Sin un rasguño» se desbloquea en la primera misión, porque el doble siempre da `damageTaken: 0`.
 - El tiempo récord no se evalúa: no hay umbral.
 
-El catálogo aprobado de logros sigue vacío y la ruta responde `200 { items: [] }` hasta que se publiquen sus definiciones. Las dos definiciones de misión jugables y la simulación de Combat están preparadas en las PR de Missions y Combat; el planificador debe habilitarse en el despliegue.
+Desde el 2026-09-24 el catálogo aprobado trae los siete logros del contrato: «Paso veloz» no se evalúa hasta que haya umbral (decisión 3), y la entrega del «Estandarte del Coleccionista» espera a que su cosmético exista en Catalog. Las dos definiciones de misión jugables y la simulación de Combat están preparadas en las PR de Missions y Combat; el planificador debe habilitarse en el despliegue.
 
 ## Criterios de aceptación
 
@@ -146,7 +146,6 @@ El catálogo aprobado de logros sigue vacío y la ruta responde `200 { items: []
 | Pendiente                                                                                                                                    | Depende de                                                                                   |
 | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | Aprobar las diferencias estructurales (sin tabla de progreso, sin registro de hechos procesados y catálogo en código)                        | PO y SM; y publicar el diseño y el contrato en `develop` de Infrastructure (ADR-019)         |
-| El catálogo definitivo: ids, nombres, reconocimientos y versión. Se recomienda empezar con títulos e insignias                               | Decisión 1 del PO                                                                            |
 | El umbral de tiempo récord por misión, y si depende de la dificultad o es un récord personal                                                 | Decisión 3 del PO                                                                            |
 | Qué Máster cuentan como disponibles: con probabilidades del 0,01 % al 0,1 %, el logro es casi inalcanzable                                   | P-L6, PO                                                                                     |
 | «Sin daño»: `damageTaken = 0` o `minHealthPercent = 100`, la guarda del recorrido completo y el plural del curso (`count`)                   | P-L8, PO y Team Alfa                                                                         |
@@ -164,7 +163,7 @@ El catálogo aprobado de logros sigue vacío y la ruta responde `200 { items: []
 - **Web (HU-76.3):** la consulta sigue el contrato. El panel de «Estadísticas y logros» de HU-06 solo admite logros obtenidos y su prueba prohíbe palabras como «bloqueado», «desbloqueo», «nivel» o «puntos»: para reutilizarlo hay que filtrar `UNLOCKED` y mapear `achievementId` a `id` y `unlockedAt` a `obtainedAt`. El contrato no trae descripción. Conviene enlazarlo con la Task [#110](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/110).
 - **Player/Inventory:** añadir `missions` a los servicios autorizados de `inventory/grants`; el cuerpo es el de HU-59 sin cambios.
 - **Catalog:** publicar el cosmético como producto y poner su `productId` en `recognition.productId`; las entregas en espera siguen solas.
-- **PO:** el catálogo aprobado se carga con un PR que rellena `APPROVED_ACHIEVEMENTS`. Al desplegarlo cambia la huella y se evalúa a todos los jugadores, de 50 en 50.
+- **PO:** el catálogo aprobado vive en `APPROVED_ACHIEVEMENTS`. Cada cambio que se despliega cambia la huella y se evalúa a todos los jugadores, de 50 en 50.
 - **HU-10 y el aviso de fin de misión:** `mission_facts.processed_at` sigue siendo de HU-72; los `MissionSettled` no se marcan. Cada consumidor lleva su propio registro.
 - **Una fuente nueva de evidencia** debe añadir su contador a `playersToEvaluate` (y al doble en memoria): el detector supone que las fuentes solo crecen y, sin contador, sus cambios no se evaluarán. Para corregir una regla, se sube `ACHIEVEMENT_POLICY_VERSION`.
 - **Migraciones:** esta es la `009` (la `007` y la `008` son de HU-09). La siguiente historia usa la `011`.

@@ -1071,11 +1071,12 @@ describe('Logros de misiones (Task HU-76.2)', () => {
       ...values,
     })
 
-    it('los logros de ejemplo son validos y el catalogo aprobado sigue vacio (decision 1)', () => {
+    it('el catalogo aprobado son los siete del contrato, validos (decision 1, 2026-09-24)', () => {
       expect(achievementCatalogProblem(EXAMPLE_ACHIEVEMENTS)).toBeNull()
       expect(achievementCatalogProblem(APPROVED_ACHIEVEMENTS)).toBeNull()
-      expect(APPROVED_ACHIEVEMENTS).toEqual([])
-      expect(EXAMPLE_ACHIEVEMENTS.map((definition) => definition.achievementId)).toEqual([
+      // El ejemplo de desarrollo es el mismo catalogo aprobado.
+      expect(EXAMPLE_ACHIEVEMENTS).toBe(APPROVED_ACHIEVEMENTS)
+      expect(APPROVED_ACHIEVEMENTS.map((definition) => definition.achievementId)).toEqual([
         'ach_historia_completa',
         'ach_desafio_completo',
         'ach_exploracion_completa',
