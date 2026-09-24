@@ -191,7 +191,8 @@ describe('Reporte e historial por HTTP (Task HU-74.2)', () => {
       ['obj_camaras', true],
       ['obj_vida', true],
       ['obj_master', null],
-      ['obj_fragmentos', null],
+      // P-J1: Combat (y su doble) informa el botin; sin fragmentos, el objetivo no se cumple.
+      ['obj_fragmentos', false],
     ])
     expect(response.body).not.toHaveProperty('playerId')
   })

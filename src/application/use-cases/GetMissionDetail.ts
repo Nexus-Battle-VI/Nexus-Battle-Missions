@@ -2,8 +2,12 @@ import type {
   MasterCandidate,
   MissionEnemy,
   MissionObjective,
-  MissionRewards,
 } from '../../domain/entities/MissionDefinition'
+import {
+  deliverableEpicOf,
+  playerRewardsOf,
+  type PlayerRewards,
+} from '../../domain/policies/DeliverableRewardsPolicy'
 import { MissionNotFoundError } from '../../domain/errors/mission-errors'
 import { derivePlayerMissionStatus } from '../../domain/policies/EnrollmentPolicy'
 import { isRecord } from '../../domain/policies/SettlementPolicy'
@@ -46,14 +50,19 @@ export interface MissionDetailView {
       readonly heroType: string
       /** Por subtipo del heroe; `"*"` vale para cualquiera (HU-73). */
       readonly probabilityByHeroType: Readonly<Record<string, number>>
+      /**
+       * `null` si la epica todavia no es un producto que se pueda entregar: el
+       * Master aparece igual, pero no se promete una recompensa que no llega (P-J2).
+       */
       readonly epic: {
         readonly name: string
         readonly generalEffect: string | null
         readonly epicEffect: string | null
-      }
+      } | null
     }[]
   }
-  readonly rewards: MissionRewards
+  /** Solo lo que se entrega de verdad (diseno «misiones jugables», P-J2). */
+  readonly rewards: PlayerRewards
   readonly playerStatus: PlayerMissionStatus
   readonly canEnroll: boolean
   readonly lockReason: string | null
@@ -129,18 +138,24 @@ export class GetMissionDetail {
             Object.values(probabilitiesOf(candidate)),
           ),
         ),
-        candidates: (master?.candidates ?? []).map((candidate) => ({
-          name: candidate.name,
-          heroType: candidate.subtype,
-          probabilityByHeroType: probabilitiesOf(candidate),
-          epic: {
-            name: candidate.epic.name,
-            generalEffect: candidate.epic.generalEffect,
-            epicEffect: candidate.epic.epicEffect,
-          },
-        })),
+        candidates: (master?.candidates ?? []).map((candidate) => {
+          const epic = deliverableEpicOf(candidate)
+          return {
+            name: candidate.name,
+            heroType: candidate.subtype,
+            probabilityByHeroType: probabilitiesOf(candidate),
+            epic:
+              epic === null
+                ? null
+                : {
+                    name: epic.name,
+                    generalEffect: epic.generalEffect,
+                    epicEffect: epic.epicEffect,
+                  },
+          }
+        }),
       },
-      rewards: definition.rewards,
+      rewards: playerRewardsOf(definition),
       playerStatus: view.status,
       canEnroll: view.canEnroll,
       lockReason: view.lockReason,

@@ -142,7 +142,8 @@ describe('Tablón, detalle y matrícula por HTTP (Task HU-70.2)', () => {
             imageRef: null,
             estimatedDuration: 'PT12H',
             recommendedPower: 15,
-            highlightedRewards: [{ label: '50 créditos' }, { label: '1 Cofre de Bronce' }],
+            // P-J2: lo entregable; el contenido de ejemplo no enlaza productos.
+            highlightedRewards: [{ label: 'Experiencia por cada enemigo derrotado' }],
             playerStatus: 'AVAILABLE',
             canEnroll: true,
             lockReason: null,
@@ -156,7 +157,7 @@ describe('Tablón, detalle y matrícula por HTTP (Task HU-70.2)', () => {
             imageRef: null,
             estimatedDuration: 'PT6H',
             recommendedPower: null,
-            highlightedRewards: [{ label: '30 créditos' }, { label: 'Núcleo del Sello' }],
+            highlightedRewards: [{ label: 'Experiencia por cada enemigo derrotado' }],
             playerStatus: 'LOCKED',
             canEnroll: false,
             lockReason: 'Completa primero «El Templo Olvidado».',
@@ -207,14 +208,16 @@ describe('Tablón, detalle y matrícula por HTTP (Task HU-70.2)', () => {
         },
         masterEncounter: {
           probability: 0.15,
-          candidates: [{ name: 'Sombra del Olvido', heroType: 'PICARO_VENENO' }],
+          // P-J2: sin producto, la epica no se promete.
+          candidates: [{ name: 'Sombra del Olvido', heroType: 'PICARO_VENENO', epic: null }],
         },
+        // P-J2: solo lo que se entrega; los creditos, el cofre y el titulo esperan a HU-10.
         rewards: {
-          potential: [
-            { label: 'Fragmento del Sello Antiguo', probability: 0.6, rolls: 3 },
-            { label: 'Armadura «Piel del Guardián»', probability: 0.2, rolls: 1 },
-            { label: 'Arma «Espada del Templo»', probability: 0.15, rolls: 1 },
-          ],
+          experience: true,
+          guaranteed: [],
+          potential: [],
+          objectiveBonuses: [],
+          firstTime: [],
         },
         playerStatus: 'AVAILABLE',
         canEnroll: true,

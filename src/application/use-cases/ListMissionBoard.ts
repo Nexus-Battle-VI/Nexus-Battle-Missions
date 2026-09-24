@@ -1,4 +1,5 @@
 import type { MissionDefinition, RewardLabel } from '../../domain/entities/MissionDefinition'
+import { deliverableHighlightsOf } from '../../domain/policies/DeliverableRewardsPolicy'
 import {
   FINISHED_MISSION_STATUSES,
   isActiveEnrollment,
@@ -87,7 +88,8 @@ const toCard = (definition: MissionDefinition, view: PlayerMissionView): Mission
   imageRef: definition.imageRef,
   estimatedDuration: toIsoDuration(definition.estimatedDurationMinutes),
   recommendedPower: definition.recommendedPower,
-  highlightedRewards: definition.highlightedRewards,
+  // P-J2: lo entregable, no el texto del contenido.
+  highlightedRewards: deliverableHighlightsOf(definition),
   playerStatus: view.status,
   canEnroll: view.canEnroll,
   lockReason: view.lockReason,

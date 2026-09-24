@@ -515,7 +515,8 @@ describe('GetMissionDetail (Task HU-70.2)', () => {
       finalBoss: { name: 'El Guardián Eterno', stats: { health: 100 } },
       masterEncounter: {
         probability: 0.15,
-        candidates: [{ name: 'Sombra del Olvido', epic: { name: 'Velo de Sombras' } }],
+        // P-J2: sin producto en Catalog la epica no se promete; el Master aparece igual.
+        candidates: [{ name: 'Sombra del Olvido', epic: null }],
       },
       playerStatus: 'AVAILABLE',
       canEnroll: true,
@@ -529,7 +530,44 @@ describe('GetMissionDetail (Task HU-70.2)', () => {
       description: 'Enemigos básicos con ataque moderado.',
     })
     expect(detail.finalBoss).not.toHaveProperty('enemyRef')
-    expect(detail.rewards.potential.map((reward) => reward.probability)).toEqual([0.6, 0.2, 0.15])
+    // P-J2: solo lo que se entrega. El contenido de ejemplo no enlaza productos, y los
+    // creditos, el cofre y el titulo son texto que nadie entrega todavia (HU-10).
+    expect(detail.rewards).toEqual({
+      experience: true,
+      guaranteed: [],
+      potential: [],
+      objectiveBonuses: [],
+      firstTime: [],
+    })
+  })
+
+  it('P-J2: con productos enlazados promete la epica y el botin, con su probabilidad', async () => {
+    const base = EXAMPLE_MISSIONS[0]!
+    const master = base.masterEncounter!
+    const linked = {
+      ...base,
+      finalBoss: {
+        ...base.finalBoss,
+        drops: (base.finalBoss.drops ?? []).map((drop, index) => ({
+          ...drop,
+          productId: index < 2 ? `1111111${String(index)}-1111-4111-8111-111111111111` : null,
+        })),
+      },
+      masterEncounter: {
+        ...master,
+        candidates: master.candidates.map((candidate) => ({
+          ...candidate,
+          epic: { ...candidate.epic, productId: '22222222-2222-4222-8222-222222222222' },
+        })),
+      },
+    }
+    const detail = await setup([linked]).detail.execute('sub-1', TEMPLO)
+
+    expect(detail.masterEncounter.candidates[0]?.epic).toMatchObject({ name: 'Velo de Sombras' })
+    expect(detail.rewards.potential).toEqual([
+      { label: 'Fragmento del Sello Antiguo', probability: 0.6, rolls: 3 },
+      { label: 'Armadura «Piel del Guardián»', probability: 0.2, rolls: 1 },
+    ])
   })
 
   it('una mision sin Master muestra probabilidad 0 y ningun candidato', async () => {
