@@ -1,4 +1,4 @@
-import { execFileSync, spawn, type ChildProcessByStdio } from 'node:child_process'
+import { execFileSync, spawn, spawnSync, type ChildProcessByStdio } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { createServer } from 'node:net'
 import path from 'node:path'
@@ -262,6 +262,8 @@ export const startMongo = async (): Promise<StartedMongoDBContainer> =>
 export interface ScriptResult {
   readonly command: string
   readonly ok: boolean
+  /** La salida completa: el escenario de las guardas afirma sobre ella. */
+  readonly output: string
   readonly tail: string
 }
 
@@ -271,26 +273,35 @@ export interface ScriptResult {
  * Lo usa el escenario de las guardas de no-duplicacion: la Task exige que esten en
  * verde EN EL CODIGO QUE SE ESTA PROBANDO, y ese codigo es el del commit clonado,
  * no el de la copia de quien ejecuta.
+ *
+ * SE LEEN LAS DOS SALIDAS, y no es un detalle: Jest escribe su resumen por
+ * `stderr` (el arbol de pruebas va por `stdout`). Quedarse con `stdout` deja al
+ * escenario sin el «Test Suites: 1 passed» que afirma, y el aserto falla aunque
+ * las guardas esten verdes.
+ *
+ * EL FILTRO ES `--testPathPatterns`, tampoco por casualidad: Jest 30 retiro el
+ * patron posicional, asi que `jest --selectProjects unit hu-09-reward-policy`
+ * corre el proyecto ENTERO y sale en verde. Ese es exactamente el modo de que una
+ * guarda deje de vigilar sin que nadie se entere.
  */
 export const runNpmScript = (dir: string, args: readonly string[]): ScriptResult => {
   const command = `npm ${args.join(' ')}`
+  const result = spawnSync(npm, [...args], {
+    cwd: dir,
+    encoding: 'utf8',
+    ...npmOptions,
+    maxBuffer: 32 * 1024 * 1024,
+  })
+  const output = `${result.stdout}\n${result.stderr}`
+  const ok = result.status === 0
 
-  try {
-    const output = execFileSync(npm, [...args], {
-      cwd: dir,
-      encoding: 'utf8',
-      stdio: 'pipe',
-      ...npmOptions,
-    })
-
-    return { command, ok: true, tail: output.split('\n').slice(-5).join('\n') }
-  } catch (error: unknown) {
-    const detail = error as { readonly stdout?: string; readonly stderr?: string }
-
-    return {
-      command,
-      ok: false,
-      tail: `${detail.stdout ?? ''}\n${detail.stderr ?? ''}`.split('\n').slice(-20).join('\n'),
-    }
+  return {
+    command,
+    ok,
+    output,
+    tail: output
+      .split('\n')
+      .slice(ok ? -5 : -20)
+      .join('\n'),
   }
 }

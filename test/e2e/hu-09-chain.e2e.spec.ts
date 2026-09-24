@@ -32,6 +32,7 @@ import {
   clearPlayerInventory,
   closeAndSweep,
   connectChainDatabases,
+  countGrants,
   creditOperationId,
   DEFEATS_IN_TEMPLO,
   enroll,
@@ -975,7 +976,11 @@ describe('Cadena de experiencia de HU-09 (Task HU-09.6)', () => {
       // El lote es EL MISMO documento: mismas caras, mismas fechas de persistencia.
       expect(batchAfter?.defeats).toEqual(batchBefore?.defeats)
       expect(batchAfter?.createdAt).toEqual(batchBefore?.createdAt)
-      expect(grants).toHaveLength(DEFEATS_IN_TEMPLO)
+      // Distingue "no se acredito" de "se acredito a otra matricula".
+      expect({
+        deEstaMatricula: grants.length,
+        enLaBase: await countGrants(databases),
+      }).toEqual({ deEstaMatricula: DEFEATS_IN_TEMPLO, enLaBase: DEFEATS_IN_TEMPLO })
 
       observed = {
         afterFailure: 'ROLLED sin acreditar',
@@ -1054,17 +1059,24 @@ describe('Cadena de experiencia de HU-09 (Task HU-09.6)', () => {
     // Las guardas viven en las suites unitarias de cada repositorio. Se ejecutan
     // AQUI, sobre el commit que se esta probando, y su capacidad de fallar la
     // demuestran sus controles negativos (`... no es un colador`), que forman
-    // parte de la misma suite.
+    // parte de la misma suite: el aserto sobre ese nombre es lo que impide que la
+    // guarda se quede en verde por vacia.
+    //
+    // El filtro es `--testPathPatterns` porque Jest 30 ya no interpreta el
+    // argumento suelto: con el, estas dos ordenes corrian los proyectos unitarios
+    // ENTEROS y el caso afirmaba "la guarda esta verde" sin haberla ejecutado.
     const missionsGuard = runNpmScript(process.cwd(), [
       'run',
       'test:unit',
       '--',
+      '--testPathPatterns',
       'hu-09-reward-policy',
     ])
     const combatGuard = runNpmScript(COMBAT_DIR, [
       'run',
       'test:unit',
       '--',
+      '--testPathPatterns',
       'hu-09-no-alternative-randomness',
     ])
 
@@ -1078,6 +1090,24 @@ describe('Cadena de experiencia de HU-09 (Task HU-09.6)', () => {
       throw new Error(`${combatGuard.command} fallo:\n${combatGuard.tail}`)
     }
 
+    // Una sola suite por guarda: si el filtro dejara de aplicarse se veria aqui, y
+    // si no seleccionara nada, Jest saldria con error antes de llegar.
+    const singleSuite = /Test Suites:\s+1 passed/
+
+    expect({
+      missions: singleSuite.test(missionsGuard.output),
+      combat: singleSuite.test(combatGuard.output),
+    }).toEqual({ missions: true, combat: true })
+
+    // Y el control negativo -- el que demuestra que la guarda sabe fallar -- se
+    // ejecuto de verdad en las dos.
+    const negativeControl = 'no es un colador'
+
+    expect({
+      missions: missionsGuard.output.includes(negativeControl),
+      combat: combatGuard.output.includes(negativeControl),
+    }).toEqual({ missions: true, combat: true })
+
     recordCase({
       id: 'S-11',
       name: 'Guardas de no-duplicacion (formula y azar)',
@@ -1085,6 +1115,7 @@ describe('Cadena de experiencia de HU-09 (Task HU-09.6)', () => {
       observed: {
         missions: missionsGuard.command,
         combat: combatGuard.command,
+        controlNegativo: 'ejecutado en las dos guardas',
       },
     })
   })
