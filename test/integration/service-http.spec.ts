@@ -1,6 +1,6 @@
 import 'reflect-metadata'
 
-import { Body, Controller, Get, Post, ValidationPipe, type INestApplication } from '@nestjs/common'
+import { Body, Controller, Get, Post, type INestApplication } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import request from 'supertest'
 
@@ -10,6 +10,7 @@ import {
   Public,
   Roles,
 } from '../../src/adapters/inbound/http/auth/decorators'
+import { createValidationPipe } from '../../src/adapters/inbound/http/validation.pipe'
 import { signInternalRequest } from '../../src/adapters/outbound/identity/internal-signature'
 import {
   Role,
@@ -99,9 +100,7 @@ const buildApp = async (): Promise<INestApplication> => {
 
   const app = moduleRef.createNestApplication()
   app.setGlobalPrefix('api')
-  app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
-  )
+  app.useGlobalPipes(createValidationPipe())
   await app.init()
 
   return app

@@ -29,6 +29,25 @@ export const PersistenceDriver = {
 
 export type PersistenceDriver = (typeof PersistenceDriver)[keyof typeof PersistenceDriver]
 
+/**
+ * Como habla Missions con otro servicio. Lo usan la reserva del heroe (HU-70,
+ * `HERO_COMMITMENTS_DRIVER`), sus habilidades y su perfil (HU-71 y HU-72,
+ * `HERO_ABILITIES_DRIVER`), la simulacion en Combat (HU-72,
+ * `COMBAT_SIMULATION_DRIVER`) y la entrega de la epica del Master (HU-73,
+ * `EPIC_GRANTS_DRIVER`).
+ *
+ * - `http`: el contrato interno. Es el unico permitido en produccion. Hasta que
+ *   Team Alfa publique las rutas, la matricula queda PENDING, guardar una
+ *   estrategia responde 503 y la simulacion espera: es el resultado honesto.
+ * - `memory`: dobles de desarrollo.
+ */
+export const IntegrationDriver = {
+  Memory: 'memory',
+  Http: 'http',
+} as const
+
+export type IntegrationDriver = (typeof IntegrationDriver)[keyof typeof IntegrationDriver]
+
 export interface AppConfig {
   readonly nodeEnv: 'development' | 'test' | 'production'
   readonly serviceName: string
@@ -42,6 +61,26 @@ export interface AppConfig {
   readonly authMode: AuthMode
   readonly cognito: CognitoConfig | null
   readonly internalServiceAuthSecret: string | null
+  readonly heroCommitmentsDriver: IntegrationDriver
+  readonly heroAbilitiesDriver: IntegrationDriver
+  /** Sin barra final. `null`: las reservas quedan sin confirmar y lo avisa el registro. */
+  readonly playerInventoryBaseUrl: string | null
+  readonly internalHttpTimeoutMs: number
+  /** Reconciliador de matriculas PENDING; apagado por defecto, como los demas temporizadores. */
+  readonly enrollmentReconcilerEnabled: boolean
+  readonly enrollmentReconcilerIntervalMs: number
+  readonly combatSimulationDriver: IntegrationDriver
+  /** Sin barra final. `null`: las simulaciones no se piden y lo avisa el registro. */
+  readonly combatBaseUrl: string | null
+  /** La simulacion es acelerada, pero mas larga que una llamada corriente. */
+  readonly combatSimulationTimeoutMs: number
+  /** Planificador de HU-72; apagado por defecto, como los demas temporizadores. */
+  readonly missionExecutionEnabled: boolean
+  readonly missionExecutionIntervalMs: number
+  /** HU-73: entrega de epicas en Player/Inventory, con la misma URL y secreto que la reserva. */
+  readonly epicGrantsDriver: IntegrationDriver
+  /** Misiones de ejemplo del curso, solo con persistencia en memoria. */
+  readonly exampleCatalog: boolean
 }
 
 type RawEnv = Readonly<Record<string, string | undefined>>
@@ -178,6 +217,44 @@ export const loadConfig = (env: RawEnv): AppConfig => {
 
   const internalServiceAuthSecret = readString(env, 'INTERNAL_SERVICE_AUTH_SECRET', '')
 
+  const readIntegrationDriver = (name: string): IntegrationDriver => {
+    const driver = readEnum(
+      env,
+      name,
+      [IntegrationDriver.Memory, IntegrationDriver.Http],
+      nodeEnv === 'production' ? IntegrationDriver.Http : IntegrationDriver.Memory,
+    )
+
+    // Un doble que concede sin preguntar dejaria al mismo heroe en una batalla y
+    // en una mision a la vez, guardaria habilidades que el heroe no tiene o daria
+    // por simulada una mision que Combat nunca jugo.
+    if (nodeEnv === 'production' && driver === IntegrationDriver.Memory) {
+      throw new ConfigurationError(`${name} no puede ser "memory" con NODE_ENV=production.`)
+    }
+
+    return driver
+  }
+
+  const heroCommitmentsDriver = readIntegrationDriver('HERO_COMMITMENTS_DRIVER')
+  const heroAbilitiesDriver = readIntegrationDriver('HERO_ABILITIES_DRIVER')
+  const combatSimulationDriver = readIntegrationDriver('COMBAT_SIMULATION_DRIVER')
+  const epicGrantsDriver = readIntegrationDriver('EPIC_GRANTS_DRIVER')
+
+  const exampleCatalog = readBoolean(env, 'MISSIONS_EXAMPLE_CATALOG', false)
+
+  if (exampleCatalog && persistenceDriver !== PersistenceDriver.Memory) {
+    throw new ConfigurationError(
+      'MISSIONS_EXAMPLE_CATALOG solo se admite con PERSISTENCE_DRIVER=memory: el ejemplo del ' +
+        'curso no es contenido aprobado.',
+    )
+  }
+
+  const playerInventoryBaseUrl = readString(env, 'PLAYER_INVENTORY_BASE_URL', '').replace(
+    /\/+$/,
+    '',
+  )
+  const combatBaseUrl = readString(env, 'COMBAT_BASE_URL', '').replace(/\/+$/, '')
+
   return {
     nodeEnv,
     serviceName: readString(env, 'SERVICE_NAME', 'nexus-battle-missions'),
@@ -196,5 +273,36 @@ export const loadConfig = (env: RawEnv): AppConfig => {
         ? { userPoolId: cognitoUserPoolId, clientId: cognitoClientId }
         : null,
     internalServiceAuthSecret: internalServiceAuthSecret === '' ? null : internalServiceAuthSecret,
+    heroCommitmentsDriver,
+    heroAbilitiesDriver,
+    playerInventoryBaseUrl: playerInventoryBaseUrl === '' ? null : playerInventoryBaseUrl,
+    internalHttpTimeoutMs: readInteger(env, 'INTERNAL_HTTP_TIMEOUT_MS', 3_000, 100, 30_000),
+    enrollmentReconcilerEnabled: readBoolean(env, 'ENROLLMENT_RECONCILER_ENABLED', false),
+    enrollmentReconcilerIntervalMs: readInteger(
+      env,
+      'ENROLLMENT_RECONCILER_INTERVAL_MS',
+      15_000,
+      1_000,
+      3_600_000,
+    ),
+    combatSimulationDriver,
+    combatBaseUrl: combatBaseUrl === '' ? null : combatBaseUrl,
+    combatSimulationTimeoutMs: readInteger(
+      env,
+      'COMBAT_SIMULATION_TIMEOUT_MS',
+      15_000,
+      1_000,
+      120_000,
+    ),
+    missionExecutionEnabled: readBoolean(env, 'MISSION_EXECUTION_ENABLED', false),
+    missionExecutionIntervalMs: readInteger(
+      env,
+      'MISSION_EXECUTION_INTERVAL_MS',
+      15_000,
+      1_000,
+      3_600_000,
+    ),
+    epicGrantsDriver,
+    exampleCatalog,
   }
 }
