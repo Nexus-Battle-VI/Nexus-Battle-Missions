@@ -279,10 +279,10 @@ describe('HU-09 — clientes internos firmados', () => {
         applied: true,
         heroId: 'hero-01',
         level: 2,
-        currentXp: 14,
+        currentXp: 114,
         leveledUp: false,
         levelsGained: 0,
-        nextLevel: { status: 'AVAILABLE', forNextLevel: 3, amount: 400 },
+        nextLevel: { status: 'AVAILABLE', forNextLevel: 3, amount: 300 },
         maxLevel: 8,
       })
     }
@@ -292,7 +292,7 @@ describe('HU-09 — clientes internos firmados', () => {
     // HU-09.5: del `200` se lee ademas la progresion del heroe.
     expect(outcome).toEqual({
       kind: 'CREDITED',
-      progression: { level: 2, currentXp: 14, maxLevel: 8, levelsGained: 0 },
+      progression: { level: 2, currentXp: 114, maxLevel: 8, levelsGained: 0 },
     })
     expect(received[0]?.path).toBe('/api/internal/v1/players/sub-1/heroes/hero-01/experience')
     expect(received[0]?.service).toBe('missions')
@@ -320,7 +320,7 @@ describe('HU-09 — clientes internos firmados', () => {
         applied: true,
         // Sin `maxLevel` ni `levelsGained`: el heroe subio, pero no se puede contar.
         level: 3,
-        currentXp: 640,
+        currentXp: 340,
       })
     }
 
