@@ -110,6 +110,7 @@ const CASES = [
   'S-09',
   'S-10',
   'S-11',
+  'S-12',
 ] as const
 
 interface RewardRow {
@@ -172,6 +173,76 @@ class ScriptedRolls implements ExperienceRollPort {
     this.byOperationId.set(request.operationId, rolls)
 
     return Promise.resolve({ kind: 'ROLLED', rolls })
+  }
+}
+
+/** Cuantos NPC caen antes de que el heroe muera en `DefeatedAfterKillsSimulation`. */
+const KILLS_BEFORE_DEFEAT = 3
+
+/**
+ * Una simulacion en la que el heroe DERROTA a algunos NPC y despues MUERE, de modo
+ * que la mision termina `FAILED` (CA-08: la XP de esas derrotas se conserva).
+ *
+ * ES UN DOBLE, y se declara: parte de la bitacora del doble de desarrollo de la
+ * cadena -- el mismo que ya sustituye a Combat en todos los escenarios, porque la
+ * simulacion de mision de Combat aun no produce bitacoras -- y la recorta tras la
+ * derrota numero `KILLS_BEFORE_DEFEAT`, cerrandola con `HERO_DEFEATED`. Todo lo
+ * demas (tiradas de Combat, coordinacion de Missions, acreditacion de
+ * Player/Inventory, reporte) es real.
+ */
+class DefeatedAfterKillsSimulation implements CombatSimulationPort {
+  private readonly inner = new ScriptedCombatSimulation()
+
+  async simulate(request: SimulationRequest): Promise<SimulationCallOutcome> {
+    const outcome = await this.inner.simulate(request)
+
+    if (outcome.kind !== 'SIMULATED') {
+      return outcome
+    }
+
+    const log = outcome.result.combatLog as readonly Record<string, unknown>[]
+    const cut =
+      log
+        .map((event, index) => (event.type === 'combatantDefeated' ? index : -1))
+        .filter((index) => index >= 0)
+        .at(KILLS_BEFORE_DEFEAT - 1) ?? log.length - 1
+    const kept = log.slice(0, cut + 1)
+    const defeated = new Map<string, number>()
+
+    for (const event of kept) {
+      if (event.type === 'combatantDefeated') {
+        const ref = String(event.combatant).split('#')[0] ?? ''
+
+        defeated.set(ref, (defeated.get(ref) ?? 0) + 1)
+      }
+    }
+
+    return {
+      kind: 'SIMULATED',
+      result: {
+        ...outcome.result,
+        combatOutcome: 'HERO_DEFEATED',
+        summary: {
+          ...outcome.result.summary,
+          // El heroe cae en el primer encuentro: no llega a evaluar al Master ni al jefe.
+          encountersCompleted: 1,
+          minHealthPercent: 0,
+          master: {
+            appeared: false,
+            masterRef: null,
+            defeated: false,
+            evaluations: [],
+            encounters: [],
+          },
+          enemiesDefeated: [...defeated].map(([enemyRef, count]) => ({ enemyRef, count })),
+          bossDefeated: false,
+          loot: [],
+        },
+        combatLog: [...kept, { type: 'simulationFinished', combatOutcome: 'HERO_DEFEATED' }].map(
+          (event, index) => ({ ...event, seq: index + 1 }),
+        ),
+      },
+    }
   }
 }
 
@@ -857,10 +928,12 @@ describe('Cadena de experiencia de HU-09 (Task HU-09.6)', () => {
     })
   })
 
-  it('S-07 · sin victoria valida no hay tirada, ni recompensa, ni acreditacion', async () => {
+  it('S-07 · sin derrota valida de NPC no hay tirada, ni recompensa, ni acreditacion', async () => {
     const observed: Record<string, unknown> = {}
 
-    // (a) El heroe pierde y no muere ningun NPC.
+    // (a) El heroe pierde (mision FAILED) y no muere ningun NPC.
+    let failedStatus = ''
+
     await scenario(
       (builder) => builder.overrideProvider(COMBAT_SIMULATION).useValue(new LosingSimulation()),
       async (missions) => {
@@ -879,7 +952,18 @@ describe('Cadena de experiencia de HU-09 (Task HU-09.6)', () => {
         expect(report.experience).toMatchObject({ defeats: 0, totalXp: 0, level: null })
         expect(report.rewards).toEqual([])
 
-        observed.defeat = { rewards: 0, rolls: 0, grants: 0 }
+        // FAILED por si solo no devenga nada: lo que falta es la derrota de un NPC.
+        failedStatus =
+          (
+            await sql<{ status: string }>`
+              select status from mission_enrollments where enrollment_id = ${enrollment.enrollmentId}`.execute(
+              db,
+            )
+          ).rows[0]?.status ?? ''
+        expect(failedStatus).toBe('FAILED')
+        expect(await readProgression(databases, SUBJECT, HERO_ID)).toBeNull()
+
+        observed.failedWithoutDefeats = { status: failedStatus, rewards: 0, rolls: 0, grants: 0 }
       },
     )
 
@@ -916,7 +1000,7 @@ describe('Cadena de experiencia de HU-09 (Task HU-09.6)', () => {
 
     recordCase({
       id: 'S-07',
-      name: 'CA-08: sin victoria valida no se devenga nada',
+      name: 'CA-08: sin derrota valida de NPC no se devenga nada (FAILED sin bajas, VOIDED)',
       result: 'PASS',
       observed,
     })
@@ -1102,6 +1186,12 @@ describe('Cadena de experiencia de HU-09 (Task HU-09.6)', () => {
       '--',
       '--testPathPatterns',
       'hu-09-reward-policy',
+      // Los titulos de las pruebas (donde va el control negativo) solo salen con el
+      // reportero por defecto y en modo verboso. Se piden de forma explicita: Jest
+      // cambia a un reportero compacto cuando detecta un agente (`AI_AGENT`) y la
+      // comprobacion pasaba a depender del entorno de quien ejecuta.
+      '--reporters=default',
+      '--verbose',
     ])
     const combatGuard = runNpmScript(COMBAT_DIR, [
       'run',
@@ -1109,6 +1199,12 @@ describe('Cadena de experiencia de HU-09 (Task HU-09.6)', () => {
       '--',
       '--testPathPatterns',
       'hu-09-no-alternative-randomness',
+      // Los titulos de las pruebas (donde va el control negativo) solo salen con el
+      // reportero por defecto y en modo verboso. Se piden de forma explicita: Jest
+      // cambia a un reportero compacto cuando detecta un agente (`AI_AGENT`) y la
+      // comprobacion pasaba a depender del entorno de quien ejecuta.
+      '--reporters=default',
+      '--verbose',
     ])
 
     // El mensaje de fallo lleva la cola de la salida: si una guarda se pone roja,
@@ -1165,6 +1261,102 @@ describe('Cadena de experiencia de HU-09 (Task HU-09.6)', () => {
         combat: combatGuard.command,
         controlNegativo: 'ejecutado en las dos guardas',
       },
+    })
+  })
+
+  it('S-12 · una mision FAILED con NPC derrotados conserva la XP de esas derrotas (CA-08)', async () => {
+    let observed: Record<string, unknown> = {}
+
+    // El heroe derrota a KILLS_BEFORE_DEFEAT NPC y despues muere. Sustitucion
+    // declarada: solo la bitacora de la simulacion (ver `DefeatedAfterKillsSimulation`).
+    // Las tiradas son las REALES de Combat y la acreditacion es la REAL de
+    // Player/Inventory.
+    await scenario(
+      (builder) =>
+        builder.overrideProvider(COMBAT_SIMULATION).useValue(new DefeatedAfterKillsSimulation()),
+      async (missions) => {
+        const enrollment = await runChain(missions)
+        const status = async (): Promise<string | undefined> =>
+          (
+            await sql<{ status: string }>`
+              select status from mission_enrollments where enrollment_id = ${enrollment.enrollmentId}`.execute(
+              db,
+            )
+          ).rows[0]?.status
+        const rewards = await rewardsOf(enrollment.enrollmentId)
+        const batch = await readRollBatch(databases, enrollment.enrollmentId)
+        const grants = await readGrants(databases, enrollment.enrollmentId)
+        const lines = await linesOf(enrollment.enrollmentId)
+        const report = await reportOf(missions, enrollment.enrollmentId)
+        const progression = await readProgression(databases, SUBJECT, HERO_ID)
+
+        // La mision termino FAILED, no COMPLETED.
+        expect(await status()).toBe('FAILED')
+
+        // Una recompensa por NPC derrotado (y ninguna por los que no llego a derrotar).
+        expect(rewards).toHaveLength(KILLS_BEFORE_DEFEAT)
+        expect(rewards.every((reward) => reward.status === 'CREDITED')).toBe(true)
+
+        // Una tirada por derrota, con el importe del contrato para la cara de Combat.
+        expect(batch?.defeats).toHaveLength(KILLS_BEFORE_DEFEAT)
+
+        const rollOf = new Map(
+          (batch?.defeats ?? []).map((defeat) => [
+            `${defeat.encounterId}#${defeat.enemyInstanceId}`,
+            defeat.roll,
+          ]),
+        )
+
+        for (const reward of rewards) {
+          const roll = rollOf.get(`${reward.encounter_id}#${reward.enemy_instance_id}`)
+
+          expect(reward.roll).toBe(roll)
+          expect(reward.amount).toBe(ROLL_AMOUNTS[roll ?? 0])
+        }
+
+        // Se acredito en Player/Inventory y el heroe CONSERVA la experiencia.
+        const totalXp = sumOf(rewards.map((reward) => reward.amount ?? 0))
+
+        expect(grants).toHaveLength(KILLS_BEFORE_DEFEAT)
+        expect(progression?.currentXp).toBe(totalXp)
+        expect(progression?.level).toBe(expectedLevel(totalXp))
+
+        // El reporte lo refleja.
+        expect(lines).toHaveLength(KILLS_BEFORE_DEFEAT)
+        expect(lines.every((line) => line.status === 'CREDITED')).toBe(true)
+        expect(report.experience).toMatchObject({
+          defeats: KILLS_BEFORE_DEFEAT,
+          credited: KILLS_BEFORE_DEFEAT,
+          totalXp,
+          currentXp: totalXp,
+        })
+
+        // Nada la revierte: otro barrido no toca ni el ledger ni la progresion.
+        await closeAndSweep(missions)
+
+        expect(await status()).toBe('FAILED')
+        expect(await readGrants(databases, enrollment.enrollmentId)).toEqual(grants)
+        expect((await readProgression(databases, SUBJECT, HERO_ID))?.currentXp).toBe(totalXp)
+        expect(await countGrants(databases)).toBe(KILLS_BEFORE_DEFEAT)
+
+        observed = {
+          missionStatus: 'FAILED',
+          defeats: rewards.length,
+          faces: (batch?.defeats ?? []).map((defeat) => defeat.roll),
+          amounts: rewards.map((reward) => reward.amount),
+          totalXp,
+          level: progression?.level ?? null,
+          grants: grants.length,
+          revokedAfterSecondSweep: false,
+        }
+      },
+    )
+
+    recordCase({
+      id: 'S-12',
+      name: 'CA-08: mision FAILED con NPC derrotados conserva la XP (bitacora doble)',
+      result: 'PASS',
+      observed,
     })
   })
 })

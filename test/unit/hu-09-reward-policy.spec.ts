@@ -82,11 +82,26 @@ describe('HU-09 — formula de la experiencia por derrota', () => {
     }
   })
 
-  it('la interpretacion del redondeo esta escrita: al mas proximo, no truncamiento', () => {
-    // `P-2` sigue abierto en el contrato. Si algun dia se confirma el
-    // truncamiento, esta prueba es la que cambia -- y solo esta.
+  it('el redondeo es al entero mas proximo: el truncamiento esta DESCARTADO (P-2 cerrada)', () => {
+    // Decision definitiva del PO (Management #18). Las caras 4 y 8 son las que
+    // distinguen las dos reglas: 20,736 -> 21 (no 20) y 42,998 -> 43 (no 42).
     expect(experienceForRoll(4)).toBe(21)
+    expect(experienceForRoll(4)).not.toBe(20)
     expect(experienceForRoll(8)).toBe(43)
+    expect(experienceForRoll(8)).not.toBe(42)
+  })
+
+  it('las ocho caras difieren del truncamiento solo donde debe, y nunca por debajo', () => {
+    // Expectativa INDEPENDIENTE de la implementacion: la tabla exacta del PO, no
+    // la formula. Truncar daria 12, 14, 17, 20, 24, 29, 35, 42.
+    const truncado = [12, 14, 17, 20, 24, 29, 35, 42]
+    const definitivo = [1, 2, 3, 4, 5, 6, 7, 8].map((roll) => experienceForRoll(roll))
+
+    expect(definitivo).toEqual([12, 14, 17, 21, 25, 30, 36, 43])
+    // Las caras 4 a 8 suben una unidad respecto al truncamiento; 1 a 3 no cambian.
+    expect(definitivo.map((value, index) => value - (truncado[index] ?? 0))).toEqual([
+      0, 0, 0, 1, 1, 1, 1, 1,
+    ])
   })
 })
 

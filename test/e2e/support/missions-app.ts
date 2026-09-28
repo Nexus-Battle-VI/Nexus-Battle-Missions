@@ -32,7 +32,8 @@ import type { ExperienceRewardScheduler } from '../../../src/infrastructure/sche
  * Se sustituyen SOLO dos cosas, y las dos estan declaradas en la evidencia:
  *   - el verificador de testimonio (no hay Cognito en la cadena);
  *   - el resultado de la simulacion, que en la variante real se deja como el
- *     doble de desarrollo porque Combat todavia no produce bitacoras.
+ *     doble de desarrollo (Combat rechaza el contenido con el perfil del doble;
+ *     ver mas abajo).
  *
  * EL RELOJ NO SE SUSTITUYE, y es deliberado: los clientes internos firman con el
  * reloj de Missions y Combat y Player/Inventory aceptan un sello de ±30 s, asi que
@@ -114,11 +115,13 @@ export const useChainEnv = (options: Omit<BootOptions, 'subject' | 'overrides'>)
     // que valida es `hero.profile.effectiveStats` y `hero.profile.subtype`, y el
     // perfil que Missions puede enviar hoy es el doble de `HERO_ABILITIES_DRIVER`,
     // que no trae ni una cosa ni la otra. Ese perfil real es `HU-71.2` (Player
-    // Inventory PR #48) y sigue sin estar en `develop`.
+    // Inventory PR #48), que YA esta en `develop`; esta cadena todavia no se ha
+    // migrado a el (pendiente).
     //
-    // Comprobado de verdad, no supuesto: con `http` en esta linea, la ejecucion
-    // termina en `VOIDED` con `outcome_reason = MISSION_CONTENT_INVALID`. El dia que
-    // `HU-71.2` entre, esto pasa a `http` y la sustitucion se cae sola.
+    // Medido cuando #48 aun no estaba mergeado: con `http` en esta linea, la
+    // ejecucion terminaba en `VOIDED` con `outcome_reason = MISSION_CONTENT_INVALID`.
+    // NO se ha vuelto a medir con el perfil real: migrar `HERO_ABILITIES_DRIVER` y
+    // esta linea a `http` y repetir la medicion es lo que cierra la sustitucion.
     COMBAT_SIMULATION_DRIVER: 'memory',
     EPIC_GRANTS_DRIVER: 'memory',
     EXPERIENCE_REWARDS_DRIVER: 'http',
