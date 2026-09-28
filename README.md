@@ -36,7 +36,7 @@ Desde el 2026-09-16 corre en producción en el nodo `app` y Caddy le envía `htt
 
 **Logros y reconocimientos: HU-76** (Task HU-76.2, ver [docs/hu-76-logros.md](docs/hu-76-logros.md)). `GET /api/v1/missions/me/achievements` devuelve los logros del jugador con su progreso y su reconocimiento. Un paso del mismo planificador los evalúa con lo que ya guardan los clears, los reportes y la evidencia del Máster, y los desbloquea una sola vez (migración `009-mission-achievements`); los títulos y las insignias quedan registrados y los cosméticos se piden a Player/Inventory como las épicas. El catálogo aprobado son los siete logros del contrato, aprobados por el PO el 2026-09-24.
 
-**Recompensa de experiencia: HU-09** (Tasks HU-09.4 y HU-09.5, ver [docs/hu-09-experiencia.md](docs/hu-09-experiencia.md)). Sin rutas nuevas: el cierre de HU-72 deja una recompensa `PENDING` por **cada NPC derrotado** (migración `007-experience-rewards`) y la línea `EXPERIENCE` que la refleja en el reporte (migración `008-report-experience`), en su misma transacción y antes de pedir ninguna tirada; un segundo planificador (`EXPERIENCE_REWARD_ENABLED`, apagado por defecto) pide a Combat el lote de tiradas, calcula `10 × 1,2^(1d8)`, acredita cada derrota en Player/Inventory con su propia clave y mueve su línea del reporte en la misma escritura. El reporte publica además un bloque `experience` derivado, con la experiencia acreditada y el nivel del héroe. La bitácora de la simulación todavía no registra las bajas: hasta que la ruta de simulación de Combat exista, el camino se recorre con el doble de desarrollo.
+**Recompensa de experiencia: HU-09** (Tasks HU-09.4 #442 y HU-09.6 #444, ver [docs/hu-09-experiencia.md](docs/hu-09-experiencia.md)). Sin rutas nuevas: el cierre de HU-72 deja una recompensa `PENDING` por **cada NPC derrotado** (migración `007-experience-rewards`) y la línea `EXPERIENCE` que la refleja en el reporte (migración `008-report-experience`), en su misma transacción y antes de pedir ninguna tirada; un segundo planificador (`EXPERIENCE_REWARD_ENABLED`, apagado por defecto) pide a Combat el lote de tiradas, calcula `10 × 1,2^(1d8)`, acredita cada derrota en Player/Inventory con su propia clave y mueve su línea del reporte en la misma escritura. El reporte publica además un bloque `experience` derivado, con la experiencia acreditada y el nivel del héroe. La cadena completa se verifica de extremo a extremo con las tres piezas reales (`npm run test:e2e:chain`). **La simulación se recorre con el doble de desarrollo porque el perfil de combate del héroe todavía no está disponible (`HU-71.2`)**: la ruta de simulación de Combat existe, pero lo primero que valida es `hero.profile.effectiveStats` y `hero.profile.subtype`, y sin la ruta interna de perfil de Player/Inventory no hay perfil real que enviarle.
 
 ## Qué posee este contexto
 
@@ -96,6 +96,20 @@ npm run test:coverage
 npm run test:db        # requiere Docker: levanta PostgreSQL con Testcontainers
 npm run build
 ```
+
+Y la **cadena de HU-09 de extremo a extremo** (Task HU-09.6), que no entra en
+`npm test` ni en `test:db` porque necesita los tres repositorios clonados juntos
+y Docker:
+
+```bash
+npm run test:e2e:chain
+```
+
+Levanta la app de Missions con PostgreSQL real y arranca **Combat y
+Player/Inventory como procesos reales** sobre un MongoDB real en réplica. El
+workflow [`cadena-hu-09.yml`](.github/workflows/cadena-hu-09.yml) los clona y la
+ejecuta en CI; el reporte de ejecución queda en
+`test/e2e/out/hu-09-ejecucion-e2e.json`.
 
 Cobertura mínima del **80 %** en ambas suites; por debajo, el comando falla.
 
