@@ -63,8 +63,30 @@ recompensa no terminal que la reclame.
 `PENDING → ROLLED → CREDITED`, con `FAILED` terminal ante un rechazo definitivo. Un
 reintento **no vuelve a tirar**: si el proceso cae entre la tirada y la acreditación,
 la recompensa queda `ROLLED` con su importe y el ciclo siguiente solo acredita. Una
-derrota que falla **no arrastra a las demás**, y una misión anulada no devenga nada
-(CA-08).
+derrota que falla **no arrastra a las demás**.
+
+## CA-08: la recompensa nace de la derrota válida de un NPC
+
+Decisión del PO (Management #18). La condición para devengar es **haber derrotado
+válidamente a un NPC**, no que la misión termine `COMPLETED`:
+
+| Situación                                                    | Recompensas                       |
+| ------------------------------------------------------------ | --------------------------------- |
+| `COMPLETED` con derrotas                                     | Una por derrota                   |
+| **`FAILED` con NPC derrotados** (el héroe cae después)       | **Una por cada NPC ya derrotado** |
+| `FAILED` sin ninguna derrota válida                          | Ninguna                           |
+| `VOIDED` (anulada, resultado inválido, simulación rechazada) | Ninguna                           |
+
+`RunMissionExecutions.close` crea las recompensas a partir de las bajas del `combatLog`
+**sin mirar si el resultado fue `COMPLETED` o `FAILED`**; solo la anulación
+(`voidMission`) las omite. No existe —ni debe existir— una condición «si la misión no es
+`COMPLETED`, no hay XP». Una vez devengada, la XP **no se revierte**: ni un cierre
+`FAILED` ni un barrido posterior deshacen la acreditación. Si aparece una recompensa
+pendiente de una matrícula `VOIDED` (dato inconsistente), `CoordinateExperienceReward` la
+rechaza con `MISSION_VOIDED` en lugar de acreditarla.
+
+Las pruebas: `test/unit/hu-09-ca08-resultado-mision.spec.ts` (los cuatro casos sobre el
+cierre y la coordinación reales) y el escenario `S-12` de la cadena E2E.
 
 ## Estados y clave
 
@@ -131,9 +153,11 @@ ejecuta; el reporte de ejecución queda en `test/e2e/out/hu-09-ejecucion-e2e.jso
 
 **Qué se sustituye, y se declara:** el resultado de la simulación de Combat y el perfil del
 héroe, que son **la misma dependencia** — la ruta de simulación de Combat existe, pero lo
-primero que valida es `hero.profile.effectiveStats` y `hero.profile.subtype`, y sin la ruta
-interna de perfil de Player/Inventory (`HU-71.2`) no hay perfil real que enviarle: con
-`COMBAT_SIMULATION_DRIVER=http` la misión se anula con `MISSION_CONTENT_INVALID`; el
+primero que valida es `hero.profile.effectiveStats` y `hero.profile.subtype`. La ruta interna
+de perfil de Player/Inventory (`HU-71.2`, PR #48) **ya está en `develop`**, pero la cadena
+**todavía no se ha migrado** a `HERO_ABILITIES_DRIVER=http` / `COMBAT_SIMULATION_DRIVER=http`,
+así que sigue usando los dobles; con el perfil del doble, la última medición
+(`COMBAT_SIMULATION_DRIVER=http`) anulaba la misión con `MISSION_CONTENT_INVALID`. El
 compromiso del héroe, el testimonio del jugador, y en el escenario de los ocho valores de
 `1d8` el puerto de tirada (con la acreditación real). El reloj **no** se sustituye: los sellos
 HMAC caducan a los 30 s, así que el tiempo se maneja con dos datos de partida — la ventana de
@@ -146,7 +170,9 @@ descarte; S-04 idempotencia del cierre; S-05 replay de la acreditación; S-06 `4
 dos fronteras; S-07 `CA-08`; S-08 dos derrotas del mismo arquetipo; S-09 recuperación de una
 tirada sin acreditar; S-10 auditoría cruzada y controles del informe; S-11 las guardas de
 no-duplicación, que se ejecutan sobre el commit que se está probando y **fallan si su control
-negativo desaparece**.
+negativo desaparece**; S-12 `CA-08`: una misión `FAILED` con NPC ya derrotados **conserva** su
+XP (la bitácora de esa simulación es un doble que recorta la del doble de desarrollo; las
+tiradas de Combat y la acreditación de Player/Inventory son reales).
 
 **En CI.** El workflow `cadena-hu-09.yml` clona los tres repositorios y publica el reporte
 como artefacto. Prueba el `develop` de los hermanos, así que acepta `combat_ref` e
@@ -167,10 +193,10 @@ Reutiliza `COMBAT_BASE_URL`, `PLAYER_INVENTORY_BASE_URL` y
 
 ## Pendiente, con su dueño
 
-| Pendiente                                                                   | Depende de                                                                                                                                                                                                                                                                                |
-| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Que la simulación la produzca Combat de verdad                              | **HU-71.2**: su ruta de simulación ya existe y **rechaza** la petición con `422 MISSION_CONTENT_INVALID` porque el perfil que Missions puede enviar hoy es el doble de desarrollo, sin `subtype` ni `effectiveStats`. Cuando el perfil sea real, `COMBAT_SIMULATION_DRIVER` pasa a `http` |
-| Las líneas de créditos, productos y de la experiencia por misión completada | **HU-10**: el reporte ya reserva sus tipos                                                                                                                                                                                                                                                |
-| La vista de la experiencia en la Web                                        | **HU-09.5 (#443)**, en `Nexus-Battle-Web`: consume `GET /api/v1/missions/me/reports/{enrollmentId}`                                                                                                                                                                                       |
-| `P-2` (redondeo al más próximo o truncamiento)                              | Decisión del PO: hoy está aislada en `experienceForRoll`                                                                                                                                                                                                                                  |
-| Verificación extremo a extremo                                              | **Entregada** en **HU-09.6 (#444)**: `npm run test:e2e:chain`, 12/12 en local y en CI. **No es la aceptación de la HU**: eso exige revisión por pares y aprobación del PO                                                                                                                 |
+| Pendiente                                                                   | Depende de                                                                                                                                                                                                                                                          |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Que la simulación la produzca Combat de verdad                              | La ruta de perfil (**HU-71.2**, PR #48) ya está en `develop`; falta **migrar la cadena** a `HERO_ABILITIES_DRIVER=http` y `COMBAT_SIMULATION_DRIVER=http` y volver a medir. Con el perfil del doble, Combat rechazaba la petición con `422 MISSION_CONTENT_INVALID` |
+| Las líneas de créditos, productos y de la experiencia por misión completada | **HU-10**: el reporte ya reserva sus tipos                                                                                                                                                                                                                          |
+| La vista de la experiencia en la Web                                        | **HU-09.5 (#443)**, en `Nexus-Battle-Web`: consume `GET /api/v1/missions/me/reports/{enrollmentId}`                                                                                                                                                                 |
+| `P-2` (redondeo)                                                            | **CERRADA** por el PO: redondeo al entero más próximo (`Math.round`, aislado en `experienceForRoll`); el truncamiento queda descartado                                                                                                                              |
+| Verificación extremo a extremo                                              | **Entregada** en **HU-09.6 (#444)**: `npm run test:e2e:chain` (13 escenarios, `S-00` a `S-12`). **No es la aceptación de la HU**: eso exige revisión por pares y aprobación del PO                                                                                  |

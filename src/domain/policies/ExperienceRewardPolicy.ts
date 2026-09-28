@@ -14,16 +14,16 @@ import { DomainError } from '../errors/DomainError'
  * de datos, no muta su entrada y no guarda estado. La misma cara produce siempre
  * el mismo importe.
  *
- * EL REDONDEO ES PROVISIONAL Y ESTA AISLADO A PROPOSITO. `P-2` del contrato
- * sigue abierto: el PO describio el redondeo al entero mas proximo y ofrecio el
- * truncamiento como alternativa. Mientras no haya decision escrita, la regla vive
- * en esta unica funcion -- `Math.round` -- para que confirmarla no toque nada
- * mas. Los dos juegos de valores, para que la diferencia se vea:
+ * EL REDONDEO ES AL ENTERO MAS PROXIMO, Y ESTA DECIDIDO. `P-2` del contrato esta
+ * CERRADA por decision del PO (Management #18): se redondea al entero mas proximo
+ * y el truncamiento queda DESCARTADO. La regla vive en esta unica funcion --
+ * `Math.round` -- y Player/Inventory recibe siempre un entero ya redondeado. Los
+ * valores, para que la diferencia con la alternativa descartada se vea:
  *
  *   cara        1   2   3    4      5      6       7       8
  *   exacto     12  14,4 17,28 20,736 24,8832 29,85984 35,831808 42,9981696
  *   al proximo 12  14  17   21     25     30      36      43      <- esta funcion
- *   truncado   12  14  17   20     24     29      35      42
+ *   truncado   12  14  17   20     24     29      35      42      <- DESCARTADO
  *
  * LA EXPERIENCIA QUE CRUZA LA FRONTERA ES SIEMPRE ENTERA. La tabla de umbrales de
  * HU-08 esta en enteros y comparar un acumulado fraccionario con ella seria una
