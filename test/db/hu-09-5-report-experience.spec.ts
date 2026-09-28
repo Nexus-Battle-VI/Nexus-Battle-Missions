@@ -44,7 +44,7 @@ const HERO_ID = '7f3c2a9e-2d4b-4c1a-9e7f-1b2c3d4e5f60'
 const TEMPLO = EXAMPLE_MISSIONS[0]!
 const ENROLLMENT = 'enr-01'
 
-const PROGRESSION = { level: 3, currentXp: 640, maxLevel: 8, levelsGained: 1 }
+const PROGRESSION = { level: 3, currentXp: 340, maxLevel: 8, levelsGained: 1 }
 
 /** El avance de una entrega, tal como lo arma el ciclo de coordinacion. */
 const creditedLine = (overrides: Partial<ReportLineUpdate> = {}): ReportLineUpdate => ({
@@ -261,7 +261,7 @@ describe('La experiencia en el reporte, en PostgreSQL (HU-09.5)', () => {
     ],
     [
       'una progresion en una linea sin acreditar',
-      `hero_level = 3, hero_current_xp = 640, hero_max_level = 8, levels_gained = 1`,
+      `hero_level = 3, hero_current_xp = 340, hero_max_level = 8, levels_gained = 1`,
     ],
   ])('el motor rechaza %s', async (_label, assignment) => {
     await expect(
@@ -295,7 +295,7 @@ describe('La experiencia en el reporte, en PostgreSQL (HU-09.5)', () => {
       status: 'CREDITED',
       quantity: 12,
       hero_level: 3,
-      hero_current_xp: 640,
+      hero_current_xp: 340,
       hero_max_level: 8,
       levels_gained: 1,
     })
