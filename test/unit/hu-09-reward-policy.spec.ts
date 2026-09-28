@@ -168,6 +168,17 @@ describe('HU-09 — la formula no se duplica', () => {
   const ROOT = join(__dirname, '..', '..', 'src')
   const POLICY = 'domain/policies/ExperienceRewardPolicy.ts'
 
+  /**
+   * Las dos huellas de una copia, como funciones propias.
+   *
+   * Estan aparte para que el CONTROL NEGATIVO de mas abajo pueda comprobarlas: una
+   * guarda que solo afirma "no hay coincidencias" pasa por vacia si el patron esta
+   * mal escrito, y esa es exactamente la forma de que una copia entre sin que nadie
+   * se entere.
+   */
+  const FINGERPRINT = /EXPERIENCE_REWARD_BASE|EXPERIENCE_REWARD_GROWTH|1\.2\s*\*\*/u
+  const LITERAL = /10\s*\*\s*1\.2|1\.2\s*\*\s*10/u
+
   const sourceFiles = (directory: string): readonly string[] =>
     readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
       const path = join(directory, entry.name)
@@ -183,24 +194,33 @@ describe('HU-09 — la formula no se duplica', () => {
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/^\s*\/\/.*$/gm, '')
 
-  it('la base, la razon y el redondeo solo aparecen en la politica', () => {
-    const files = sourceFiles(ROOT)
-      .filter((file) =>
-        /EXPERIENCE_REWARD_BASE|EXPERIENCE_REWARD_GROWTH|1\.2\s*\*\*/.test(codeOf(file)),
-      )
+  /** Los archivos del servicio cuyo codigo coincide con el patron, en relativo. */
+  const filesMatching = (pattern: RegExp): readonly string[] =>
+    sourceFiles(ROOT)
+      .filter((file) => pattern.test(codeOf(file)))
       .map(relative)
 
-    expect(files).toEqual([POLICY])
+  it('la base, la razon y el redondeo solo aparecen en la politica', () => {
+    expect(filesMatching(FINGERPRINT)).toEqual([POLICY])
   })
 
   it('nadie escribe la expresion literal `10 x 1,2^n`, ni siquiera la politica', () => {
-    const files = sourceFiles(ROOT)
-      .filter((file) => /10\s*\*\s*1\.2|1\.2\s*\*\s*10/.test(codeOf(file)))
-      .map(relative)
-
     // La politica usa las constantes con nombre; el literal no aparece en ningun
     // sitio, y esa es justamente la forma de que no se copie a mano.
-    expect(files).toEqual([])
+    expect(filesMatching(LITERAL)).toEqual([])
+  })
+
+  it('no es un colador: una copia de la formula se detectaria', () => {
+    // Control del propio control. Si alguien rompiera los patrones, las dos
+    // pruebas de arriba seguirian en verde sin vigilar nada.
+    expect(FINGERPRINT.test('const growth = 1.2 ** roll')).toBe(true)
+    expect(FINGERPRINT.test('const base = EXPERIENCE_REWARD_GROWTH')).toBe(true)
+    expect(LITERAL.test('const xp = 10 * 1.2 ** roll')).toBe(true)
+    expect(LITERAL.test('const xp = 1.2 * 10')).toBe(true)
+
+    // Y un uso legitimo -- pedir el calculo -- no se marca.
+    expect(FINGERPRINT.test('const xp = experienceForRoll(roll)')).toBe(false)
+    expect(LITERAL.test('const xp = experienceForRoll(roll)')).toBe(false)
   })
 
   it('el calculo se pide a `experienceForRoll`, no se copia', () => {

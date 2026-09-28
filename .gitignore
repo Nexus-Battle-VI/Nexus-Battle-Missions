@@ -9,8 +9,11 @@ build/
 
 # Pruebas y cobertura
 coverage/
+coverage-e2e/
 .nyc_output/
 junit.xml
+# Reporte de ejecucion de la cadena E2E (se copia a la evidencia de Infrastructure).
+test/e2e/out/
 
 # Entorno y secretos
 .env
