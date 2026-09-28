@@ -37,6 +37,117 @@ const drops = (value: unknown, field: string): void => {
   }
 }
 
+const DIFFICULTY_KEYS = ['NORMAL', 'HEROIC', 'LEGENDARY', 'MYTHIC'] as const
+const COMPLETION_KEY = /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$/u
+
+/**
+ * Un valor por dificultad: SOLO el vocabulario vigente, no vacio y sin valores por
+ * defecto (una dificultad ausente simplemente no tiene derecho). Cada valor es un
+ * entero dentro de `[min, max]`.
+ */
+const byDifficulty = (value: unknown, field: string, min: number, max: number): void => {
+  requireValue(isRecord(value), field)
+  if (!isRecord(value)) return
+  const keys = Object.keys(value)
+  requireValue(keys.length > 0, field)
+  for (const key of keys) {
+    requireValue((DIFFICULTY_KEYS as readonly string[]).includes(key), `${field}.${key}`)
+    requireValue(count(value[key], min, max), `${field}.${key}`)
+  }
+}
+
+/**
+ * Valida `rewards.completion` (HU-10, `hu-10-mission-completion-reward-v1` §6):
+ * estricto y sin inventar montos. No parsea ninguna etiqueta de texto.
+ */
+const completionRewards = (value: unknown, objectiveIds: ReadonlySet<string>): void => {
+  const field = 'rewards.completion'
+  requireValue(isRecord(value), field)
+  if (!isRecord(value)) return
+  requireValue(value.schemaVersion === 1, `${field}.schemaVersion`)
+  const allowed = ['schemaVersion', 'experience', 'entries']
+  requireValue(
+    Object.keys(value).every((key) => allowed.includes(key)),
+    field,
+  )
+  if (value.experience !== undefined) {
+    requireValue(isRecord(value.experience), `${field}.experience`)
+    if (isRecord(value.experience)) {
+      requireValue(
+        Object.keys(value.experience).every((key) => key === 'amountByDifficulty'),
+        `${field}.experience`,
+      )
+      byDifficulty(
+        value.experience.amountByDifficulty,
+        `${field}.experience.amountByDifficulty`,
+        1,
+        1_000_000_000,
+      )
+    }
+  }
+  if (value.entries === undefined) return
+  requireValue(Array.isArray(value.entries) && value.entries.length <= 100, `${field}.entries`)
+  if (!Array.isArray(value.entries)) return
+  const keys = new Set<string>()
+  for (const [index, entry] of (value.entries as unknown[]).entries()) {
+    const at = `${field}.entries[${String(index)}]`
+    requireValue(isRecord(entry), at)
+    if (!isRecord(entry)) continue
+    requireValue(
+      Object.keys(entry).every((key) =>
+        ['key', 'group', 'grantOn', 'objectiveId', 'reward'].includes(key),
+      ),
+      at,
+    )
+    requireValue(typeof entry.key === 'string' && COMPLETION_KEY.test(entry.key), `${at}.key`)
+    requireValue(!keys.has(String(entry.key)), `${at}.key`)
+    keys.add(String(entry.key))
+    requireValue(
+      ['GUARANTEED', 'OBJECTIVE_BONUS', 'FIRST_TIME'].includes(String(entry.group)),
+      `${at}.group`,
+    )
+    requireValue(
+      Array.isArray(entry.grantOn) &&
+        entry.grantOn.length > 0 &&
+        new Set(entry.grantOn).size === entry.grantOn.length &&
+        entry.grantOn.every((outcome) => outcome === 'COMPLETED' || outcome === 'FAILED'),
+      `${at}.grantOn`,
+    )
+    if (entry.group === 'OBJECTIVE_BONUS') {
+      requireValue(
+        typeof entry.objectiveId === 'string' && objectiveIds.has(entry.objectiveId),
+        `${at}.objectiveId`,
+      )
+    } else {
+      requireValue(entry.objectiveId === undefined, `${at}.objectiveId`)
+    }
+    requireValue(isRecord(entry.reward), `${at}.reward`)
+    if (!isRecord(entry.reward)) continue
+    if (entry.reward.kind === 'CREDITS') {
+      requireValue(
+        Object.keys(entry.reward).every((key) => key === 'kind' || key === 'amountByDifficulty'),
+        `${at}.reward`,
+      )
+      byDifficulty(entry.reward.amountByDifficulty, `${at}.reward.amountByDifficulty`, 1, 1e12)
+    } else if (entry.reward.kind === 'PRODUCT') {
+      requireValue(
+        Object.keys(entry.reward).every((key) =>
+          ['kind', 'productId', 'quantityByDifficulty'].includes(key),
+        ),
+        `${at}.reward`,
+      )
+      requireValue(
+        typeof entry.reward.productId === 'string' && uuid.test(entry.reward.productId),
+        `${at}.reward.productId`,
+      )
+      byDifficulty(entry.reward.quantityByDifficulty, `${at}.reward.quantityByDifficulty`, 1, 9999)
+    } else {
+      // Ningun otro tipo: ni EPIC (HU-73) ni LOOT (HU-72) ni XP por entrada.
+      requireValue(false, `${at}.reward.kind`)
+    }
+  }
+}
+
 const fighter = (value: unknown, field: string): void => {
   requireValue(isRecord(value), field)
   if (!isRecord(value)) return
@@ -238,6 +349,12 @@ export const missionDefinitionOf = (input: unknown, missionId: string): MissionD
     'rewards',
   )
   if (isRecord(input.rewards)) drops(input.rewards.potential, 'rewards.potential')
+  if (isRecord(input.rewards) && input.rewards.completion !== undefined) {
+    completionRewards(
+      input.rewards.completion,
+      new Set((input.objectives as unknown[]).flatMap((o) => (isRecord(o) ? [String(o.id)] : []))),
+    )
+  }
   if (isRecord(input.rewards)) {
     for (const field of ['guaranteed', 'objectiveBonuses', 'firstTime'] as const) {
       requireValue(

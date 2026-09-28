@@ -124,7 +124,7 @@ describe('HU-09 — lectura de la bitacora de la simulacion', () => {
     expect(reading.invalid).toHaveLength(1)
   })
 
-  it('sin victoria no hay derrotas: una bitacora sin bajas devuelve vacio (CA-08)', () => {
+  it('sin derrota valida de NPC no hay recompensa: una bitacora sin bajas devuelve vacio (CA-08)', () => {
     const reading = readCombatLog([
       { seq: 1, type: 'encounterStarted', encounter: 1 },
       { seq: 2, type: 'simulationFinished', combatOutcome: 'HERO_DEFEATED' },

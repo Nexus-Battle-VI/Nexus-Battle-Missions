@@ -110,11 +110,54 @@ export interface PotentialReward {
   readonly productId?: string | null
 }
 
+/** Un valor por dificultad. Una dificultad ausente NO tiene derecho: no hay valor por defecto. */
+export type ByDifficulty = Readonly<Partial<Record<DifficultyLevel, number>>>
+
+/** Desenlaces en los que una entrada de la liquidacion puede aplicar (HU-10, contrato §6). */
+export type CompletionGrantOutcome = 'COMPLETED' | 'FAILED'
+
+export type CompletionEntryGroup = 'GUARANTEED' | 'OBJECTIVE_BONUS' | 'FIRST_TIME'
+
+export type CompletionEntryReward =
+  | { readonly kind: 'CREDITS'; readonly amountByDifficulty: ByDifficulty }
+  | {
+      readonly kind: 'PRODUCT'
+      /** Producto de Catalog (UUID). */
+      readonly productId: string
+      readonly quantityByDifficulty: ByDifficulty
+    }
+
+export interface CompletionEntry {
+  /** Slug unico en la mision; parte de la clave de idempotencia (contrato §12). */
+  readonly key: string
+  readonly group: CompletionEntryGroup
+  /** OBLIGATORIO y sin valor por defecto: el motor no decide que `FAILED` da creditos. */
+  readonly grantOn: readonly CompletionGrantOutcome[]
+  /** Solo `OBJECTIVE_BONUS`: un objetivo del mismo contenido. */
+  readonly objectiveId?: string
+  readonly reward: CompletionEntryReward
+}
+
+/**
+ * Recompensas de FINALIZACION liquidables (HU-10, Task HU-10.4;
+ * `hu-10-mission-completion-reward-v1` §6). Bloque ADITIVO y opcional: un contenido
+ * sin el simplemente no genera derechos HU-10. Los montos viven SOLO aqui (nunca
+ * una tabla global ni derivados de `rewardTier`) y se congelan con el contenido de
+ * la ejecucion.
+ */
+export interface CompletionRewards {
+  readonly schemaVersion: 1
+  readonly experience?: { readonly amountByDifficulty: ByDifficulty }
+  readonly entries?: readonly CompletionEntry[]
+}
+
 export interface MissionRewards {
   readonly guaranteed: readonly RewardLabel[]
   readonly potential: readonly PotentialReward[]
   readonly objectiveBonuses: readonly RewardLabel[]
   readonly firstTime: readonly RewardLabel[]
+  /** HU-10: recompensas de finalizacion estructuradas. Las etiquetas de arriba son solo texto. */
+  readonly completion?: CompletionRewards
 }
 
 /** Reglas versionadas de la simulacion. Cada definicion puede ajustarlas sin desplegar Combat. */

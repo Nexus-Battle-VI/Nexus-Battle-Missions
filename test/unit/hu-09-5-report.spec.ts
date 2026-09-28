@@ -46,7 +46,7 @@ const progressionOf = (
   overrides: Partial<HeroProgressionSnapshot> = {},
 ): HeroProgressionSnapshot => ({
   level: 3,
-  currentXp: 640,
+  currentXp: 340,
   maxLevel: 8,
   levelsGained: 1,
   ...overrides,
@@ -227,19 +227,19 @@ describe('Resumen de experiencia del reporte (HU-09, Task HU-09.5)', () => {
       lineOf({
         quantity: 12,
         status: 'CREDITED',
-        progression: progressionOf({ level: 2, currentXp: 512, levelsGained: 1 }),
+        progression: progressionOf({ level: 2, currentXp: 212, levelsGained: 1 }),
       }),
       lineOf({
         lineNo: 2,
         quantity: 25,
         status: 'CREDITED',
-        progression: progressionOf({ level: 3, currentXp: 640, levelsGained: 1 }),
+        progression: progressionOf({ level: 3, currentXp: 340, levelsGained: 1 }),
       }),
       lineOf({
         lineNo: 3,
         quantity: 17,
         status: 'CREDITED',
-        progression: progressionOf({ level: 3, currentXp: 657, levelsGained: 0 }),
+        progression: progressionOf({ level: 3, currentXp: 357, levelsGained: 0 }),
       }),
     ])
 
@@ -249,7 +249,7 @@ describe('Resumen de experiencia del reporte (HU-09, Task HU-09.5)', () => {
       credited: 3,
       pending: 0,
       level: 3,
-      currentXp: 657,
+      currentXp: 357,
       maxLevel: 8,
       levelsGained: 2,
       leveledUp: true,
@@ -261,17 +261,17 @@ describe('Resumen de experiencia del reporte (HU-09, Task HU-09.5)', () => {
       lineOf({
         quantity: 43,
         status: 'CREDITED',
-        progression: progressionOf({ level: 5, currentXp: 2_400, levelsGained: 1 }),
+        progression: progressionOf({ level: 5, currentXp: 800, levelsGained: 1 }),
       }),
       lineOf({
         lineNo: 2,
         quantity: 12,
         status: 'CREDITED',
-        progression: progressionOf({ level: 2, currentXp: 512, levelsGained: 0 }),
+        progression: progressionOf({ level: 2, currentXp: 212, levelsGained: 0 }),
       }),
     ])
 
-    expect(summary).toMatchObject({ level: 5, currentXp: 2_400, levelsGained: 1 })
+    expect(summary).toMatchObject({ level: 5, currentXp: 800, levelsGained: 1 })
   })
 
   it('cuenta por separado acreditadas, pendientes y fallidas', () => {
@@ -325,27 +325,27 @@ describe('Lectura de la progresion que devuelve Player/Inventory (HU-09, Task HU
         applied: true,
         heroId: HERO_ID,
         level: 3,
-        currentXp: 640,
+        currentXp: 340,
         leveledUp: true,
         levelsGained: 1,
-        nextLevel: { status: 'AVAILABLE', forNextLevel: 4, amount: 900 },
+        nextLevel: { status: 'AVAILABLE', forNextLevel: 4, amount: 500 },
         maxLevel: 8,
       }),
-    ).toEqual({ level: 3, currentXp: 640, maxLevel: 8, levelsGained: 1 })
+    ).toEqual({ level: 3, currentXp: 340, maxLevel: 8, levelsGained: 1 })
   })
 
   it.each([
-    ['sin nivel', { currentXp: 640, maxLevel: 8, levelsGained: 1 }],
+    ['sin nivel', { currentXp: 340, maxLevel: 8, levelsGained: 1 }],
     ['sin experiencia acumulada', { level: 3, maxLevel: 8, levelsGained: 1 }],
-    ['sin tope de nivel', { level: 3, currentXp: 640, levelsGained: 1 }],
-    ['sin niveles cruzados', { level: 3, currentXp: 640, maxLevel: 8 }],
+    ['sin tope de nivel', { level: 3, currentXp: 340, levelsGained: 1 }],
+    ['sin niveles cruzados', { level: 3, currentXp: 340, maxLevel: 8 }],
     [
       'con un nivel por encima del tope',
-      { level: 9, currentXp: 640, maxLevel: 8, levelsGained: 1 },
+      { level: 9, currentXp: 340, maxLevel: 8, levelsGained: 1 },
     ],
-    ['con un decimal', { level: 3.5, currentXp: 640, maxLevel: 8, levelsGained: 1 }],
+    ['con un decimal', { level: 3.5, currentXp: 340, maxLevel: 8, levelsGained: 1 }],
     ['con un negativo', { level: 3, currentXp: -1, maxLevel: 8, levelsGained: 1 }],
-    ['con textos', { level: '3', currentXp: '640', maxLevel: '8', levelsGained: '1' }],
+    ['con textos', { level: '3', currentXp: '340', maxLevel: '8', levelsGained: '1' }],
     ['sin ser un objeto', 'LEVEL_3'],
   ])('una progresion %s no vale', (_label, body) => {
     expect(readHeroProgression(body)).toBeNull()

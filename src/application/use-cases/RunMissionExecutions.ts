@@ -422,6 +422,10 @@ export class RunMissionExecutions {
   /** CU-72.2: se evaluan los objetivos y se cierra todo en una transaccion. */
   private async close(execution: MissionExecution, tally: Tally): Promise<void> {
     const enrollment = await this.requireEnrollment(execution.enrollmentId)
+    // OJO (HU-10, contrato §4.1): este respaldo al catalogo VIVO es de HU-72 y solo sirve
+    // para cerrar. La liquidacion de recompensas de finalizacion NO puede usarlo: sus
+    // montos salen UNICAMENTE de `frozenContentOf(execution.request)`
+    // (`CompletionRewardPolicy`), y sin snapshot no hay derechos (SNAPSHOT_MISSING).
     const definition =
       execution.request?.contentSnapshot ?? (await this.catalog.findById(enrollment.missionId))
     const result = execution.result
