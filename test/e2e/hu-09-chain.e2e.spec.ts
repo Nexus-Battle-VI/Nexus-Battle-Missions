@@ -579,8 +579,8 @@ describe('Cadena de experiencia de HU-09 (Task HU-09.6)', () => {
   it('S-03 · sube uno, sube varios y el nivel maximo no descarta experiencia', async () => {
     const observed: Record<string, unknown> = {}
 
-    // (a) Desde 195, y con todas las caras en 1 (12 XP): la PRIMERA acreditacion
-    // cruza el umbral de 200 y sube EXACTAMENTE un nivel. La camara sellada exige
+    // (a) Desde 99, y con todas las caras en 1 (12 XP): la PRIMERA acreditacion
+    // cruza el umbral de 100 (1 -> 2) y sube EXACTAMENTE un nivel. La camara sellada exige
     // el templo como requisito, y el requisito es un dato de partida.
     //
     // NO se afirma cuantas derrotas tiene la camara. La version anterior daba por
@@ -591,7 +591,7 @@ describe('Cadena de experiencia de HU-09 (Task HU-09.6)', () => {
     await scenario(
       (builder) => builder.overrideProvider(EXPERIENCE_ROLLS).useValue(new ScriptedRolls(() => 1)),
       async (missions) => {
-        await seedProgression(databases, SUBJECT, HERO_ID, 195)
+        await seedProgression(databases, SUBJECT, HERO_ID, 99)
         await seedClear(db, SUBJECT, TEMPLO.missionId)
 
         const enrollment = await runChain(missions, { missionId: CAMARA.missionId })
@@ -599,17 +599,17 @@ describe('Cadena de experiencia de HU-09 (Task HU-09.6)', () => {
         const grants = await readGrants(databases, enrollment.enrollmentId)
         const progression = await readProgression(databases, SUBJECT, HERO_ID)
         const report = await reportOf(missions, enrollment.enrollmentId)
-        const totalXp = 195 + sumOf(rewards.map((reward) => reward.amount ?? 0))
+        const totalXp = 99 + sumOf(rewards.map((reward) => reward.amount ?? 0))
 
         expect(grants).toHaveLength(rewards.length)
         expect(grants.every((grant) => grant.amount === ROLL_AMOUNTS[1])).toBe(true)
 
-        // La primera es la que cruza: 195 + 12 = 207, que es el nivel 2.
-        expect(grants[0]?.result).toMatchObject({ currentXp: 207, level: 2, levelsGained: 1 })
+        // La primera es la que cruza: 99 + 12 = 111, nivel 1 -> 2. La XP no se resta.
+        expect(grants[0]?.result).toMatchObject({ currentXp: 111, level: 2, levelsGained: 1 })
         expect(progression).toMatchObject({ currentXp: totalXp, level: expectedLevel(totalXp) })
         expect(report.experience).toMatchObject({
           defeats: rewards.length,
-          totalXp: totalXp - 195,
+          totalXp: totalXp - 99,
           level: expectedLevel(totalXp),
           currentXp: totalXp,
           levelsGained: expectedLevel(totalXp) - 1,
@@ -617,7 +617,7 @@ describe('Cadena de experiencia de HU-09 (Task HU-09.6)', () => {
         })
 
         observed.single = {
-          before: 195,
+          before: 99,
           after: progression?.currentXp,
           level: progression?.level,
           defeats: rewards.length,
@@ -625,29 +625,30 @@ describe('Cadena de experiencia de HU-09 (Task HU-09.6)', () => {
       },
     )
 
-    // (b) La mision completa (19 derrotas) desde 190: cruza varios niveles.
+    // (b) La mision completa (19 derrotas) desde 290 (nivel 2, a 10 XP del umbral
+    // del 3): las recompensas cruzan VARIOS umbrales (300, 500, 700...).
     await scenario(
       (builder) =>
         builder
           .overrideProvider(EXPERIENCE_ROLLS)
           .useValue(new ScriptedRolls((index) => (index % 8) + 1)),
       async (missions) => {
-        await seedProgression(databases, SUBJECT, HERO_ID, 190)
+        await seedProgression(databases, SUBJECT, HERO_ID, 290)
 
         const enrollment = await runChain(missions)
         const rewards = await rewardsOf(enrollment.enrollmentId)
         const progression = await readProgression(databases, SUBJECT, HERO_ID)
         const report = await reportOf(missions, enrollment.enrollmentId)
-        const totalXp = 190 + sumOf(rewards.map((reward) => reward.amount ?? 0))
+        const totalXp = 290 + sumOf(rewards.map((reward) => reward.amount ?? 0))
 
         expect(progression?.currentXp).toBe(totalXp)
         expect(progression?.level).toBe(expectedLevel(totalXp))
         expect(report.experience.level).toBe(expectedLevel(totalXp))
         expect(report.experience.levelsGained).toBeGreaterThan(1)
-        expect(report.experience.levelsGained).toBe(expectedLevel(totalXp) - 1)
+        expect(report.experience.levelsGained).toBe(expectedLevel(totalXp) - expectedLevel(290))
 
         observed.multiple = {
-          before: 190,
+          before: 290,
           after: progression?.currentXp,
           level: progression?.level,
           levelsGained: report.experience.levelsGained,
@@ -655,21 +656,21 @@ describe('Cadena de experiencia de HU-09 (Task HU-09.6)', () => {
       },
     )
 
-    // (c) Desde el nivel maximo: la experiencia sigue acumulandose y el nivel se
-    // queda en 8, sin descartar nada.
+    // (c) Desde 1300 (el umbral del nivel 8, el maximo): la experiencia sigue
+    // acumulandose y el nivel se queda en 8, sin descartar nada.
     await scenario(
       (builder) =>
         builder
           .overrideProvider(EXPERIENCE_ROLLS)
           .useValue(new ScriptedRolls((index) => (index % 8) + 1)),
       async (missions) => {
-        await seedProgression(databases, SUBJECT, HERO_ID, 12_800)
+        await seedProgression(databases, SUBJECT, HERO_ID, 1300)
 
         const enrollment = await runChain(missions)
         const rewards = await rewardsOf(enrollment.enrollmentId)
         const progression = await readProgression(databases, SUBJECT, HERO_ID)
         const report = await reportOf(missions, enrollment.enrollmentId)
-        const totalXp = 12_800 + sumOf(rewards.map((reward) => reward.amount ?? 0))
+        const totalXp = 1300 + sumOf(rewards.map((reward) => reward.amount ?? 0))
 
         expect(progression?.currentXp).toBe(totalXp)
         expect(progression?.level).toBe(8)

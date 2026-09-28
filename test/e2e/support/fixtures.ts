@@ -39,21 +39,18 @@ export const ROLL_AMOUNTS: Readonly<Record<number, number>> = {
   8: 43,
 }
 
-/** Tabla de umbrales de HU-08, para CONTRASTAR el nivel que devuelve Player/Inventory. */
-export const LEVEL_THRESHOLDS: readonly number[] = [100, 200, 400, 800, 1600, 3200, 6400, 12800]
+/**
+ * Umbrales de HU-08 (XP ACUMULADA para pasar de nivel: 1->2 = 100 ... 7->8 = 1300),
+ * copiados aqui a proposito para CONTRASTAR el nivel que devuelve Player/Inventory
+ * sin importar su codigo. Decision funcional posterior que sustituye la formula del
+ * PDF y la tabla temporal anterior. La formula de la recompensa (10 x 1,2^(1d8))
+ * NO depende de esta tabla.
+ */
+export const LEVEL_THRESHOLDS: readonly number[] = [100, 300, 500, 700, 900, 1100, 1300]
 
-/** El nivel que la tabla vigente asigna a un acumulado. */
-export const expectedLevel = (totalXp: number): number => {
-  let level = 1
-
-  for (const [index, threshold] of LEVEL_THRESHOLDS.entries()) {
-    if (totalXp >= threshold) {
-      level = index + 1
-    }
-  }
-
-  return level
-}
+/** El nivel que la tabla vigente asigna a un acumulado: 1 + umbrales alcanzados (max 8). */
+export const expectedLevel = (totalXp: number): number =>
+  1 + LEVEL_THRESHOLDS.filter((threshold) => totalXp >= threshold).length
 
 export const sumOf = (values: readonly number[]): number =>
   values.reduce((total, value) => total + value, 0)
