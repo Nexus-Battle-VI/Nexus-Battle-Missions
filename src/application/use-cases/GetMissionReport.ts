@@ -11,10 +11,19 @@ import type {
 } from '../../domain/entities/MissionReport'
 import { ReportNotAvailableError, ReportNotFoundError } from '../../domain/errors/report-errors'
 import { experienceSummaryOf } from '../../domain/policies/ReportPolicy'
+import type { HeroProgressionSnapshot } from '../../domain/value-objects/hero-progression'
 import type { EnrollmentRepositoryPort } from '../ports/EnrollmentRepositoryPort'
 import type { ReportRepositoryPort } from '../ports/ReportRepositoryPort'
 
-export type RewardLineView = Omit<ReportRewardLine, 'lineNo' | 'updatedAt' | 'progression'>
+export type RewardLineView = Omit<ReportRewardLine, 'lineNo' | 'updatedAt' | 'progression'> & {
+  /**
+   * HU-10 (Task HU-10.5, contrato §17): SOLO en una linea `source: 'HU-10'`,
+   * `kind: 'EXPERIENCE'`, `status: 'CREDITED'` -- la progresion EXACTA que
+   * devolvio Player/Inventory, nunca recalculada. `report.experience` sigue
+   * siendo EXCLUSIVAMENTE de HU-09 y no cambia con esto.
+   */
+  readonly progression?: HeroProgressionSnapshot
+}
 
 export interface MissionReportView {
   readonly schemaVersion: number
@@ -55,15 +64,25 @@ export const reportViewOf = ({ report, rewards }: ReportRecord): MissionReportVi
   objectives: report.objectives,
   // P-J5: que hizo la estrategia, si la matricula tenia una.
   ...(report.strategy === undefined ? {} : { strategy: report.strategy }),
-  rewards: rewards.map(({ kind, reference, name, rarity, quantity, status, source }) => ({
-    kind,
-    reference,
-    name,
-    rarity,
-    quantity,
-    status,
-    source,
-  })),
+  rewards: rewards.map(
+    ({ kind, reference, name, rarity, quantity, status, source, progression }) => ({
+      kind,
+      reference,
+      name,
+      rarity,
+      quantity,
+      status,
+      source,
+      // Aditivo y acotado (contrato §17): ninguna otra combinacion publica su
+      // progresion, aunque la tuviera guardada en la base por error de escritura.
+      ...(source === 'HU-10' &&
+      kind === 'EXPERIENCE' &&
+      status === 'CREDITED' &&
+      progression !== null
+        ? { progression }
+        : {}),
+    }),
+  ),
   // El nivel del heroe y el desglose por derrota salen de las lineas `HU-09`: la
   // progresion de CADA una no se publica suelta, que seria repetir el mismo nivel
   // ocho veces, sino agregada aqui.

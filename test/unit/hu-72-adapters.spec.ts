@@ -516,6 +516,7 @@ describe('InMemoryExecutionRepository (HU-72)', () => {
       masters: [],
       experience: [],
       loot: [],
+      completionRewards: [],
       report: null,
     }
 

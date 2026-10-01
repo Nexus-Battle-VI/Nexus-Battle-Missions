@@ -247,6 +247,7 @@ describe('Reportes de mision en PostgreSQL (HU-74)', () => {
       masters: [],
       experience: [],
       loot: [],
+      completionRewards: [],
       report: recordFor(enrollment),
     }
   }
@@ -493,7 +494,7 @@ describe('Reportes de mision en PostgreSQL (HU-74)', () => {
       // El ciclo recorre toda la tabla: se empieza sin lo que dejaron las pruebas
       // anteriores. PostgreSQL exige truncar a la vez todo lo que referencia a las
       // matriculas, tambien la evidencia del Master de HU-73.
-      await sql`truncate mission_loot_grants, mission_experience_rewards, mission_master_encounters, mission_report_rewards, mission_reports,
+      await sql`truncate mission_loot_grants, mission_completion_reward_deliveries, mission_experience_rewards, mission_master_encounters, mission_report_rewards, mission_reports,
         mission_executions, mission_facts, mission_enrollments, mission_difficulty_clears`.execute(
         db,
       )
