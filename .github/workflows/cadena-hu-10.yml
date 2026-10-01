@@ -1,0 +1,135 @@
+name: Cadena HU-10
+
+# Verifica la liquidación de finalización con Missions, Player-Inventory y
+# Wallet reales. Combat se clona y se inicia para las tiradas reales de HU-09;
+# la simulación de desenlace sigue declarada como doble hasta que el perfil
+# real de héroe pueda construirse junto con Catalog.
+on:
+  pull_request:
+    paths:
+      - 'test/e2e/**'
+      - 'jest.e2e.config.ts'
+      - 'package.json'
+      - 'src/domain/entities/MissionCompletionRewardDelivery.ts'
+      - 'src/domain/policies/CompletionRewardPolicy.ts'
+      - 'src/domain/policies/CompletionRewardDeliveryPolicy.ts'
+      - 'src/application/use-cases/CoordinateMissionCompletionReward.ts'
+      - 'src/application/use-cases/RunMissionExecutions.ts'
+      - 'src/adapters/outbound/inventory/**'
+      - 'src/adapters/outbound/wallet/**'
+      - 'src/adapters/outbound/persistence/**'
+      - 'src/infrastructure/**'
+      - '.github/workflows/cadena-hu-10.yml'
+  push:
+    branches: [develop]
+  workflow_dispatch:
+    inputs:
+      combat_ref:
+        description: 'Ref de Combat; vacío usa develop.'
+        required: false
+        default: ''
+      inventory_ref:
+        description: 'Ref de Player-Inventory; vacío usa develop.'
+        required: false
+        default: ''
+      wallet_ref:
+        description: 'Ref de Wallet; vacío usa develop.'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24.19.0'
+  COMBAT_DIR: combat-sibling
+  INVENTORY_DIR: inventory-sibling
+  WALLET_DIR: wallet-sibling
+
+jobs:
+  cadena:
+    name: Cadena Missions + Player-Inventory + Wallet
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout de Missions
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Checkout de Combat
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Nexus-Battle-VI/Nexus-Battle-Combat
+          ref: ${{ inputs.combat_ref || 'develop' }}
+          path: ${{ env.COMBAT_DIR }}
+          persist-credentials: false
+
+      - name: Checkout de Player-Inventory
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Nexus-Battle-VI/Nexus-Battle-Player-Inventory
+          ref: ${{ inputs.inventory_ref || 'develop' }}
+          path: ${{ env.INVENTORY_DIR }}
+          persist-credentials: false
+
+      - name: Checkout de Wallet
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Nexus-Battle-VI/Nexus-Battle-Wallet
+          ref: ${{ inputs.wallet_ref || 'develop' }}
+          path: ${{ env.WALLET_DIR }}
+          persist-credentials: false
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Dependencias de Missions
+        run: npm ci
+
+      - name: Dependencias de Combat
+        run: npm ci
+        working-directory: ${{ env.COMBAT_DIR }}
+
+      - name: Dependencias de Player-Inventory
+        run: npm ci
+        working-directory: ${{ env.INVENTORY_DIR }}
+
+      - name: Dependencias de Wallet
+        run: npm ci
+        working-directory: ${{ env.WALLET_DIR }}
+
+      - name: Compilar Combat
+        run: npm run build
+        working-directory: ${{ env.COMBAT_DIR }}
+
+      - name: Compilar Player-Inventory
+        run: npm run build
+        working-directory: ${{ env.INVENTORY_DIR }}
+
+      - name: Compilar Wallet
+        run: npm run build
+        working-directory: ${{ env.WALLET_DIR }}
+
+      - name: Cadena E2E de liquidación HU-10
+        run: npm run test:e2e:hu10
+        env:
+          HU10_E2E_COMBAT_DIR: ${{ github.workspace }}/${{ env.COMBAT_DIR }}
+          HU10_E2E_PLAYER_INVENTORY_DIR: ${{ github.workspace }}/${{ env.INVENTORY_DIR }}
+          HU10_E2E_WALLET_DIR: ${{ github.workspace }}/${{ env.WALLET_DIR }}
+
+      - name: Publicar la evidencia generada
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cadena-hu-10-ejecucion
+          path: artifacts/hu-10-ejecucion-e2e.json
+          if-no-files-found: error
+          retention-days: 30
