@@ -162,6 +162,30 @@ import { PlayerInventoryExperienceClient } from '../../adapters/outbound/invento
 import { InMemoryExperienceRewardRepository } from '../../adapters/outbound/persistence/InMemoryExperienceRewardRepository'
 import { PostgresExperienceRewardRepository } from '../../adapters/outbound/persistence/PostgresExperienceRewardRepository'
 import {
+  MISSION_COMPLETION_REWARD_REPOSITORY,
+  type MissionCompletionRewardRepositoryPort,
+} from '../../application/ports/MissionCompletionRewardRepositoryPort'
+import {
+  COMPLETION_EXPERIENCE_CREDITS,
+  type CompletionExperienceCreditPort,
+} from '../../application/ports/CompletionExperienceCreditPort'
+import { WALLET_CREDITS, type WalletCreditPort } from '../../application/ports/WalletCreditPort'
+import {
+  COMPLETION_PRODUCT_GRANTS,
+  type CompletionProductGrantPort,
+} from '../../application/ports/CompletionProductGrantPort'
+import {
+  COORDINATE_MISSION_COMPLETION_REWARD,
+  CoordinateMissionCompletionReward,
+} from '../../application/use-cases/CoordinateMissionCompletionReward'
+import { InMemoryMissionCompletionRewardRepository } from '../../adapters/outbound/persistence/InMemoryMissionCompletionRewardRepository'
+import { PostgresMissionCompletionRewardRepository } from '../../adapters/outbound/persistence/PostgresMissionCompletionRewardRepository'
+import { InMemoryCompletionExperienceCredits } from '../../adapters/outbound/inventory/InMemoryCompletionExperienceCredits'
+import { PlayerInventoryCompletionExperienceClient } from '../../adapters/outbound/inventory/PlayerInventoryCompletionExperienceClient'
+import { InMemoryWalletCredits } from '../../adapters/outbound/wallet/InMemoryWalletCredits'
+import { WalletMissionRewardClient } from '../../adapters/outbound/wallet/WalletMissionRewardClient'
+import { MissionCompletionRewardScheduler } from '../scheduling/MissionCompletionRewardScheduler'
+import {
   GET_MISSION_HISTORY_SUMMARY,
   GetMissionHistorySummary,
 } from '../../application/use-cases/GetMissionHistorySummary'
@@ -229,6 +253,7 @@ export const DATABASE_LIFECYCLE = Symbol('DatabaseLifecycle')
 export const ENROLLMENT_RECONCILER = Symbol('EnrollmentReconcilerScheduler')
 export const MISSION_EXECUTION_SCHEDULER = Symbol('MissionExecutionScheduler')
 export const EXPERIENCE_REWARD_SCHEDULER = Symbol('ExperienceRewardScheduler')
+export const MISSION_COMPLETION_REWARD_SCHEDULER = Symbol('MissionCompletionRewardScheduler')
 
 const usesPostgres = (config: AppConfig, db: Kysely<Database> | null): db is Kysely<Database> =>
   config.persistenceDriver === PersistenceDriver.Postgres && db !== null
@@ -274,6 +299,16 @@ const unconfiguredRolls: ExperienceRollPort = {
 
 /** Ni se acredita: la recompensa queda en su estado no terminal y se reintenta. */
 const unconfiguredCredits: ExperienceCreditPort = {
+  credit: () => Promise.resolve({ kind: 'UNKNOWN', reason: 'NOT_CONFIGURED' }),
+}
+
+/** HU-10: sin Player/Inventory configurado, la XP de finalizacion queda pendiente. */
+const unconfiguredCompletionCredits: CompletionExperienceCreditPort = {
+  credit: () => Promise.resolve({ kind: 'UNKNOWN', reason: 'NOT_CONFIGURED' }),
+}
+
+/** HU-10: sin Wallet configurado, el credito de mision queda pendiente. */
+const unconfiguredWalletCredits: WalletCreditPort = {
   credit: () => Promise.resolve({ kind: 'UNKNOWN', reason: 'NOT_CONFIGURED' }),
 }
 
@@ -708,6 +743,7 @@ export const INTERNAL_CALLERS: readonly string[] = []
         masters: MasterEncounterRepositoryPort,
         experience: ExperienceRewardRepositoryPort,
         loot: LootGrantRepositoryPort,
+        completionRewards: MissionCompletionRewardRepositoryPort,
       ): ExecutionRepositoryPort => {
         if (usesPostgres(config, db)) {
           return new PostgresExecutionRepository(db)
@@ -740,6 +776,10 @@ export const INTERNAL_CALLERS: readonly string[] = []
           loot instanceof InMemoryLootGrantRepository
             ? loot
             : new InMemoryLootGrantRepository(reportsInMemory),
+          // HU-10 (Task HU-10.5): y la entrega de finalizacion, por la misma razon.
+          completionRewards instanceof InMemoryMissionCompletionRewardRepository
+            ? completionRewards
+            : new InMemoryMissionCompletionRewardRepository(reportsInMemory),
         )
       },
       inject: [
@@ -751,6 +791,7 @@ export const INTERNAL_CALLERS: readonly string[] = []
         MASTER_ENCOUNTER_REPOSITORY,
         EXPERIENCE_REWARD_REPOSITORY,
         LOOT_GRANT_REPOSITORY,
+        MISSION_COMPLETION_REWARD_REPOSITORY,
       ],
     },
     // El perfil del heroe sale de la misma consulta a Player/Inventory que sus habilidades.
@@ -1099,6 +1140,138 @@ export const INTERNAL_CALLERS: readonly string[] = []
           config.experienceRewardEnabled,
         ),
       inject: [APP_CONFIG, COORDINATE_EXPERIENCE_REWARD, LOGGER],
+    },
+    // --- HU-10 (Task HU-10.5): liquidacion de finalizacion de mision ---
+    {
+      provide: MISSION_COMPLETION_REWARD_REPOSITORY,
+      useFactory: (
+        config: AppConfig,
+        db: Kysely<Database> | null,
+        reports: ReportRepositoryPort,
+      ): MissionCompletionRewardRepositoryPort =>
+        usesPostgres(config, db)
+          ? new PostgresMissionCompletionRewardRepository(db)
+          : // En memoria, el avance de una entrega mueve ademas su linea del
+            // reporte, asi que los dos dobles comparten estado.
+            new InMemoryMissionCompletionRewardRepository(
+              reports instanceof InMemoryReportRepository ? reports : undefined,
+            ),
+      inject: [APP_CONFIG, DATABASE, REPORT_REPOSITORY],
+    },
+    {
+      provide: COMPLETION_EXPERIENCE_CREDITS,
+      useFactory: (
+        config: AppConfig,
+        clock: ClockPort,
+        logger: Logger,
+      ): CompletionExperienceCreditPort => {
+        if (config.missionCompletionRewardsDriver === IntegrationDriver.Memory) {
+          logger.warn('completion_experience_credits_in_memory', {
+            detail:
+              'MISSION_COMPLETION_REWARDS_DRIVER=memory: la XP de finalizacion no llega al heroe.',
+          })
+
+          return new InMemoryCompletionExperienceCredits()
+        }
+
+        if (config.playerInventoryBaseUrl === null || config.internalServiceAuthSecret === null) {
+          logger.warn('completion_experience_credits_not_configured', {
+            detail:
+              'Falta PLAYER_INVENTORY_BASE_URL o INTERNAL_SERVICE_AUTH_SECRET: no se acreditara.',
+          })
+
+          return unconfiguredCompletionCredits
+        }
+
+        return new PlayerInventoryCompletionExperienceClient({
+          baseUrl: config.playerInventoryBaseUrl,
+          secret: config.internalServiceAuthSecret,
+          clock,
+          timeoutMs: config.internalHttpTimeoutMs,
+          onFailure: (event, detail) => {
+            logger.warn(event, detail)
+          },
+        })
+      },
+      inject: [APP_CONFIG, CLOCK, LOGGER],
+    },
+    {
+      provide: WALLET_CREDITS,
+      useFactory: (config: AppConfig, clock: ClockPort, logger: Logger): WalletCreditPort => {
+        if (config.missionCompletionRewardsDriver === IntegrationDriver.Memory) {
+          logger.warn('wallet_credits_in_memory', {
+            detail: 'MISSION_COMPLETION_REWARDS_DRIVER=memory: los creditos no llegan a Wallet.',
+          })
+
+          return new InMemoryWalletCredits()
+        }
+
+        if (config.walletBaseUrl === null || config.internalServiceAuthSecret === null) {
+          logger.warn('wallet_credits_not_configured', {
+            detail: 'Falta WALLET_BASE_URL o INTERNAL_SERVICE_AUTH_SECRET: no se acreditara.',
+          })
+
+          return unconfiguredWalletCredits
+        }
+
+        return new WalletMissionRewardClient({
+          baseUrl: config.walletBaseUrl,
+          secret: config.internalServiceAuthSecret,
+          clock,
+          timeoutMs: config.internalHttpTimeoutMs,
+          onFailure: (event, detail) => {
+            logger.warn(event, detail)
+          },
+        })
+      },
+      inject: [APP_CONFIG, CLOCK, LOGGER],
+    },
+    // Mismo contrato de entregas de HU-59 y mismo cliente que la epica y el
+    // botin: EPIC_GRANTS_DRIVER gobierna tambien esta entrega.
+    { provide: COMPLETION_PRODUCT_GRANTS, useExisting: EPIC_GRANTS },
+    {
+      provide: COORDINATE_MISSION_COMPLETION_REWARD,
+      useFactory: (
+        deliveries: MissionCompletionRewardRepositoryPort,
+        xp: CompletionExperienceCreditPort,
+        wallet: WalletCreditPort,
+        products: CompletionProductGrantPort,
+        clock: ClockPort,
+        logger: Logger,
+      ): CoordinateMissionCompletionReward =>
+        new CoordinateMissionCompletionReward(deliveries, xp, wallet, products, clock, {
+          batchSize: 50,
+          onError: (enrollmentId, rewardKey, error) => {
+            logger.warn('mission_completion_reward_error', {
+              enrollmentId,
+              rewardKey,
+              detail: describeError(error),
+            })
+          },
+        }),
+      inject: [
+        MISSION_COMPLETION_REWARD_REPOSITORY,
+        COMPLETION_EXPERIENCE_CREDITS,
+        WALLET_CREDITS,
+        COMPLETION_PRODUCT_GRANTS,
+        CLOCK,
+        LOGGER,
+      ],
+    },
+    {
+      provide: MISSION_COMPLETION_REWARD_SCHEDULER,
+      useFactory: (
+        config: AppConfig,
+        rewards: CoordinateMissionCompletionReward,
+        logger: Logger,
+      ): MissionCompletionRewardScheduler =>
+        new MissionCompletionRewardScheduler(
+          rewards,
+          logger,
+          config.missionCompletionRewardIntervalMs,
+          config.missionCompletionRewardEnabled,
+        ),
+      inject: [APP_CONFIG, COORDINATE_MISSION_COMPLETION_REWARD, LOGGER],
     },
     // --- HU-74: reporte e historial ---
     {

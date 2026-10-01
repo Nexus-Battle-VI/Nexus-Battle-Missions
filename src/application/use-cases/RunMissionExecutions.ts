@@ -26,6 +26,8 @@ import {
 } from '../../domain/policies/MasterPolicy'
 import { lootRewardsOf } from '../../domain/policies/LootPolicy'
 import { lootOf, missionReportOf, type ReportInput } from '../../domain/policies/ReportPolicy'
+import { completionRewardsOf, frozenContentOf } from '../../domain/policies/CompletionRewardPolicy'
+import { completionRewardDeliveriesOf } from '../../domain/policies/CompletionRewardDeliveryPolicy'
 import {
   experienceReportLinesOf,
   experienceRewardsOf,
@@ -495,6 +497,33 @@ export class RunMissionExecutions {
       firstLineNo: epics.rewards.length + experienceReport.lines.length + 1,
       now,
     })
+    // HU-10 (Task HU-10.5, contrato §4.1 y §7): los derechos de finalizacion salen
+    // UNICAMENTE del snapshot congelado -- nunca de `definition`, que aqui puede
+    // ser el respaldo al catalogo vivo de HU-72 -- y sus lineas van AL FINAL,
+    // detras de HU-73, HU-09 y HU-72.
+    const completionRewards = completionRewardsOf({
+      content: frozenContentOf(execution.request),
+      difficulty: enrollment.difficulty,
+      outcome: settlement.outcome,
+      objectives: settlement.objectives.map((objective) => ({
+        id: objective.id,
+        met: objective.met,
+      })),
+    })
+    const completion = completionRewardDeliveriesOf({
+      enrollmentId: enrollment.enrollmentId,
+      playerId: enrollment.playerId,
+      heroId: enrollment.heroId,
+      missionId: enrollment.missionId,
+      simulationId: result.simulationId,
+      difficulty: enrollment.difficulty,
+      // `settlementOf` (llamado solo aqui, nunca en `voidMission`) no produce
+      // `VOIDED`: las dos unicas salidas posibles son las que liquida HU-10.4.
+      missionOutcome: settlement.outcome as 'COMPLETED' | 'FAILED',
+      entitlements: completionRewards.entitlements,
+      firstLineNo: epics.rewards.length + experienceReport.lines.length + loot.rewards.length + 1,
+      settledAt: now,
+    })
     const report = this.reportFor(
       {
         enrollment,
@@ -505,7 +534,7 @@ export class RunMissionExecutions {
         masters: epics.records,
         generatedAt: now,
       },
-      [...epics.rewards, ...experienceReport.lines, ...loot.rewards],
+      [...epics.rewards, ...experienceReport.lines, ...loot.rewards, ...completion.lines],
     )
     const closed = await this.executions.close({
       enrollment: closeEnrollment(enrollment, settlement.outcome, now),
@@ -529,6 +558,8 @@ export class RunMissionExecutions {
       experience: experienceReport.rewards,
       // P-J1: cada entrega apunta a su linea: sin reporte no hay a donde apuntar.
       loot: report === null ? [] : loot.records,
+      // HU-10 (Task HU-10.5): igual -- sin reporte no hay linea que reflejar.
+      completionRewards: report === null ? [] : completion.deliveries,
       report,
     })
 
@@ -583,6 +614,8 @@ export class RunMissionExecutions {
       experience: [],
       // P-J1: ni botin.
       loot: [],
+      // HU-10: ni liquidacion de finalizacion (ABANDONED/VOIDED no liquidan).
+      completionRewards: [],
       // HU-74 (P-T3): una anulacion aparece en el historial sin reporte.
       report: null,
     })

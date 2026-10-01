@@ -1,6 +1,7 @@
 import type { MasterEncounterRecord } from '../../domain/entities/MasterEncounterRecord'
 import type { ExperienceReward } from '../../domain/entities/ExperienceReward'
 import type { LootGrantRecord } from '../../domain/entities/LootGrantRecord'
+import type { MissionCompletionRewardDelivery } from '../../domain/entities/MissionCompletionRewardDelivery'
 import type { MissionDifficultyClear } from '../../domain/entities/MissionDifficultyClear'
 import type { MissionEnrollment, MissionFact } from '../../domain/entities/MissionEnrollment'
 import type { MissionExecution } from '../../domain/entities/MissionExecution'
@@ -45,6 +46,14 @@ export interface MissionClosure {
    * reporte o la mision se anulo.
    */
   readonly loot: readonly LootGrantRecord[]
+  /**
+   * HU-10 (Task HU-10.5, contrato §7): una entrega `PENDING` por cada derecho de
+   * `CompletionRewardPolicy` (HU-10.4), con su importe ya congelado desde el
+   * `contentSnapshot` de la matricula. Cada una apunta a su propia linea `HU-10`
+   * del reporte, asi que va vacia si no hay reporte (mision anulada) o si la
+   * politica no encontro ningun derecho liquidable.
+   */
+  readonly completionRewards: readonly MissionCompletionRewardDelivery[]
   /** HU-74 (P-T1): la foto nace con el cierre. Una anulacion no tiene reporte (P-T3). */
   readonly report: ReportRecord | null
 }

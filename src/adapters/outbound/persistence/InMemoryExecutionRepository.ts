@@ -9,6 +9,7 @@ import type { InMemoryEnrollmentRepository } from './InMemoryEnrollmentRepositor
 import { InMemoryExperienceRewardRepository } from './InMemoryExperienceRewardRepository'
 import { InMemoryLootGrantRepository } from './InMemoryLootGrantRepository'
 import { InMemoryMasterEncounterRepository } from './InMemoryMasterEncounterRepository'
+import { InMemoryMissionCompletionRewardRepository } from './InMemoryMissionCompletionRewardRepository'
 import type { InMemoryReportRepository } from './InMemoryReportRepository'
 
 const byTime = (date: Date | null): number => date?.getTime() ?? Number.MAX_SAFE_INTEGER
@@ -33,6 +34,10 @@ export class InMemoryExecutionRepository implements ExecutionRepositoryPort {
     private readonly experience: InMemoryExperienceRewardRepository = new InMemoryExperienceRewardRepository(),
     // P-J1: y las entregas del botin, que cambian la linea del mismo doble de reportes.
     private readonly loot: InMemoryLootGrantRepository = new InMemoryLootGrantRepository(reports),
+    // HU-10 (Task HU-10.5): y las entregas de finalizacion, por la misma razon.
+    private readonly completionRewards: InMemoryMissionCompletionRewardRepository = new InMemoryMissionCompletionRewardRepository(
+      reports,
+    ),
   ) {}
 
   pendingStarts(limit: number): Promise<readonly StartedMission[]> {
@@ -131,6 +136,8 @@ export class InMemoryExecutionRepository implements ExecutionRepositoryPort {
     this.experience.insert(closure.experience)
     // P-J1: la entrega pendiente de cada botin ganado.
     this.loot.recordNow(closure.loot)
+    // HU-10 (Task HU-10.5): una entrega PENDING por cada derecho liquidado.
+    this.completionRewards.insert(closure.completionRewards)
 
     return Promise.resolve(true)
   }

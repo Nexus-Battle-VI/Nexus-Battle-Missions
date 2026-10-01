@@ -87,8 +87,11 @@ describe('Contenido v2 en PostgreSQL (migracion 012, P-J9)', () => {
   })
 
   it('una base con el contenido v1 pasa al v2 sin perder lo enlazado ni lo editado', async () => {
+    // Antes de la 012, no solo sin ella: tambien sin ninguna migracion POSTERIOR
+    // (p. ej. la 013 de HU-10.5) -- de lo contrario quedaria ejecutada fuera de
+    // orden y el historial de Kysely se corrompe en el segundo `migrateToLatest`.
     const before012 = Object.fromEntries(
-      Object.entries(MIGRATIONS).filter(([name]) => name !== '012-content-v2'),
+      Object.entries(MIGRATIONS).filter(([name]) => name < '012-content-v2'),
     )
     expect((await migrateToLatest(db, before012)).error).toBeUndefined()
 
@@ -104,7 +107,11 @@ describe('Contenido v2 en PostgreSQL (migracion 012, P-J9)', () => {
     const outcome = await migrateToLatest(db)
 
     expect(outcome.error).toBeUndefined()
-    expect(outcome.applied).toEqual(['012-content-v2'])
+    // Tambien aplica cualquier migracion posterior a la 012 que exista hoy en el
+    // registro (p. ej. la 013 de HU-10.5): esta prueba no fija ese numero.
+    expect(outcome.applied).toEqual(
+      Object.keys(MIGRATIONS).filter((name) => name >= '012-content-v2'),
+    )
     const missions = await new PostgresMissionCatalog(db).listAll()
     expect(missions.map((mission) => mission.missionId)).toEqual([
       'msn_camino_templo',
