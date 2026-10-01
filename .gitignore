@@ -14,6 +14,8 @@ coverage-e2e/
 junit.xml
 # Reporte de ejecucion de la cadena E2E (se copia a la evidencia de Infrastructure).
 test/e2e/out/
+# Salida generada por la cadena HU-10; Infrastructure versiona la corrida real elegida.
+artifacts/
 
 # Entorno y secretos
 .env

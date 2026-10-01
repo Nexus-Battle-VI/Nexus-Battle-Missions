@@ -12,6 +12,10 @@ import type {
 } from '../../../domain/entities/MasterEncounterRecord'
 import type { ExperienceRewardStatus } from '../../../domain/entities/ExperienceReward'
 import type { LootGrantStatus } from '../../../domain/entities/LootGrantRecord'
+import type {
+  CompletionDeliveryKind,
+  CompletionDeliveryStatus,
+} from '../../../domain/entities/MissionCompletionRewardDelivery'
 import type { MissionDefinition } from '../../../domain/entities/MissionDefinition'
 import type {
   EnrollmentRejection,
@@ -59,6 +63,7 @@ export interface Database {
   readonly mission_experience_rewards: MissionExperienceRewardsTable
   readonly mission_achievement_unlocks: MissionAchievementUnlocksTable
   readonly mission_achievement_evaluations: MissionAchievementEvaluationsTable
+  readonly mission_completion_reward_deliveries: MissionCompletionRewardDeliveriesTable
 }
 
 /**
@@ -282,6 +287,37 @@ export interface MissionExperienceRewardsTable {
   readonly credited_at: Date | null
   /** La linea del reporte que refleja esta derrota (HU-09.5); `null` sin reporte. */
   readonly reward_line_no: number | null
+  readonly created_at: ColumnType<Date, Date | undefined, never>
+}
+
+/**
+ * Entregas de finalizacion de mision (HU-10, Task HU-10.5, migracion
+ * `013-mission-completion-reward-deliveries`). Las crea el cierre en su
+ * transaccion, `PENDING` y con su derecho ya congelado; despues solo avanza su
+ * estado. `amount` es de XP/creditos; `product_id`/`quantity`, de producto -- la
+ * migracion los deja mutuamente excluyentes con un `CHECK`.
+ */
+export interface MissionCompletionRewardDeliveriesTable {
+  readonly enrollment_id: ColumnType<string, string, never>
+  readonly reward_key: ColumnType<string, string, never>
+  readonly report_line_no: ColumnType<number, number, never>
+  readonly kind: ColumnType<CompletionDeliveryKind, CompletionDeliveryKind, never>
+  readonly player_id: ColumnType<string, string, never>
+  readonly hero_id: ColumnType<string, string, never>
+  readonly mission_id: ColumnType<string, string, never>
+  readonly simulation_id: ColumnType<string, string, never>
+  readonly difficulty: ColumnType<DifficultyLevel, DifficultyLevel, never>
+  readonly mission_outcome: ColumnType<'COMPLETED' | 'FAILED', 'COMPLETED' | 'FAILED', never>
+  readonly amount: number | null
+  readonly product_id: ColumnType<string | null, string | null, never>
+  readonly quantity: number | null
+  readonly operation_id: ColumnType<string, string, never>
+  readonly status: CompletionDeliveryStatus
+  readonly attempts: ColumnType<number, number | undefined, number>
+  readonly next_attempt_at: Date | null
+  readonly last_error: string | null
+  readonly credited_at: Date | null
+  readonly settled_at: ColumnType<Date, Date, never>
   readonly created_at: ColumnType<Date, Date | undefined, never>
 }
 

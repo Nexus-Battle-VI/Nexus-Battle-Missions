@@ -22,9 +22,11 @@ import {
   AppModule,
   DATABASE,
   EXPERIENCE_REWARD_SCHEDULER,
+  MISSION_COMPLETION_REWARD_SCHEDULER,
 } from '../../../src/infrastructure/bootstrap/app.module'
 import type { Database } from '../../../src/adapters/outbound/persistence/schema'
 import type { ExperienceRewardScheduler } from '../../../src/infrastructure/scheduling/ExperienceRewardScheduler'
+import type { MissionCompletionRewardScheduler } from '../../../src/infrastructure/scheduling/MissionCompletionRewardScheduler'
 
 /**
  * La app REAL de Missions para la cadena de HU-09 (Task HU-09.6).
@@ -53,6 +55,10 @@ export interface BootOptions {
   readonly databaseUrl: string
   readonly combatBaseUrl: string
   readonly playerInventoryBaseUrl: string
+  /** Solo HU-10: Wallet real para la liquidacion de finalizacion. */
+  readonly walletBaseUrl?: string
+  /** Activa los adaptadores HTTP de XP, Wallet y producto de HU-10. */
+  readonly completionRewards?: boolean
   readonly secret: string
   /** Sujeto del testimonio: es el `playerId` de todo el escenario. */
   readonly subject: string
@@ -67,6 +73,12 @@ export interface MissionsApp {
   run: () => Promise<ExecutionCycleSummary>
   /** Un ciclo del barrido de experiencia (HU-09). */
   tick: () => Promise<void>
+  /** Un ciclo del barrido de liquidacion de finalizacion (HU-10). */
+  completionTick: () => Promise<void>
+  /** Fases separadas para comprobar que el snapshot queda congelado antes del cierre. */
+  queue: () => Promise<ExecutionCycleSummary>
+  simulate: () => Promise<ExecutionCycleSummary>
+  closeDue: () => Promise<ExecutionCycleSummary>
   get: (path: string) => request.Test
   post: (path: string, body: object) => request.Test
   close: () => Promise<void>
@@ -83,8 +95,12 @@ const ENV_KEYS = [
   'COMBAT_SIMULATION_DRIVER',
   'EPIC_GRANTS_DRIVER',
   'EXPERIENCE_REWARDS_DRIVER',
+  'MISSION_COMPLETION_REWARDS_DRIVER',
+  'MISSION_COMPLETION_REWARD_ENABLED',
+  'MISSION_COMPLETION_REWARD_INTERVAL_MS',
   'COMBAT_BASE_URL',
   'PLAYER_INVENTORY_BASE_URL',
+  'WALLET_BASE_URL',
   'INTERNAL_SERVICE_AUTH_SECRET',
   'INTERNAL_HTTP_TIMEOUT_MS',
   'LOG_LEVEL',
@@ -100,6 +116,8 @@ export const useChainEnv = (options: Omit<BootOptions, 'subject' | 'overrides'>)
   for (const key of ENV_KEYS) {
     previousEnv[key] = process.env[key]
   }
+
+  const completionRewards = options.completionRewards === true
 
   Object.assign(process.env, {
     AUTH_MODE: 'jwt',
@@ -123,10 +141,16 @@ export const useChainEnv = (options: Omit<BootOptions, 'subject' | 'overrides'>)
     // NO se ha vuelto a medir con el perfil real: migrar `HERO_ABILITIES_DRIVER` y
     // esta linea a `http` y repetir la medicion es lo que cierra la sustitucion.
     COMBAT_SIMULATION_DRIVER: 'memory',
-    EPIC_GRANTS_DRIVER: 'memory',
+    EPIC_GRANTS_DRIVER: completionRewards ? 'http' : 'memory',
     EXPERIENCE_REWARDS_DRIVER: 'http',
+    MISSION_COMPLETION_REWARDS_DRIVER: completionRewards ? 'http' : 'memory',
+    MISSION_COMPLETION_REWARD_ENABLED: completionRewards ? 'true' : 'false',
+    // El test invoca el ciclo explicitamente; el intervalo alto evita que una
+    // carrera del reloj esconda la transicion PENDING que se quiere observar.
+    MISSION_COMPLETION_REWARD_INTERVAL_MS: '60000',
     COMBAT_BASE_URL: options.combatBaseUrl,
     PLAYER_INVENTORY_BASE_URL: options.playerInventoryBaseUrl,
+    WALLET_BASE_URL: completionRewards ? (options.walletBaseUrl ?? '') : '',
     INTERNAL_SERVICE_AUTH_SECRET: options.secret,
     INTERNAL_HTTP_TIMEOUT_MS: '5000',
     LOG_LEVEL: 'error',
@@ -211,6 +235,11 @@ export const bootMissions = async (options: BootOptions): Promise<MissionsApp> =
     db: app.get<Kysely<Database>>(DATABASE),
     run: () => app.get<RunMissionExecutions>(RUN_MISSION_EXECUTIONS).run(),
     tick: () => app.get<ExperienceRewardScheduler>(EXPERIENCE_REWARD_SCHEDULER).tick(),
+    completionTick: () =>
+      app.get<MissionCompletionRewardScheduler>(MISSION_COMPLETION_REWARD_SCHEDULER).tick(),
+    queue: () => app.get<RunMissionExecutions>(RUN_MISSION_EXECUTIONS).queueStarted(),
+    simulate: () => app.get<RunMissionExecutions>(RUN_MISSION_EXECUTIONS).simulateDue(),
+    closeDue: () => app.get<RunMissionExecutions>(RUN_MISSION_EXECUTIONS).closeDue(),
     get: (path: string) => request(server).get(path).set('Authorization', `Bearer ${CHAIN_TOKEN}`),
     post: (path: string, body: object) =>
       request(server).post(path).set('Authorization', `Bearer ${CHAIN_TOKEN}`).send(body),

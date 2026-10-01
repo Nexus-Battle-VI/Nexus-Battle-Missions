@@ -21,6 +21,7 @@ import * as missionAchievements from '../../adapters/outbound/persistence/migrat
 import * as playableMissions from '../../adapters/outbound/persistence/migrations/010-playable-missions'
 import * as missionLootGrants from '../../adapters/outbound/persistence/migrations/011-mission-loot-grants'
 import * as contentV2 from '../../adapters/outbound/persistence/migrations/012-content-v2'
+import * as missionCompletionRewardDeliveries from '../../adapters/outbound/persistence/migrations/013-mission-completion-reward-deliveries'
 import type { Database } from '../../adapters/outbound/persistence/schema'
 
 export interface DatabaseOptions {
@@ -93,7 +94,9 @@ export const createDatabase = (options: DatabaseOptions): Kysely<Database> => {
  * logros desbloqueados, sus reconocimientos y el punto de control de cada
  * jugador; `010-playable-missions`, la siembra de las dos misiones jugables; y
  * `011-mission-loot-grants` (diseno «misiones jugables», P-J1), la entrega del
- * botin del jefe y el origen `HU-72` de sus lineas.
+ * botin del jefe y el origen `HU-72` de sus lineas; y
+ * `013-mission-completion-reward-deliveries` (HU-10, Task HU-10.5), las entregas
+ * de XP/creditos/producto de la liquidacion de finalizacion y su barrido.
  */
 export const MIGRATIONS: Readonly<Record<string, Migration>> = {
   '001-mission-difficulty-clears': missionDifficultyClears,
@@ -108,6 +111,7 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = {
   '010-playable-missions': playableMissions,
   '011-mission-loot-grants': missionLootGrants,
   '012-content-v2': contentV2,
+  '013-mission-completion-reward-deliveries': missionCompletionRewardDeliveries,
 }
 
 export interface MigrationOutcome {

@@ -91,6 +91,17 @@ export interface AppConfig {
   /** HU-09: barrido de las recompensas no terminales. Apagado por defecto. */
   readonly experienceRewardEnabled: boolean
   readonly experienceRewardIntervalMs: number
+  /** Sin barra final. `null`: los creditos de mision no se piden y lo avisa el registro. */
+  readonly walletBaseUrl: string | null
+  /**
+   * HU-10 (Task HU-10.5): XP y creditos de finalizacion en Player/Inventory y
+   * Wallet. El producto NO tiene driver propio -- reutiliza `EPIC_GRANTS_DRIVER`,
+   * porque es el mismo cliente de `inventory/grants` que la epica y el botin.
+   */
+  readonly missionCompletionRewardsDriver: IntegrationDriver
+  /** HU-10: barrido de las entregas de finalizacion no terminales. Apagado por defecto. */
+  readonly missionCompletionRewardEnabled: boolean
+  readonly missionCompletionRewardIntervalMs: number
   /** Misiones (HU-70) y logros (HU-76) de ejemplo, solo con persistencia en memoria. */
   readonly exampleCatalog: boolean
 }
@@ -252,6 +263,7 @@ export const loadConfig = (env: RawEnv): AppConfig => {
   const combatSimulationDriver = readIntegrationDriver('COMBAT_SIMULATION_DRIVER')
   const epicGrantsDriver = readIntegrationDriver('EPIC_GRANTS_DRIVER')
   const experienceRewardsDriver = readIntegrationDriver('EXPERIENCE_REWARDS_DRIVER')
+  const missionCompletionRewardsDriver = readIntegrationDriver('MISSION_COMPLETION_REWARDS_DRIVER')
 
   const exampleCatalog = readBoolean(env, 'MISSIONS_EXAMPLE_CATALOG', false)
 
@@ -267,6 +279,7 @@ export const loadConfig = (env: RawEnv): AppConfig => {
     '',
   )
   const combatBaseUrl = readString(env, 'COMBAT_BASE_URL', '').replace(/\/+$/, '')
+  const walletBaseUrl = readString(env, 'WALLET_BASE_URL', '').replace(/\/+$/, '')
 
   return {
     nodeEnv,
@@ -325,6 +338,18 @@ export const loadConfig = (env: RawEnv): AppConfig => {
     experienceRewardIntervalMs: readInteger(
       env,
       'EXPERIENCE_REWARD_INTERVAL_MS',
+      15_000,
+      1_000,
+      3_600_000,
+    ),
+    // HU-10 (Task HU-10.5): liquidacion de finalizacion. `WALLET_BASE_URL` es la
+    // unica URL nueva -- Player/Inventory y el secreto se reutilizan de HU-72/HU-73.
+    walletBaseUrl: walletBaseUrl === '' ? null : walletBaseUrl,
+    missionCompletionRewardsDriver,
+    missionCompletionRewardEnabled: readBoolean(env, 'MISSION_COMPLETION_REWARD_ENABLED', false),
+    missionCompletionRewardIntervalMs: readInteger(
+      env,
+      'MISSION_COMPLETION_REWARD_INTERVAL_MS',
       15_000,
       1_000,
       3_600_000,

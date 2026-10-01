@@ -9,6 +9,7 @@ import type { MissionExecution } from '../../../domain/entities/MissionExecution
 import { insertLootGrants } from './PostgresLootGrantRepository'
 import { insertMasterEncounters } from './PostgresMasterEncounterRepository'
 import { insertExperienceRewards } from './PostgresExperienceRewardRepository'
+import { insertCompletionRewardDeliveries } from './PostgresMissionCompletionRewardRepository'
 import { insertReport } from './PostgresReportRepository'
 import type { Database, MissionExecutionsTable } from './schema'
 
@@ -251,6 +252,10 @@ export class PostgresExecutionRepository implements ExecutionRepositoryPort {
 
         // P-J1: la entrega de cada botin, despues del reporte al que apunta.
         await insertLootGrants(trx, closure.loot)
+
+        // HU-10 (Task HU-10.5): una entrega PENDING por cada derecho liquidado,
+        // tambien despues del reporte -- cada una apunta a su linea `HU-10`.
+        await insertCompletionRewardDeliveries(trx, closure.completionRewards)
       })
 
       return true
