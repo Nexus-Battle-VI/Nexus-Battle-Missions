@@ -26,7 +26,8 @@
     "test:coverage": "jest --coverage",
     "migrate": "node dist/infrastructure/persistence/migrate.js",
     "test:db": "jest --config jest.db.config.ts --coverage",
-    "test:e2e:chain": "jest --config jest.e2e.config.ts --coverage"
+    "test:e2e:chain": "jest --config jest.e2e.config.ts --coverage",
+    "test:e2e:hu10": "jest --config jest.e2e.config.ts --runInBand --testPathPatterns hu-10-settlement"
   },
   "dependencies": {
     "@nestjs/common": "11.2.1",

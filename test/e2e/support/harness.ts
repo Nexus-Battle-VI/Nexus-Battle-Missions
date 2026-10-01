@@ -103,8 +103,10 @@ export const isDirty = (dir: string, ignore: readonly string[] = []): boolean =>
  * Localiza un repositorio hermano. NO SE SALTA LA PRUEBA SI FALTA: una cadena que
  * no se ejecuta no demuestra nada, asi que el escenario falla con el motivo.
  */
-export const siblingDir = (envName: string, repository: string): string => {
-  const dir = path.resolve(process.env[envName] ?? path.join(REPO_ROOT, '..', repository))
+export const siblingDir = (envName: string, repository: string, localFallback?: string): string => {
+  const dir = path.resolve(
+    process.env[envName] ?? localFallback ?? path.join(REPO_ROOT, '..', repository),
+  )
 
   if (!existsSync(path.join(dir, 'package.json'))) {
     throw new Error(
@@ -258,14 +260,137 @@ export const startSibling = async (options: SiblingOptions): Promise<Sibling> =>
     }
 
     await new Promise<void>((resolve) => {
+      let forceStop: ReturnType<typeof setTimeout> | null = null
       running.once('exit', () => {
+        if (forceStop !== null) clearTimeout(forceStop)
         resolve()
       })
-      running.kill('SIGTERM')
-      setTimeout(() => {
+      forceStop = setTimeout(() => {
         running.kill('SIGKILL')
         resolve()
       }, 10_000)
+      forceStop.unref()
+      running.kill('SIGTERM')
+    })
+
+    child = null
+    up = false
+  }
+
+  return {
+    name: options.name,
+    dir: options.dir,
+    port,
+    baseUrl,
+    commit: commitOf(options.dir),
+    dirty: isDirty(options.dir),
+    isUp: () => up,
+    start,
+    stop,
+    logs: () => output,
+  }
+}
+
+export interface PostgresSiblingOptions {
+  readonly name: string
+  readonly dir: string
+  readonly databaseUrl: string
+  readonly extraEnv?: Readonly<Record<string, string>>
+}
+
+/**
+ * Variante para un hermano real cuya autoridad es PostgreSQL (Wallet en HU-10).
+ * Conserva la misma disciplina que `startSibling`: migracion explicita, puerto
+ * aislado y espera por salud; solo cambia el motor que se entrega al proceso.
+ */
+export const startPostgresSibling = async (options: PostgresSiblingOptions): Promise<Sibling> => {
+  const port = await freePort()
+  const baseUrl = `http://127.0.0.1:${String(port)}`
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    NODE_ENV: 'test',
+    PERSISTENCE_DRIVER: 'postgres',
+    DATABASE_URL: options.databaseUrl,
+    AUTH_MODE: 'disabled',
+    INTERNAL_SERVICE_AUTH_SECRET: INTERNAL_SECRET,
+    LOG_LEVEL: 'error',
+    SWAGGER_ENABLED: 'false',
+    PORT: String(port),
+    ...options.extraEnv,
+  }
+
+  if (
+    !existsSync(path.join(options.dir, 'dist', 'main.js')) ||
+    process.env.HU10_E2E_REBUILD === '1'
+  ) {
+    runNpm(options.dir, ['run', 'build'], env)
+  }
+
+  runNpm(options.dir, ['run', 'migrate'], env)
+
+  let child: ChildProcessByStdio<null, Readable, Readable> | null = null
+  let output = ''
+  let up = false
+
+  const collect = (chunk: Buffer): void => {
+    output += chunk.toString('utf8')
+  }
+
+  const start = async (): Promise<void> => {
+    if (up) return
+
+    output = ''
+    const spawned = spawn(process.execPath, ['dist/main.js'], {
+      cwd: options.dir,
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+
+    child = spawned
+    spawned.stdout.on('data', collect)
+    spawned.stderr.on('data', collect)
+    spawned.on('exit', () => {
+      up = false
+    })
+
+    try {
+      await waitForReady(baseUrl, 60_000)
+    } catch (error: unknown) {
+      const detail = output.split('\n').slice(-40).join('\n')
+
+      throw new Error(`${options.name} no arranco. Ultimas lineas de su salida:\n${detail}`, {
+        cause: error,
+      })
+    }
+
+    up = true
+  }
+
+  const stop = async (): Promise<void> => {
+    const running = child
+
+    if (running?.exitCode != null) {
+      up = false
+      child = null
+      return
+    }
+    if (running === null) {
+      up = false
+      return
+    }
+
+    await new Promise<void>((resolve) => {
+      let forceStop: ReturnType<typeof setTimeout> | null = null
+      running.once('exit', () => {
+        if (forceStop !== null) clearTimeout(forceStop)
+        resolve()
+      })
+      forceStop = setTimeout(() => {
+        running.kill('SIGKILL')
+        resolve()
+      }, 10_000)
+      forceStop.unref()
+      running.kill('SIGTERM')
     })
 
     child = null

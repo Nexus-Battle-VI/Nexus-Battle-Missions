@@ -322,6 +322,8 @@ export const makeRewardsDue = async (db: Kysely<Database>, enrollmentId: string)
 
 /** Deja la base de Player/Inventory como recien arrancada, entre escenarios. */
 export const clearPlayerInventory = async (databases: ChainDatabases): Promise<void> => {
+  await databases.playerInventory.collection('inventories').deleteMany({})
+  await databases.playerInventory.collection('inventory_grants').deleteMany({})
   await databases.playerInventory.collection('experience_grants').deleteMany({})
   await databases.playerInventory.collection('hero-progressions').deleteMany({})
 }
