@@ -58,10 +58,10 @@ const resultOf = (body: unknown, operationId: string): SimulationResult | null =
 }
 
 /**
- * Simulacion en Combat (HU-72, contrato hu-72-mission-simulation-v1).
- * **Propuesta para Team Alfa: la ruta todavia no existe.** Hasta que exista,
- * cada llamada es un resultado desconocido y la ejecucion se reintenta hasta su
- * plazo, en el que se anula (P-S7). No se inventa un resultado.
+ * Simulacion en Combat (HU-72, contrato hu-72-mission-simulation-v1). La ruta
+ * existe y este cliente conserva la politica de reintentos ante respuestas sin
+ * resultado: se reintenta hasta el plazo y entonces se anula (P-S7). Nunca se
+ * inventa un resultado.
  *
  * - `200` con el cuerpo del contrato: resultado. Uno que no cumple (sin resumen,
  *   con otro `operationId`...) es desconocido.
