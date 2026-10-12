@@ -31,7 +31,13 @@ Orden de validación del guardado, como fija el contrato: cuerpo (`400 VALIDATIO
 
 ## Lo que Missions NO hace
 
-La decisión de cada turno es de Combat (ADR-019 y ADR-021): qué rotación es viable por Poder, recarga y salud (CA-02), el ataque básico de respaldo sin consumir Poder (CA-03), el cursor de cada rotación y la anotación en la bitácora (propuestas P-R5 a P-R7). Missions guarda la estrategia, la valida y congela la copia que HU-72 enviará a Combat en el bloque `strategy` de la simulación.
+La decisión de cada turno es de Combat (ADR-019 y ADR-021). La prioridad es una
+regla estricta `HIGH -> MEDIUM -> LOW`: solo la primera rotación viable puede
+llegar a la política. Combat evalúa Poder, recarga, salud y capacidad ofensiva,
+mantiene los cursores y anota las omisiones. Si ninguna es viable, el ataque
+básico de CA-03 aplica únicamente a perfiles con Ataque y Daño; un CHAMÁN/MÉDICO
+de soporte puro cierra con `SYSTEM/END_TURN`, sin daño, Poder ni RNG ofensivo.
+Missions solo guarda, valida y congela la copia enviada en `strategy`.
 
 ## Habilidades del héroe en Player/Inventory
 
@@ -54,22 +60,28 @@ El guardado usa `insert ... on conflict do nothing` para la primera versión y `
 
 ## Lo que queda pendiente, y de qué depende
 
-| Pendiente                                                                     | Depende de                                                 |
-| ----------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Habilidades por `heroId` en Player/Inventory, y autorizar a `missions`        | Team Alfa (decisión 7 del diseño)                          |
-| Aplicar la estrategia en cada turno y anotarlo en la bitácora (CA-02 y CA-03) | Combat (Team Alfa); HU-72.2 ya le envía la copia congelada |
-| Editor de rotaciones en Web                                                   | HU-71.3                                                    |
-| Qué es el «estado de salud del héroe» en la viabilidad                        | Decisión del PO (decisión 5)                               |
-| Si la habilidad épica cabe en una rotación                                    | HU-31 y el PO (decisión 6)                                 |
-| Si la estrategia es por misión o reutilizable entre misiones                  | Decisión del PO (decisión 1)                               |
+| Pendiente                                                                     | Depende de                                                     |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Habilidades por `heroId` en Player/Inventory, y autorizar a `missions`        | Team Alfa (decisión 7 del diseño)                              |
+| Aplicar la estrategia en cada turno y anotarlo en la bitácora (CA-02 y CA-03) | Combat (Team Alfa); HU-72.2 ya le envía la copia congelada     |
+| Editor de rotaciones en Web                                                   | HU-71.3                                                        |
+| Estado de salud en la viabilidad                                              | Resuelto: curación viable con salud estrictamente menor a 90 % |
+| Si la habilidad épica cabe en una rotación                                    | HU-31 y el PO (decisión 6)                                     |
+| Si la estrategia es por misión o reutilizable entre misiones                  | Decisión del PO (decisión 1)                                   |
 
 ## Cómo integrarse
 
-- **Web (HU-71.3):** un `404 STRATEGY_NOT_FOUND` significa que aún no hay estrategia. Guarda con la `expectedVersion` que leyó; ante `409 VERSION_CONFLICT`, recarga antes de volver a guardar. Al matricularse envía la versión que muestra, y ante `409 STRATEGY_VERSION_MISMATCH` recarga la estrategia. Sin estrategia debe avisar de que la IA solo usará el ataque básico (P-R9).
-- **HU-72.2 (hecho):** `simulationRequestFor` arma el bloque `strategy` con `strategyVersion` y `rotations` de la matrícula, más `fallback: BASIC_ATTACK`. Si `rotations` está vacío, todas las acciones son el respaldo. Ver [hu-72-simulacion.md](hu-72-simulacion.md).
+- **Web (HU-71.3):** un `404 STRATEGY_NOT_FOUND` significa que aún no hay estrategia. Guarda con la `expectedVersion` que leyó; ante `409 VERSION_CONFLICT`, recarga antes de volver a guardar. Al matricularse envía la versión que muestra, y ante `409 STRATEGY_VERSION_MISMATCH` recarga la estrategia. Sin estrategia debe avisar del fallback: ataque básico para perfil ofensivo o `END_TURN` para soporte puro.
+- **HU-72.2 (hecho):** `simulationRequestFor` arma el bloque `strategy` con `strategyVersion` y `rotations` de la matrícula, más `fallback: BASIC_ATTACK`. El campo conserva el contrato v1; Combat decide si el perfil puede ejecutarlo. Ver [hu-72-simulacion.md](hu-72-simulacion.md).
 - **Migraciones:** esta es la `003`. HU-72 añadió la `004`.
 
 ## Pruebas
+
+La validación E2E de cierre de HU-71 cubre: guardar y reemplazar con versión
+optimista; aislamiento por jugador; rechazo de cuarta rotación sin mutación;
+habilidad desconocida/ajena; congelado de versión en la matrícula; y que editar
+después no altera una matrícula activa. Combat cubre por separado prioridad
+estricta, cursor, fallback ofensivo y `SYSTEM/END_TURN` para soporte puro.
 
 | Suite                                            | Qué demuestra                                                                                                                                                                |
 | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
