@@ -1,5 +1,25 @@
 # HU-72 — Ejecución de la simulación de misión (Missions)
 
+> Estado verificado el 2026-10-11: implementado. Missions conserva el ciclo
+> `QUEUED -> REQUESTED -> SIMULATED -> SETTLED`, el resultado sellado hasta
+> `endsAt`, la liquidación de objetivos y la liberación idempotente. Combat
+> integra ahora su selector productivo para héroe y enemigos; no se requirieron
+> cambios de código productivo ni de contrato en Missions para esa integración.
+
+## Evidencia E2E vigente
+
+`npm run test:e2e:hu72` levanta PostgreSQL y MongoDB reales, arranca Combat como
+proceso independiente y ejerce Missions -> HTTP/HMAC -> Combat. La prueba
+comprueba el resultado en ambas persistencias, la bitácora, la liquidación, la
+liberación idempotente y los `CombatDecisionEvent` con `origin=MISSION`; un
+segundo ciclo no duplica resultado ni telemetría.
+
+El escenario sustituye autenticación, compromiso y perfil del héroe mediante
+los puertos en memoria de Missions. Por ello demuestra la liberación una sola
+vez dentro de la orquestación, pero no presenta como acreditada la frontera HTTP
+real de compromiso/liberación con Player/Inventory. Esa frontera conserva su
+cobertura focalizada y queda pendiente de una cadena transversal sin dobles.
+
 - **Task:** HU-72.2 ([Management #374](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/374)).
 - **Historia:** [HU-72 #57](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/57) · EPIC-08 · RF-72.
 - **Contrato del que parte:** [hu-72-mission-simulation-v1](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/blob/develop/docs/contracts/hu-72-mission-simulation-v1.md) y el [diseño](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/blob/develop/docs/architecture/hu-72-simulacion-mision.md) de la Task HU-72.1 ([#373](https://github.com/Nexus-Battle-VI/Nexus-Battle-Management/issues/373)), en revisión en [Infrastructure #132](https://github.com/Nexus-Battle-VI/Nexus-Battle-Infrastructure/pull/132).
@@ -125,18 +145,18 @@ aprobados, por lo que no acreditan una simulación real.
 
 ## Lo que queda pendiente, y de qué depende
 
-| Pendiente                                                                  | Depende de                                                               |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Ruta de simulación, IA de rotaciones y enemigos, y combatientes con perfil | Combat (Team Alfa). Hasta entonces, CA-02 y CA-03 no se acreditan        |
-| Perfil de combate del héroe por `heroId`                                   | Player/Inventory (Team Alfa, decisión 10)                                |
-| Abandonar una misión (`ABANDONED`) y su penalización                       | Decisión del PO (decisión 3); no hay contrato de cancelación             |
-| Aprobar `VOIDED`, `TIME_LIMIT` y `OBJECTIVES_NOT_MET`                      | Decisión del PO (decisiones 2 y 4)                                       |
-| Perfiles de los enemigos regulares y escalado por encuentro (`powerStep`)  | Contenido de las misiones (decisiones 7 y 8)                             |
-| Tirada, encuentro y estadísticas del Máster                                | Combat (Team Alfa); Missions ya envía el bloque `master` (HU-73.2)       |
-| Recompensas y aviso de fin de misión                                       | HU-10 y Notifications, a partir de `MissionSettled`                      |
-| Renovar el compromiso si Combat tarda más que el margen                    | Player/Inventory (decisión 11)                                           |
-| Esquema del perfil de combate del héroe; hoy se congela el cuerpo entero   | Player/Inventory y Combat (Team Alfa, decisión 10)                       |
-| Que abandonar (u otro cierre futuro) cierre también la ejecución           | La HU de cancelación; hoy solo HU-72 saca una matrícula de `IN_PROGRESS` |
+| Pendiente                                                                        | Depende de                                                                                                                          |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Perfiles completos de NPC para equivalencia total con la tabla de efectos Online | Contenido/Catalog. Combat ya ejecuta la ruta, las rotaciones y las decisiones ofensivas de enemigos mediante su selector productivo |
+| Perfil de combate del héroe por `heroId`                                         | Player/Inventory (Team Alfa, decisión 10)                                                                                           |
+| Abandonar una misión (`ABANDONED`) y su penalización                             | Decisión del PO (decisión 3); no hay contrato de cancelación                                                                        |
+| Aprobar `VOIDED`, `TIME_LIMIT` y `OBJECTIVES_NOT_MET`                            | Decisión del PO (decisiones 2 y 4)                                                                                                  |
+| Perfiles de los enemigos regulares y escalado por encuentro (`powerStep`)        | Contenido de las misiones (decisiones 7 y 8)                                                                                        |
+| Ampliar el contrato de NPC con subtipo/equipamiento, si el PO lo aprueba         | Contenido/Catalog; no se fabrican esos datos para forzar un `BattleRoom`                                                            |
+| Recompensas y aviso de fin de misión                                             | HU-10 y Notifications, a partir de `MissionSettled`                                                                                 |
+| Renovar el compromiso si Combat tarda más que el margen                          | Player/Inventory (decisión 11)                                                                                                      |
+| Esquema del perfil de combate del héroe; hoy se congela el cuerpo entero         | Player/Inventory y Combat (Team Alfa, decisión 10)                                                                                  |
+| Que abandonar (u otro cierre futuro) cierre también la ejecución                 | La HU de cancelación; hoy solo HU-72 saca una matrícula de `IN_PROGRESS`                                                            |
 
 ## Cómo integrarse
 

@@ -66,7 +66,7 @@ Ningún otro servicio accede a este almacén, ni directamente ni con claves for�
 
 ## Integraciones previstas
 
-- **Combat** (síncrono, `operationId`): ejecutar la simulación con semilla, combatientes y rotaciones (HU-72, ruta propuesta `POST /api/internal/v1/combat/simulations`). Toda la aleatoriedad ocurre allí.
+- **Combat** (síncrono, `operationId`): ejecuta la simulación con semilla, combatientes y rotaciones (HU-72, ruta implementada `POST /api/internal/v1/combat/simulations`). Toda la aleatoriedad ocurre allí.
 - **Player/Inventory** (síncrono, `operationId`): perfil de combate del héroe, compromiso `MISSION`, recompensas en ítems.
 - **Wallet** (síncrono, `operationId`): recompensas en créditos.
 - **Notifications** (ingesta HTTP): fin de misión y logros.
