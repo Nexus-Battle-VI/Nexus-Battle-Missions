@@ -20,8 +20,18 @@ export interface EnrollmentRepositoryPort {
 
   findByIdempotencyKey(playerId: string, idempotencyKey: string): Promise<MissionEnrollment | null>
 
-  /** Matricula activa (`PENDING` o `IN_PROGRESS`) del heroe, en cualquier mision. */
-  findActiveByHero(heroId: string): Promise<MissionEnrollment | null>
+  /**
+   * Matricula activa (`PENDING` o `IN_PROGRESS`) del heroe de ESE jugador, en
+   * cualquier mision. `heroId` es el `productId` canonico del heroe en
+   * Catalog -compartido por TODOS los jugadores que poseen ese tipo de
+   * heroe, no un id de instancia por cuenta (Player-Inventory modela la
+   * posesion como pila fungible, no instancias unicas)-, asi que sin
+   * `playerId` esta consulta confundiria "mi Picaro Veneno esta en mision"
+   * con "el Picaro Veneno de CUALQUIERA esta en mision". Mismo criterio que
+   * ya usan el candado de batalla y el de equipamiento en Player-Inventory
+   * (`{playerId, heroId}`, nunca `heroId` solo).
+   */
+  findActiveByHero(playerId: string, heroId: string): Promise<MissionEnrollment | null>
 
   /** Matricula activa del jugador en esa mision. */
   findActiveByPlayerAndMission(
