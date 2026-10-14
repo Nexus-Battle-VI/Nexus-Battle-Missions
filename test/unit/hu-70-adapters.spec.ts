@@ -83,7 +83,35 @@ describe('InMemoryEnrollmentRepository (HU-70)', () => {
     await expect(
       repository.insertPending(enrollment({ enrollmentId: 'enr_2', idempotencyKey: 'key-2' })),
     ).resolves.toEqual({ kind: 'INSERTED' })
-    await expect(repository.findActiveByHero(HERO)).resolves.toMatchObject({
+    await expect(repository.findActiveByHero('sub-1', HERO)).resolves.toMatchObject({
+      enrollmentId: 'enr_2',
+    })
+  })
+
+  /**
+   * El bug real reportado: `heroId` es el `productId` canonico de Catalog,
+   * compartido por todos los jugadores que poseen ese tipo de heroe -no una
+   * instancia por cuenta-, asi que el candado debe incluir `playerId`. Antes
+   * de este fix, el jugador A matriculando su Picaro Veneno le impedia al
+   * jugador B matricular EL SUYO.
+   */
+  it('dos jugadores distintos pueden matricular el mismo tipo de heroe a la vez', async () => {
+    const repository = new InMemoryEnrollmentRepository()
+    await repository.insertPending(enrollment())
+
+    await expect(
+      repository.insertPending(
+        enrollment({
+          enrollmentId: 'enr_2',
+          playerId: 'sub-2',
+          idempotencyKey: 'key-2',
+        }),
+      ),
+    ).resolves.toEqual({ kind: 'INSERTED' })
+    await expect(repository.findActiveByHero('sub-1', HERO)).resolves.toMatchObject({
+      enrollmentId: 'enr_1',
+    })
+    await expect(repository.findActiveByHero('sub-2', HERO)).resolves.toMatchObject({
       enrollmentId: 'enr_2',
     })
   })

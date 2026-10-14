@@ -202,7 +202,11 @@ describe('Matrículas en PostgreSQL (HU-70)', () => {
           }),
         ),
       ).resolves.toEqual({ kind: 'CONFLICT', reason: 'IDEMPOTENCY_KEY' })
-      await expect(repository.insertPending(pending({ heroId: first.heroId }))).resolves.toEqual({
+      await expect(
+        repository.insertPending(
+          pending({ playerId: first.playerId, heroId: first.heroId, missionId: CAMARA }),
+        ),
+      ).resolves.toEqual({
         kind: 'CONFLICT',
         reason: 'HERO_ACTIVE',
       })
@@ -226,13 +230,18 @@ describe('Matrículas en PostgreSQL (HU-70)', () => {
       ).rejects.toThrow(/foreign key/)
     })
 
-    it('tres matriculas simultaneas del mismo heroe dejan una sola activa (CA-02)', async () => {
+    it('tres matriculas simultaneas del mismo heroe del mismo jugador dejan una sola activa (CA-02)', async () => {
+      // `missionId` distinto en cada una: el heroe queda ocupado para ESE
+      // jugador en cualquier mision, pero esta prueba aisla el indice del
+      // heroe (`mission_enrollments_heroe_activo_por_jugador`) sin que la
+      // carrera tambien viole `mission_enrollments_jugador_mision_activa`.
+      const playerId = `pg-heroe-${randomUUID()}`
       const heroId = randomUUID()
 
       const results = await Promise.all([
-        repository.insertPending(pending({ heroId })),
-        repository.insertPending(pending({ heroId })),
-        repository.insertPending(pending({ heroId })),
+        repository.insertPending(pending({ playerId, heroId, missionId: TEMPLO })),
+        repository.insertPending(pending({ playerId, heroId, missionId: CAMARA })),
+        repository.insertPending(pending({ playerId, heroId, missionId: RETIRED.missionId })),
       ])
 
       expect(results.filter((result) => result.kind === 'INSERTED')).toHaveLength(1)
@@ -240,6 +249,26 @@ describe('Matrículas en PostgreSQL (HU-70)', () => {
         { kind: 'CONFLICT', reason: 'HERO_ACTIVE' },
         { kind: 'CONFLICT', reason: 'HERO_ACTIVE' },
       ])
+    })
+
+    /**
+     * El bug real reportado: `hero_id` es el `productId` canonico de Catalog,
+     * compartido por TODOS los jugadores que poseen ese tipo de heroe (Picaro
+     * Veneno, por ejemplo) -no una instancia por cuenta-. Antes de la
+     * migracion 014 el indice unico era sobre `hero_id` solo, asi que el
+     * jugador A matriculando su Picaro Veneno le impedia al jugador B
+     * matricular EL SUYO. Verifica que dos jugadores DISTINTOS con el mismo
+     * `heroId` pueden matricularse a la vez, cada uno en su propia mision.
+     */
+    it('dos jugadores distintos pueden matricular el mismo tipo de heroe a la vez', async () => {
+      const heroId = randomUUID()
+
+      const results = await Promise.all([
+        repository.insertPending(pending({ heroId, missionId: TEMPLO })),
+        repository.insertPending(pending({ heroId, missionId: CAMARA })),
+      ])
+
+      expect(results).toEqual([{ kind: 'INSERTED' }, { kind: 'INSERTED' }])
     })
 
     it('dos matriculas simultaneas del jugador en la misma mision dejan una sola (P-M2)', async () => {
@@ -348,14 +377,18 @@ describe('Matrículas en PostgreSQL (HU-70)', () => {
     it('una matricula terminada deja de ocupar al heroe y la mision', async () => {
       const enrollment = pending()
       await repository.insertPending(enrollment)
-      await expect(repository.findActiveByHero(enrollment.heroId)).resolves.toEqual(enrollment)
+      await expect(
+        repository.findActiveByHero(enrollment.playerId, enrollment.heroId),
+      ).resolves.toEqual(enrollment)
       await expect(
         repository.findActiveByPlayerAndMission(enrollment.playerId, TEMPLO),
       ).resolves.toEqual(enrollment)
 
       await repository.saveTransition(expireEnrollment(enrollment, AT), 0, null)
 
-      await expect(repository.findActiveByHero(enrollment.heroId)).resolves.toBeNull()
+      await expect(
+        repository.findActiveByHero(enrollment.playerId, enrollment.heroId),
+      ).resolves.toBeNull()
       await expect(
         repository.findActiveByPlayerAndMission(enrollment.playerId, TEMPLO),
       ).resolves.toBeNull()

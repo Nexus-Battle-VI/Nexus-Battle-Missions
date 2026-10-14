@@ -240,7 +240,7 @@ export class EnrollInMission {
 
     assertMissionNotInProgress(command.missionId, activeInMission)
 
-    const activeHero = await this.enrollments.findActiveByHero(command.heroId)
+    const activeHero = await this.enrollments.findActiveByHero(command.playerId, command.heroId)
 
     if (activeHero !== null && isSameRequest(activeHero, command)) {
       return this.replay(activeHero, fingerprint)
