@@ -95,10 +95,13 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepositoryPort {
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await
-  async findActiveByHero(heroId: string): Promise<MissionEnrollment | null> {
+  async findActiveByHero(playerId: string, heroId: string): Promise<MissionEnrollment | null> {
     return (
       this.all().find(
-        (enrollment) => enrollment.heroId === heroId && isActiveEnrollment(enrollment.status),
+        (enrollment) =>
+          enrollment.playerId === playerId &&
+          enrollment.heroId === heroId &&
+          isActiveEnrollment(enrollment.status),
       ) ?? null
     )
   }
@@ -139,7 +142,11 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepositoryPort {
 
     const active = all.filter((other) => isActiveEnrollment(other.status))
 
-    if (active.some((other) => other.heroId === enrollment.heroId)) {
+    if (
+      active.some(
+        (other) => other.playerId === enrollment.playerId && other.heroId === enrollment.heroId,
+      )
+    ) {
       return { kind: 'CONFLICT', reason: 'HERO_ACTIVE' }
     }
 

@@ -11,11 +11,13 @@ import {
 } from '../../../domain/entities/MissionEnrollment'
 import type { Database, MissionEnrollmentsTable } from './schema'
 
-/** Restricciones unicas de la migracion 002 y el conflicto que significa cada una. */
+/** Restricciones unicas de las migraciones 002/014 y el conflicto que significa cada una. */
 const CONFLICT_BY_CONSTRAINT: Readonly<
   Record<string, 'HERO_ACTIVE' | 'PLAYER_MISSION_ACTIVE' | 'IDEMPOTENCY_KEY'>
 > = {
-  mission_enrollments_heroe_activo: 'HERO_ACTIVE',
+  // Reemplazado por la migracion 014: el heroe queda ocupado solo para SU
+  // jugador, no para cualquiera que posea el mismo tipo de heroe.
+  mission_enrollments_heroe_activo_por_jugador: 'HERO_ACTIVE',
   mission_enrollments_jugador_mision_activa: 'PLAYER_MISSION_ACTIVE',
   mission_enrollments_clave_idempotencia: 'IDEMPOTENCY_KEY',
 }
@@ -86,10 +88,11 @@ export class PostgresEnrollmentRepository implements EnrollmentRepositoryPort {
     return row === undefined ? null : toEnrollment(row)
   }
 
-  async findActiveByHero(heroId: string): Promise<MissionEnrollment | null> {
+  async findActiveByHero(playerId: string, heroId: string): Promise<MissionEnrollment | null> {
     const row = await this.db
       .selectFrom('mission_enrollments')
       .selectAll()
+      .where('player_id', '=', playerId)
       .where('hero_id', '=', heroId)
       .where('status', 'in', ACTIVE_ENROLLMENT_STATUSES)
       .executeTakeFirst()

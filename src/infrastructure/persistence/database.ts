@@ -22,6 +22,7 @@ import * as playableMissions from '../../adapters/outbound/persistence/migration
 import * as missionLootGrants from '../../adapters/outbound/persistence/migrations/011-mission-loot-grants'
 import * as contentV2 from '../../adapters/outbound/persistence/migrations/012-content-v2'
 import * as missionCompletionRewardDeliveries from '../../adapters/outbound/persistence/migrations/013-mission-completion-reward-deliveries'
+import * as heroLockScopedByPlayer from '../../adapters/outbound/persistence/migrations/014-hero-lock-scoped-by-player'
 import type { Database } from '../../adapters/outbound/persistence/schema'
 
 export interface DatabaseOptions {
@@ -96,7 +97,11 @@ export const createDatabase = (options: DatabaseOptions): Kysely<Database> => {
  * `011-mission-loot-grants` (diseno «misiones jugables», P-J1), la entrega del
  * botin del jefe y el origen `HU-72` de sus lineas; y
  * `013-mission-completion-reward-deliveries` (HU-10, Task HU-10.5), las entregas
- * de XP/creditos/producto de la liquidacion de finalizacion y su barrido.
+ * de XP/creditos/producto de la liquidacion de finalizacion y su barrido; y
+ * `014-hero-lock-scoped-by-player` (hallazgo del cliente 2026-10-13), corrige el
+ * candado de heroe de `002-mission-enrollments` para que sea por `(player_id,
+ * hero_id)` y no por `hero_id` solo -`hero_id` es el `productId` de Catalog,
+ * compartido por todos los jugadores que poseen ese tipo de heroe-.
  */
 export const MIGRATIONS: Readonly<Record<string, Migration>> = {
   '001-mission-difficulty-clears': missionDifficultyClears,
@@ -112,6 +117,7 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = {
   '011-mission-loot-grants': missionLootGrants,
   '012-content-v2': contentV2,
   '013-mission-completion-reward-deliveries': missionCompletionRewardDeliveries,
+  '014-hero-lock-scoped-by-player': heroLockScopedByPlayer,
 }
 
 export interface MigrationOutcome {
